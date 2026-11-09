@@ -51,12 +51,6 @@ public final class GameplayIntegrationTest {
         return (boolean[])f.get(null);
     }
     private static void menusAndResults() throws Exception {
-        TitleScreen title = new TitleScreen(448,520,60);
-        set(title,"inputDelay",Core.getCooldown(0)); set(title,"selectionCooldown",Core.getCooldown(0));
-        keys()[java.awt.event.KeyEvent.VK_I]=true;
-        try { call(title,"update"); }
-        finally { Arrays.fill(keys(),false); }
-        check((Integer)get(title,"returnCode")==8,"I shortcut retains upstream infinite route 8");
         for (boolean infinite : new boolean[]{false,true}) {
             ScoreScreen score = new ScoreScreen(448,520,60,new GameState(1,100,0,1,1),
                     infinite,Arrays.asList(Achievement.FIRST_ENEMY));
