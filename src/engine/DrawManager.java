@@ -2092,7 +2092,23 @@ public final class DrawManager {
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Game Mode", screen.getHeight() / 3);
+        drawCenteredBigString(screen, "Select Mode", screen.getHeight() / 3);
+
+        backBufferGraphics.setFont(fontRegular);
+        for (int i = 0; i < labels.length; i++) {
+            backBufferGraphics.setColor(i == option ? Color.GREEN : Color.WHITE);
+            drawCenteredRegularString(screen, labels[i],
+                    screen.getHeight() / 3 + 60 + i * 40);
+        }
+    }
+
+    // 2P 선택 화면을 위한 메인 메서드 추가
+    public void drawPlayerSelectMenu(final Screen screen, final int option) {
+        String[] labels = { "1 Player", "2 Players (Co-op)", "Back" };
+
+        backBufferGraphics.setFont(fontBig);
+        backBufferGraphics.setColor(Color.GREEN);
+        drawCenteredBigString(screen, "Select Players", screen.getHeight() / 3);
 
         backBufferGraphics.setFont(fontRegular);
         for (int i = 0; i < labels.length; i++) {

@@ -13,10 +13,18 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
     private int selected;
     private Cooldown selectionCooldown;
 
+    // 2인 모드 처리를 위한 추가 필드
+    private int menuStep; // 0: 모드 선택 단계, 1: 인원 선택 단계
+    private int selectedMode; // 0: Endless, 1: Campaign
+    private boolean is2P; // 2인용 여부 저장 플래그
+
     public GameModeScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
-        this.selected = 0; // Se positionne par défaut sur le premier mode
-        this.returnCode = 1; // Par défaut : retour au menu principal
+        this.selected = 0;
+        this.returnCode = 1;
+        this.menuStep = 0; // 시작은 모드 선택 단계
+        this.selectedMode = 0;
+        this.is2P = false;
         this.selectionCooldown = Core.getCooldown(SELECTION_TIME);
         this.selectionCooldown.reset();
     }
@@ -48,24 +56,50 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
             }
 
             if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
-                if (this.selected == 2) {
-                    this.returnCode = 1;
-                } else if (this.selected == 0) {
-                    this.returnCode = 8;
-                } else if (this.selected == 1) {
-                    this.returnCode = 2;
+                if (this.menuStep == 0) {
+                    // [1단계] 모드 선택 처리
+                    if (this.selected == 2) { // Back
+                        this.returnCode = 1;
+                        this.isRunning = false;
+                        AudioManager.playSFX("audio/sfx/menu_back.wav");
+                    } else { // Endless(0) 또는 Campaign(1) 선택 시 2단계(인원 선택)로 전진
+                        this.selectedMode = this.selected;
+                        this.menuStep = 1;
+                        this.selected = 0; // 커서 위치 초기화
+                        this.selectionCooldown.reset();
+                        AudioManager.playSFX("audio/sfx/menu_select.wav");
+                    }
+                } else if (this.menuStep == 1) {
+                    // [2단계] 인원 선택 처리
+                    if (this.selected == 2) { // Back 선택 시 다시 1단계(모드 선택)로 복귀
+                        this.menuStep = 0;
+                        this.selected = this.selectedMode;
+                        this.selectionCooldown.reset();
+                        AudioManager.playSFX("audio/sfx/menu_back.wav");
+                    } else {
+                        // 1P(0) 또는 2P(1) 최종 확정
+                        this.is2P = (this.selected == 1);
+
+                        // 기존 returnCode 유지 (Endless: 8, Campaign: 2)
+                        this.returnCode = (this.selectedMode == 0) ? 8 : 2;
+                        this.isRunning = false;
+                        AudioManager.playSFX("audio/sfx/menu_select.wav");
+                    }
                 }
-                this.isRunning = false;
-                if(this.returnCode==1)
-                    AudioManager.playSFX("audio/sfx/menu_back.wav");
-                else
-                    AudioManager.playSFX("audio/sfx/menu_select.wav");
             }
 
+            // ESC 처리 (뒤로가기)
             if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
-                this.returnCode = 1;
-                this.isRunning = false;
-                AudioManager.playSFX("audio/sfx/menu_back.wav");
+                if (this.menuStep == 1) {
+                    this.menuStep = 0; // 2단계에서는 1단계로 복귀
+                    this.selected = this.selectedMode;
+                    this.selectionCooldown.reset();
+                    AudioManager.playSFX("audio/sfx/menu_back.wav");
+                } else {
+                    this.returnCode = 1; // 1단계에서는 메인 메뉴로 복귀
+                    this.isRunning = false;
+                    AudioManager.playSFX("audio/sfx/menu_back.wav");
+                }
             }
         }
     }
@@ -76,7 +110,11 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
 
     private void draw() {
         drawManager.initDrawing(this);
-        drawManager.drawGameModeMenu(this, this.selected);
+        if (this.menuStep == 0) {
+            drawManager.drawGameModeMenu(this, this.selected);
+        } else {
+            drawManager.drawPlayerSelectMenu(this, this.selected);
+        }
         drawManager.completeDrawing(this);
     }
 }
