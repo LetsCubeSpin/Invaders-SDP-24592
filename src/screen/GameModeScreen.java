@@ -62,7 +62,7 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
                     AudioManager.playSFX("audio/sfx/menu_select.wav");
             }
 
-            if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+            if (inputManager.isBackDown()) {
                 this.returnCode = 1;
                 this.isRunning = false;
                 AudioManager.playSFX("audio/sfx/menu_back.wav");

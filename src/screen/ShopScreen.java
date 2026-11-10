@@ -98,7 +98,7 @@ public class ShopScreen extends Screen {
         boolean left = inputManager.isKeyDown(KeyEvent.VK_LEFT) || inputManager.isKeyDown(KeyEvent.VK_A);
         boolean right = inputManager.isKeyDown(KeyEvent.VK_RIGHT) || inputManager.isKeyDown(KeyEvent.VK_D);
         boolean confirm = inputManager.isKeyDown(KeyEvent.VK_SPACE) || inputManager.isKeyDown(KeyEvent.VK_ENTER);
-        boolean back = inputManager.isKeyDown(KeyEvent.VK_ESCAPE);
+        boolean back = inputManager.isBackDown();
         boolean retry = inputManager.isKeyDown(KeyEvent.VK_R);
         boolean moveUp = up && !upHeld;
         boolean moveDown = down && !downHeld;

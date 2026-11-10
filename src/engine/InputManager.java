@@ -30,6 +30,9 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 	/** Left mouse button state. */
 	private volatile boolean mousePressed = false;
 
+	/** Right mouse button state. Used as a "go back" input like Esc. */
+	private volatile boolean rightMousePressed = false;
+
 	/**
 	 * Private constructor.
 	 */
@@ -120,10 +123,25 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 		return mousePressed;
 	}
 
+	public boolean isRightMousePressed() {
+		return rightMousePressed;
+	}
+
+	/**
+	 * Returns true if a "go back" input is held: Esc or the right mouse button.
+	 *
+	 * @return Back input state.
+	 */
+	public boolean isBackDown() {
+		return keys[KeyEvent.VK_ESCAPE] || rightMousePressed;
+	}
+
 	@Override
 	public void mousePressed(MouseEvent e) {
 		if (e.getButton() == MouseEvent.BUTTON1) {
 			mousePressed = true;
+		} else if (e.getButton() == MouseEvent.BUTTON3) {
+			rightMousePressed = true;
 		}
 	}
 
@@ -131,6 +149,8 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 	public void mouseReleased(MouseEvent e) {
 		if (e.getButton() == MouseEvent.BUTTON1) {
 			mousePressed = false;
+		} else if (e.getButton() == MouseEvent.BUTTON3) {
+			rightMousePressed = false;
 		}
 	}
 

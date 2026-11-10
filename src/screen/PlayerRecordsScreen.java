@@ -32,7 +32,7 @@ public final class PlayerRecordsScreen extends Screen {
         if (!this.inputDelay.checkFinished()
                 || System.currentTimeMillis() < this.nextInputAt)
             return;
-        if (this.inputManager.isKeyDown(KeyEvent.VK_ESCAPE)
+        if (this.inputManager.isBackDown()
                 || this.inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 1;
