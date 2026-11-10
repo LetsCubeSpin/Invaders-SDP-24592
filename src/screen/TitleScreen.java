@@ -106,12 +106,6 @@ public class TitleScreen extends Screen {
                 AudioManager.playSFX("audio/sfx/menu_select.wav");
                 this.isRunning = false;
             }
-            // Shortcut to the infinite mode, until it gets a menu entry.
-            if (inputManager.isKeyDown(KeyEvent.VK_I)) {
-                AudioManager.playSFX("audio/sfx/menu_select.wav");
-                this.returnCode = 8;
-                this.isRunning = false;
-            }
         }
     }
 
