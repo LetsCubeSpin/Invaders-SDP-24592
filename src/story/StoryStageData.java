@@ -4,6 +4,11 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import engine.GameSettings;
+import entity.EnemyType;
+
+import static entity.EnemyType.A;
+import static entity.EnemyType.B;
+import static entity.EnemyType.C;
 
 /**
  * Stage settings of story mode.
@@ -19,25 +24,26 @@ public final class StoryStageData {
 
     /** Stage 1: Swarm scouts. */
     private static final StoryStage STAGE_ONE = new StoryStage(
-            new GameSettings(5, 4, 60, 2000, 20, 100), "AAAA", 1, false, 1.0);
+            new GameSettings(5, 4, 60, 2000, 20, 100),
+            new EnemyType[] {A, A, A, A}, 1, false, 1.0);
 
     /** Stages 2 and 3, by first answer (0: assault, 1: rescue). */
     private static final StoryStage[][] FIRST_BRANCH = {
         {
             // 1.1 Assault: open space, mostly B.
             new StoryStage(new GameSettings(5, 5, 50, 2500, 60, 100),
-                    "BBBAA", 1, false, 1.0),
+                    new EnemyType[] {B, B, B, A, A}, 1, false, 1.0),
             // Stage 3 boss: ARGUS.
             new StoryStage(new GameSettings(6, 5, 40, 1500, 40, 120),
-                    "CBBAA", 1, false, 1.0)
+                    new EnemyType[] {C, B, B, A, A}, 1, false, 1.0)
         },
         {
             // 1.2 Rescue: asteroid field around the moon.
             new StoryStage(new GameSettings(5, 5, 50, 2500, 60, 100),
-                    "BAAAA", 1, true, 1.0),
+                    new EnemyType[] {B, A, A, A, A}, 1, true, 1.0),
             // Stage 3 boss: NOX.
             new StoryStage(new GameSettings(6, 5, 40, 1500, 40, 120),
-                    "CBBAA", 1, false, 1.0)
+                    new EnemyType[] {C, B, B, A, A}, 1, false, 1.0)
         }
     };
 
@@ -49,48 +55,48 @@ public final class StoryStageData {
         // 1.1.1 Absorb the core: mostly C, fast enemies.
         ROUTE_STAGES.put(StoryRoute.HYBRID, new StoryStage[] {
             new StoryStage(new GameSettings(6, 5, 25, 1500, 80, 100),
-                    "CCBBA", 2, false, 1.0),
+                    new EnemyType[] {C, C, B, B, A}, 2, false, 1.0),
             new StoryStage(new GameSettings(6, 6, 15, 1000, 40, 120),
-                    "CCCBBA", 2, false, 1.0),
+                    new EnemyType[] {C, C, C, B, B, A}, 2, false, 1.0),
             new StoryStage(new GameSettings(7, 6, 8, 1000, 40, 100),
-                    "CCCCBB", 2, false, 1.0),
+                    new EnemyType[] {C, C, C, C, B, B}, 2, false, 1.0),
             new StoryStage(new GameSettings(7, 6, 5, 800, 20, 100),
-                    "CCBBAA", 1, false, 1.0)
+                    new EnemyType[] {C, C, B, B, A, A}, 1, false, 1.0)
         });
         // 1.1.2 Destroy the core: large B and C fleets.
         ROUTE_STAGES.put(StoryRoute.HUMAN_VICTORY, new StoryStage[] {
             new StoryStage(new GameSettings(7, 6, 30, 1500, 40, 100),
-                    "CBBBAA", 2, false, 1.0),
+                    new EnemyType[] {C, B, B, B, A, A}, 2, false, 1.0),
             new StoryStage(new GameSettings(8, 6, 20, 1000, 20, 120),
-                    "CCBBBA", 2, false, 1.0),
+                    new EnemyType[] {C, C, B, B, B, A}, 2, false, 1.0),
             new StoryStage(new GameSettings(8, 7, 10, 1000, 20, 100),
-                    "CCBBBAA", 2, false, 1.0),
+                    new EnemyType[] {C, C, B, B, B, A, A}, 2, false, 1.0),
             // ARGUS MK-II: stronger ARGUS.
             new StoryStage(new GameSettings(8, 7, 2, 500, 20, 100),
-                    "CCBBBAA", 1, false, 1.5)
+                    new EnemyType[] {C, C, B, B, B, A, A}, 1, false, 1.5)
         });
         // 1.2.1 Escort home: defending Earth orbit with obstacles.
         ROUTE_STAGES.put(StoryRoute.HOMECOMING, new StoryStage[] {
             new StoryStage(new GameSettings(6, 6, 30, 1500, 80, 100),
-                    "BBAAAA", 2, true, 1.0),
+                    new EnemyType[] {B, B, A, A, A, A}, 2, true, 1.0),
             new StoryStage(new GameSettings(7, 6, 20, 1000, 40, 120),
-                    "BBBAAA", 2, true, 1.0),
+                    new EnemyType[] {B, B, B, A, A, A}, 2, true, 1.0),
             new StoryStage(new GameSettings(7, 7, 10, 1000, 40, 100),
-                    "CBBBAAA", 2, true, 1.0),
+                    new EnemyType[] {C, B, B, B, A, A, A}, 2, true, 1.0),
             // Upgraded NOX: stronger NOX.
             new StoryStage(new GameSettings(7, 7, 5, 800, 40, 100),
-                    "CBBBAAA", 1, false, 1.5)
+                    new EnemyType[] {C, B, B, B, A, A, A}, 1, false, 1.5)
         });
         // 1.2.2 Infiltrate the mothership: small elite C formations.
         ROUTE_STAGES.put(StoryRoute.TRUCE, new StoryStage[] {
             new StoryStage(new GameSettings(5, 5, 30, 1500, 100, 100),
-                    "CCCBB", 2, false, 1.0),
+                    new EnemyType[] {C, C, C, B, B}, 2, false, 1.0),
             new StoryStage(new GameSettings(5, 6, 20, 1000, 100, 120),
-                    "CCCCBB", 2, false, 1.0),
+                    new EnemyType[] {C, C, C, C, B, B}, 2, false, 1.0),
             new StoryStage(new GameSettings(6, 6, 10, 1000, 80, 100),
-                    "CCCCCB", 2, false, 1.0),
+                    new EnemyType[] {C, C, C, C, C, B}, 2, false, 1.0),
             new StoryStage(new GameSettings(6, 6, 5, 800, 80, 100),
-                    "CCCBBB", 1, false, 1.0)
+                    new EnemyType[] {C, C, C, B, B, B}, 1, false, 1.0)
         });
     }
 

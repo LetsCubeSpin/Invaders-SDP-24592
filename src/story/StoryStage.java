@@ -1,6 +1,7 @@
 package story;
 
 import engine.GameSettings;
+import entity.EnemyType;
 import level.EnemyCell;
 import level.WaveDefinition;
 
@@ -12,8 +13,8 @@ public final class StoryStage {
 
     /** Formation size, speed, shooting frequency and start position. */
     private final GameSettings settings;
-    /** Enemy type of each row from top to bottom, for example "CBBAA". */
-    private final String rows;
+    /** Enemy type of each row from top to bottom. */
+    private final EnemyType[] rows;
     /** Number of waves on the stage. */
     private final int waveCount;
     /** Whether more falling obstacles appear (asteroid field). */
@@ -33,25 +34,25 @@ public final class StoryStage {
      * @param bossStrength
      *            Boss multiplier, 1.0 or greater.
      */
-    public StoryStage(final GameSettings settings, final String rows,
+    public StoryStage(final GameSettings settings, final EnemyType[] rows,
             final int waveCount, final boolean asteroidField,
             final double bossStrength) {
         if (settings == null)
             throw new IllegalArgumentException("settings must not be null.");
-        if (rows == null || rows.length() != settings.getFormationHeight())
+        if (rows == null || rows.length != settings.getFormationHeight())
             throw new IllegalArgumentException(
                     "rows must have one letter per formation row.");
-        for (char type : rows.toCharArray())
-            if (type != 'A' && type != 'B' && type != 'C')
+        for (EnemyType type : rows)
+            if (type == null)
                 throw new IllegalArgumentException(
-                        "rows may only contain A, B or C.");
+                        "rows must not contain null.");
         if (waveCount < 1)
             throw new IllegalArgumentException("waveCount must be 1 or more.");
         if (bossStrength < 1.0)
             throw new IllegalArgumentException(
                     "bossStrength must be 1.0 or greater.");
         this.settings = settings;
-        this.rows = rows;
+        this.rows = rows.clone();
         this.waveCount = waveCount;
         this.asteroidField = asteroidField;
         this.bossStrength = bossStrength;
@@ -79,8 +80,7 @@ public final class StoryStage {
         EnemyCell[][] grid = new EnemyCell[height][width];
         for (int row = 0; row < height; row++)
             for (int column = 0; column < width; column++)
-                grid[row][column] = new EnemyCell(
-                        String.valueOf(this.rows.charAt(row)), 1);
+                grid[row][column] = new EnemyCell(this.rows[row].name(), 1);
         return new WaveDefinition("story-" + stageNumber + "-" + waveNumber,
                 grid, this.settings.getInitialX(),
                 this.settings.getInitialY(), this.settings.getBaseSpeed(),
@@ -91,8 +91,8 @@ public final class StoryStage {
         return this.settings;
     }
 
-    public String getRows() {
-        return this.rows;
+    public EnemyType[] getRows() {
+        return this.rows.clone();
     }
 
     public int getWaveCount() {

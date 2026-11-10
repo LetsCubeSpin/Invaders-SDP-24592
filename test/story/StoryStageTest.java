@@ -1,9 +1,14 @@
 package story;
 
 import engine.GameSettings;
+import entity.EnemyType;
 import level.WaveDefinition;
 import org.junit.jupiter.api.Test;
 
+import static entity.EnemyType.A;
+import static entity.EnemyType.B;
+import static entity.EnemyType.C;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,21 +18,32 @@ class StoryStageTest {
 
     private static final GameSettings SETTINGS =
             new GameSettings(5, 4, 60, 2000, 20, 100);
+    private static final EnemyType[] ALL_A = {A, A, A, A};
 
     @Test
     void keepsTheGivenValues() {
-        StoryStage stage = new StoryStage(SETTINGS, "CBAA", 2, true, 1.5);
+        StoryStage stage = new StoryStage(SETTINGS,
+                new EnemyType[] {C, B, A, A}, 2, true, 1.5);
         assertEquals(SETTINGS, stage.getSettings());
-        assertEquals("CBAA", stage.getRows());
+        assertArrayEquals(new EnemyType[] {C, B, A, A}, stage.getRows());
         assertEquals(2, stage.getWaveCount());
         assertTrue(stage.hasAsteroidField());
         assertEquals(1.5, stage.getBossStrength());
     }
 
     @Test
+    void rowsCannotBeChangedFromOutside() {
+        EnemyType[] rows = {C, B, A, A};
+        StoryStage stage = new StoryStage(SETTINGS, rows, 1, false, 1.0);
+        rows[0] = A;
+        stage.getRows()[1] = A;
+        assertArrayEquals(new EnemyType[] {C, B, A, A}, stage.getRows());
+    }
+
+    @Test
     void waveUsesTheEnemyTypeOfEachRow() {
-        WaveDefinition wave = new StoryStage(SETTINGS, "CBAA", 1, false, 1.0)
-                .createWave(1, 1);
+        WaveDefinition wave = new StoryStage(SETTINGS,
+                new EnemyType[] {C, B, A, A}, 1, false, 1.0).createWave(1, 1);
         for (int column = 0; column < 5; column++) {
             assertEquals("C", wave.getCell(0, column).getEnemyType());
             assertEquals("B", wave.getCell(1, column).getEnemyType());
@@ -39,7 +55,7 @@ class StoryStageTest {
 
     @Test
     void waveMatchesTheSettingsSoTheFormationAcceptsIt() {
-        WaveDefinition wave = new StoryStage(SETTINGS, "AAAA", 1, false, 1.0)
+        WaveDefinition wave = new StoryStage(SETTINGS, ALL_A, 1, false, 1.0)
                 .createWave(1, 1);
         assertEquals(SETTINGS.getFormationHeight(), wave.getRows());
         assertEquals(SETTINGS.getFormationWidth(), wave.getColumns());
@@ -52,14 +68,14 @@ class StoryStageTest {
 
     @Test
     void waveIdNamesTheStageAndWave() {
-        StoryStage stage = new StoryStage(SETTINGS, "AAAA", 2, false, 1.0);
+        StoryStage stage = new StoryStage(SETTINGS, ALL_A, 2, false, 1.0);
         assertEquals("story-3-1", stage.createWave(3, 1).getId());
         assertEquals("story-3-2", stage.createWave(3, 2).getId());
     }
 
     @Test
     void waveNumberMustBeInRange() {
-        StoryStage stage = new StoryStage(SETTINGS, "AAAA", 2, false, 1.0);
+        StoryStage stage = new StoryStage(SETTINGS, ALL_A, 2, false, 1.0);
         assertThrows(IllegalArgumentException.class,
                 () -> stage.createWave(1, 0));
         assertThrows(IllegalArgumentException.class,
@@ -71,34 +87,35 @@ class StoryStageTest {
     @Test
     void rowsMustMatchTheFormationHeight() {
         assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(SETTINGS, "AAA", 1, false, 1.0));
+                () -> new StoryStage(SETTINGS, new EnemyType[] {A, A, A},
+                        1, false, 1.0));
         assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(SETTINGS, "AAAAA", 1, false, 1.0));
+                () -> new StoryStage(SETTINGS,
+                        new EnemyType[] {A, A, A, A, A}, 1, false, 1.0));
         assertThrows(IllegalArgumentException.class,
                 () -> new StoryStage(SETTINGS, null, 1, false, 1.0));
     }
 
     @Test
-    void rowsMayOnlyUseKnownEnemyTypes() {
+    void rowsMustNotContainNull() {
         assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(SETTINGS, "AAAD", 1, false, 1.0));
-        assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(SETTINGS, "aaaa", 1, false, 1.0));
+                () -> new StoryStage(SETTINGS, new EnemyType[] {A, null, A, A},
+                        1, false, 1.0));
     }
 
     @Test
     void otherInvalidValuesAreRejected() {
         assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(null, "AAAA", 1, false, 1.0));
+                () -> new StoryStage(null, ALL_A, 1, false, 1.0));
         assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(SETTINGS, "AAAA", 0, false, 1.0));
+                () -> new StoryStage(SETTINGS, ALL_A, 0, false, 1.0));
         assertThrows(IllegalArgumentException.class,
-                () -> new StoryStage(SETTINGS, "AAAA", 1, false, 0.9));
+                () -> new StoryStage(SETTINGS, ALL_A, 1, false, 0.9));
     }
 
     @Test
     void normalStageHasNoAsteroidFieldAndNormalBoss() {
-        StoryStage stage = new StoryStage(SETTINGS, "AAAA", 1, false, 1.0);
+        StoryStage stage = new StoryStage(SETTINGS, ALL_A, 1, false, 1.0);
         assertFalse(stage.hasAsteroidField());
         assertEquals(1.0, stage.getBossStrength());
     }
