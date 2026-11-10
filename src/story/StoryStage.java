@@ -26,7 +26,7 @@ public final class StoryStage {
      * @param settings
      *            Formation size, timing and start position.
      * @param rows
-     *            One letter (A, B or C) per formation row, top to bottom.
+     *            Enemy type of each formation row, top to bottom.
      * @param waveCount
      *            Number of waves, 1 or more.
      * @param asteroidField
@@ -41,7 +41,7 @@ public final class StoryStage {
             throw new IllegalArgumentException("settings must not be null.");
         if (rows == null || rows.length != settings.getFormationHeight())
             throw new IllegalArgumentException(
-                    "rows must have one letter per formation row.");
+                    "rows must have one enemy type per formation row.");
         for (EnemyType type : rows)
             if (type == null)
                 throw new IllegalArgumentException(
