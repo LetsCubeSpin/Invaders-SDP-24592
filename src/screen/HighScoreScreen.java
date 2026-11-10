@@ -62,7 +62,7 @@ public class HighScoreScreen extends Screen {
 		super.update();
 
 		draw();
-		if (inputManager.isKeyDown(KeyEvent.VK_SPACE)
+		if ((inputManager.isKeyDown(KeyEvent.VK_SPACE) || inputManager.isBackDown())
 				&& this.inputDelay.checkFinished()) {
 			AudioManager.playSFX("audio/sfx/menu_back.wav");
 			this.isRunning = false;
