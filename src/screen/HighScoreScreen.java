@@ -39,7 +39,7 @@ public class HighScoreScreen extends Screen {
 			logger.warning("Couldn't load high scores!");
 		}
 
-		AudioManager.playBGM("audio/bgm/music_menu.wav");
+		AudioManager.continueBGM("audio/bgm/music_menu.wav");
 
 
 	}
