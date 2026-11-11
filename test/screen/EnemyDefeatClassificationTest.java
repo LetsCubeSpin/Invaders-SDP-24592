@@ -12,7 +12,6 @@ import entity.EnemyShip;
 import entity.EnemyShipFormation;
 import entity.GrenadeFragment;
 import entity.Ship;
-import entity.item.OrbitalAnnihilator;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
 import event.GameplayEventListener;
@@ -44,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EnemyDefeatClassificationTest {
 
-    /** Somewhere clear of the formation, the player and the beam corridor. */
+    /** Somewhere clear of the formation and player. */
     private static final int CLEAR_X = 300;
     private static final int CLEAR_Y = 400;
 
@@ -146,68 +145,53 @@ class EnemyDefeatClassificationTest {
         GameScreen game = campaign(1, "multi-path");
         set(game, "inputDelay", Core.getCooldown(0));
         Defeats defeats = watch(game);
-        Ship player = (Ship) get(game, "ship");
         EnemyShip target = isolate(game, DefeatedEnemyType.A);
 
         shoot(game, target);
         call(game, "manageCollisions");
         assertEquals(1, defeats.size());
 
-        // Offer the same enemy to the beam and to a contact kill.
-        target.setPositionX(OrbitalAnnihilator.getBeamLeft(player));
-        target.setPositionY(player.getPositionY() - 40);
-        call(game, "manageAnnihilatorBeam");
-        player.activateChameleonHull();
-        target.setPositionX(player.getPositionX());
-        target.setPositionY(player.getPositionY());
-        call(game, "manageBallContact");
+        addFragments(game, target);
+        call(game, "manageGrenades");
 
         assertEquals(1, defeats.size(),
                 "one defeat is not reported again by another path");
     }
 
     @Test
-    void theBeamPathClassifiesNormalAndBonusTargets() throws Exception {
-        GameScreen game = campaign(1, "beam-path");
+    void fragmentsClassifyNormalAndBonusTargets() throws Exception {
+        GameScreen game = campaign(1, "fragment-targets");
         Defeats defeats = watch(game);
-        Ship player = (Ship) get(game, "ship");
-
         EnemyShip target = isolate(game, DefeatedEnemyType.C);
-        target.setPositionX(OrbitalAnnihilator.getBeamLeft(player));
-        target.setPositionY(player.getPositionY() - 40);
-        EnemyShip bonus = placeBonusEnemy(game,
-                OrbitalAnnihilator.getBeamLeft(player),
-                player.getPositionY() - 80);
+        EnemyShip bonus = placeBonusEnemy(game, CLEAR_X, CLEAR_Y);
+        target.setPositionX(CLEAR_X);
+        target.setPositionY(CLEAR_Y + 60);
+        addFragments(game, target);
+        call(game, "manageGrenades");
+        addFragments(game, bonus);
+        call(game, "manageGrenades");
+        call(game, "manageGrenades");
 
-        call(game, "manageAnnihilatorBeam");
-        call(game, "manageAnnihilatorBeam");
-
-        assertEquals(Arrays.asList(DefeatedEnemyType.C, DefeatedEnemyType.BONUS),
-                defeats.types(), "the beam classifies both of its targets");
-        assertEquals(2, new HashSet<String>(defeats.ids()).size(),
-                "the beam gives each target its own ID");
+        assertEquals(Arrays.asList(DefeatedEnemyType.C, DefeatedEnemyType.BONUS), defeats.types());
+        assertEquals(2, new HashSet<String>(defeats.ids()).size());
         assertTrue(bonus.isDestroyed());
     }
 
     @Test
-    void theContactPathClassifiesNormalAndBonusTargets() throws Exception {
+    void touchingTargetsDoesNotReportDefeats() throws Exception {
         GameScreen game = campaign(1, "contact-path");
         set(game, "inputDelay", Core.getCooldown(0));
         Defeats defeats = watch(game);
         Ship player = (Ship) get(game, "ship");
-        player.activateChameleonHull();
 
         EnemyShip target = isolate(game, DefeatedEnemyType.C);
         target.setPositionX(player.getPositionX());
         target.setPositionY(player.getPositionY());
         placeBonusEnemy(game, player.getPositionX(), player.getPositionY());
 
-        call(game, "manageBallContact");
-        call(game, "manageBallContact");
+        game.update();
 
-        assertEquals(Arrays.asList(DefeatedEnemyType.C, DefeatedEnemyType.BONUS),
-                defeats.types(), "contact kills classify both of their targets");
-        assertEquals(2, new HashSet<String>(defeats.ids()).size());
+        assertTrue(defeats.types().isEmpty(), "Contact alone awards no enemy defeats");
     }
 
     @Test
@@ -216,18 +200,21 @@ class EnemyDefeatClassificationTest {
         Defeats defeats = watch(game);
         EnemyShip target = isolate(game, DefeatedEnemyType.B);
 
-        @SuppressWarnings("unchecked")
-        Set<GrenadeFragment> fragments =
-                (Set<GrenadeFragment>) get(game, "fragments");
-        fragments.addAll(GrenadeFragment.explode(
-                target.getPositionX() + target.getWidth() / 2,
-                target.getPositionY() + target.getHeight() / 2));
+        addFragments(game, target);
 
         call(game, "manageGrenades");
 
         assertEquals(Collections.singletonList(DefeatedEnemyType.B),
                 defeats.types(),
                 "a fragment kill is one classified defeat, not one per fragment");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addFragments(final GameScreen game, final EnemyShip target) throws Exception {
+        Set<GrenadeFragment> fragments = (Set<GrenadeFragment>) get(game, "fragments");
+        fragments.addAll(GrenadeFragment.explode(
+                target.getPositionX() + target.getWidth() / 2,
+                target.getPositionY() + target.getHeight() / 2));
     }
 
     @Test

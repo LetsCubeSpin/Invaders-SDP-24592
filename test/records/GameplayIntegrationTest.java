@@ -36,7 +36,7 @@ public final class GameplayIntegrationTest {
         RecordsService service = new RecordsService(directory.resolve("profile.properties"));
         global.set(null, service);
         try {
-            for (String path : Arrays.asList("bullet", "beam", "contact")) campaign(service, path);
+            for (String path : Arrays.asList("bullet", "fragment")) campaign(service, path);
             infinite(service);
             menusAndResults();
             timingAndAbort(service);
@@ -130,19 +130,18 @@ public final class GameplayIntegrationTest {
             bullets.add(BulletPool.getBullet(normal.getPositionX()+4,normal.getPositionY()+4,-4));
             bullets.add(BulletPool.getBullet(special.getPositionX()+4,special.getPositionY()+4,-4));
             call(game,"manageCollisions"); call(game,"manageCollisions");
-        } else if (path.equals("beam")) {
-            call(game,"manageAnnihilatorBeam"); call(game,"manageAnnihilatorBeam");
         } else {
-            player.activateChameleonHull();
-            normal.setPositionX(player.getPositionX()); normal.setPositionY(player.getPositionY());
-            special.setPositionX(player.getPositionX()); special.setPositionY(player.getPositionY());
-            call(game,"manageBallContact"); call(game,"manageBallContact");
+            Set<GrenadeFragment> fragments = (Set<GrenadeFragment>) get(game,"fragments");
+            for (EnemyShip target : Arrays.asList(normal, special))
+                fragments.addAll(GrenadeFragment.explode(target.getPositionX() + target.getWidth() / 2,
+                        target.getPositionY() + target.getHeight() / 2));
+            call(game,"manageGrenades"); call(game,"manageGrenades");
         }
         check(events.size()==2, path+" reports exactly two enemy defeats");
         check(new HashSet<String>(events).size()==2, path+" supplies distinct event IDs");
         check(game.getGameState().getShipsDestroyed()==2, path+" preserves upstream kill totals");
         set(game,"levelFinished",true);
-        call(game,"manageAnnihilatorBeam"); call(game,"manageCollisions");
+        call(game,"manageGrenades"); call(game,"manageCollisions");
         check(events.size()==2,path+" does not count kills after the stage ends");
     }
     @SuppressWarnings("unchecked")

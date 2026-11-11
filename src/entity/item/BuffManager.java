@@ -15,17 +15,6 @@ public class BuffManager {
     }
 
     public void addBuff(final Item item, final Ship ship) {
-        // Refresh Chameleon without allowing the old timer to cancel it.
-        if (item instanceof ChameleonHull) {
-            Iterator<Item> previous = this.activeBuffs.keySet().iterator();
-
-            while (previous.hasNext()) {
-                if (previous.next() instanceof ChameleonHull) {
-                    previous.remove();
-                }
-            }
-        }
-
         item.applyEffect(ship);
 
         if (item.getDuration() > 0) {

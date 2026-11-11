@@ -38,9 +38,9 @@ public final class FallingObstacleIntegrationTest {
 		checkDestroyedShipCollisionOnlyConsumesObstacle();
 		checkBothShieldsBlockSlow();
 		checkEnergyShieldClearsActiveSlowExactlyOnce();
-		checkSpawnFrameDoesNotCollideWithChameleonShip();
+		checkSpawnFrameDoesNotCollideWithShip();
 		checkObstacleRendersBehindShipAndShield();
-		checkShipMovementTypesAndChameleon();
+		checkShipMovementTypes();
 		checkWaveTransitionClearsObstacles();
 		System.out.println("Falling obstacle integration checks passed.");
 	}
@@ -314,13 +314,12 @@ public final class FallingObstacleIntegrationTest {
 	}
 
 	/** A newly created hazard cannot hit a ship overlapping its spawn point. */
-	private static void checkSpawnFrameDoesNotCollideWithChameleonShip()
+	private static void checkSpawnFrameDoesNotCollideWithShip()
 			throws Exception {
 		GameScreen game = newGame(ShipType.STANDARD);
 		makeReady(game, "inputDelay");
 		makeReady(game, "fallingObstacleCooldown");
 		Ship ship = ship(game);
-		ship.activateChameleonHull();
 
 		long seed = 713L;
 		Random expectedRandom = new Random(seed);
@@ -490,12 +489,11 @@ public final class FallingObstacleIntegrationTest {
 		return count;
 	}
 
-	private static void checkShipMovementTypesAndChameleon()
+	private static void checkShipMovementTypes()
 			throws Exception {
-		checkOneMovement(ShipType.STANDARD, 1, false);
-		checkOneMovement(ShipType.SPEEDSTER, 2, false);
-		checkOneMovement(ShipType.TANK, 0, false);
-		checkOneMovement(ShipType.SPEEDSTER, 4, true);
+		checkOneMovement(ShipType.STANDARD, 1);
+		checkOneMovement(ShipType.SPEEDSTER, 2);
+		checkOneMovement(ShipType.TANK, 0);
 		GameScreen tankGame = newGame(ShipType.TANK);
 		triggerObstacleSlow(tankGame);
 		Ship tank = ship(tankGame);
@@ -507,17 +505,14 @@ public final class FallingObstacleIntegrationTest {
 	}
 
 	private static void checkOneMovement(final ShipType type,
-			final int expectedPixels, final boolean chameleon) throws Exception {
+			final int expectedPixels) throws Exception {
 		GameScreen game = newGame(type);
 		triggerObstacleSlow(game);
 		Ship ship = ship(game);
-		if (chameleon)
-			ship.activateChameleonHull();
 		int originalX = ship.getPositionX();
 		ship.moveRight();
 		check(ship.getPositionX() == originalX + expectedPixels,
-				type + (chameleon ? " Chameleon" : "")
-						+ " moves with its expected slowed distance");
+				type + " moves with its expected slowed distance");
 	}
 
 	private static void checkWaveTransitionClearsObstacles()

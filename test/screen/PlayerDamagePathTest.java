@@ -1,6 +1,7 @@
 package screen;
 
 import java.lang.reflect.Field;
+import entity.item.ShieldItem;
 
 import engine.GameSettings;
 import engine.GameState;
@@ -26,7 +27,7 @@ public final class PlayerDamagePathTest {
 	public static void main(final String[] args) throws Exception {
 		checkUnprotectedHitCostsOneLife();
 		checkEnergyShieldStopsBossDamage();
-		checkChameleonHullStopsBossDamage();
+		checkExpiredProtectionAllowsBossDamage();
 		checkTimedShieldStopsDamageAndEffects();
 		checkOverlappingBulletsCostOneLifeBetweenThem();
 		checkProtectionOutlastsTheStun();
@@ -64,16 +65,15 @@ public final class PlayerDamagePathTest {
 				"A shielded hit does not start the recovery period");
 	}
 
-	/** The Chameleon Hull makes the ship immune, bosses included. */
-	private static void checkChameleonHullStopsBossDamage() throws Exception {
-		GameScreen game = newGame();
-		PlayerStatus status = statusOf(game);
-		shipOf(game).activateChameleonHull();
-
-		check(!game.damagePlayer(3, "boss"),
-				"A boss bullet is refused while the Chameleon Hull is active");
-		check(status.getLives() == 3,
-				"The Chameleon Hull protects against boss damage");
+	/** After the Energy Shield ends, boss hits use the normal damage path. */
+	private static void checkExpiredProtectionAllowsBossDamage() throws Exception {
+		GameScreen game = newGame(ShipType.TANK);
+		Ship ship = shipOf(game);
+		ShieldItem shield = new ShieldItem(0, 0);
+		shield.applyEffect(ship);
+		shield.removeEffect(ship);
+		check(game.damagePlayer(2, "boss"), "Boss damage lands after shield expiry");
+		check(statusOf(game).getLives() == 1, "The unshielded hit costs two lives");
 	}
 
 	/**
