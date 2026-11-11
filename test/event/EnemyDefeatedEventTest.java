@@ -71,8 +71,10 @@ class EnemyDefeatedEventTest {
         assertSame(DefeatedEnemyType.BONUS, DefeatedEnemyType.valueOf("BONUS"));
         assertSame(DefeatedEnemyType.BOSS_A, DefeatedEnemyType.valueOf("BOSS_A"));
         assertSame(DefeatedEnemyType.BOSS_B, DefeatedEnemyType.valueOf("BOSS_B"));
+        assertSame(DefeatedEnemyType.BOSS_C, DefeatedEnemyType.valueOf("BOSS_C"));
+        assertSame(DefeatedEnemyType.BOSS_D, DefeatedEnemyType.valueOf("BOSS_D"));
         assertSame(DefeatedEnemyType.UNKNOWN, DefeatedEnemyType.valueOf("UNKNOWN"));
-        assertEquals(7, DefeatedEnemyType.values().length,
+        assertEquals(9, DefeatedEnemyType.values().length,
                 "a new classification needs an agreed reward mapping");
     }
 }
