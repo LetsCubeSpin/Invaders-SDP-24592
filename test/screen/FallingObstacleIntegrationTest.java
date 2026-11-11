@@ -8,7 +8,6 @@ import entity.PlayerStatus;
 import entity.Ship;
 import entity.ShipType;
 import entity.item.ItemManager;
-import entity.item.ShieldItem;
 import event.GameplayEventListener;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -36,10 +35,8 @@ public final class FallingObstacleIntegrationTest {
 		checkObstacleMovementAndSpawn();
 		checkObstacleCollisionAppliesSlowOnlyOnce();
 		checkDestroyedShipCollisionOnlyConsumesObstacle();
-		checkBothShieldsBlockSlow();
-		checkEnergyShieldClearsActiveSlowExactlyOnce();
 		checkSpawnFrameDoesNotCollideWithChameleonShip();
-		checkObstacleRendersBehindShipAndShield();
+		checkObstacleRendersBehindShip();
 		checkShipMovementTypesAndChameleon();
 		checkWaveTransitionClearsObstacles();
 		System.out.println("Falling obstacle integration checks passed.");
@@ -227,92 +224,6 @@ public final class FallingObstacleIntegrationTest {
 				"A post-recovery collision emits exactly one slow-start event");
 	}
 
-	private static void checkBothShieldsBlockSlow() throws Exception {
-		GameScreen timedShieldGame = newGame(ShipType.TANK);
-		makeReady(timedShieldGame, "inputDelay");
-		PlayerStatus timedShieldStatus = timedShieldGame.getPlayerStatus();
-		int timedShieldLives = timedShieldStatus.getLives();
-		timedShieldStatus.activateShield();
-		obstacles(timedShieldGame).add(new FallingObstacle(
-				ship(timedShieldGame).getPositionX(),
-				ship(timedShieldGame).getPositionY()));
-		collideObstacles(timedShieldGame);
-		check(obstacles(timedShieldGame).isEmpty()
-				&& !timedShieldStatus.isSlowActive()
-				&& timedShieldStatus.getLives() == timedShieldLives,
-				"PlayerStatus shield consumes the obstacle without a penalty");
-
-		GameScreen itemShieldGame = newGame(ShipType.TANK);
-		makeReady(itemShieldGame, "inputDelay");
-		Ship shieldedShip = ship(itemShieldGame);
-		int itemShieldLives = itemShieldGame.getPlayerStatus().getLives();
-		shieldedShip.setShieldActive(true);
-		obstacles(itemShieldGame).add(new FallingObstacle(
-				shieldedShip.getPositionX(), shieldedShip.getPositionY()));
-		collideObstacles(itemShieldGame);
-		check(obstacles(itemShieldGame).isEmpty()
-				&& !itemShieldGame.getPlayerStatus().isSlowActive()
-				&& itemShieldGame.getPlayerStatus().getLives()
-						== itemShieldLives,
-				"Energy Shield consumes the obstacle without a penalty");
-	}
-
-	private static void checkEnergyShieldClearsActiveSlowExactlyOnce()
-			throws Exception {
-		GameScreen game = newGame(ShipType.TANK);
-		makeReady(game, "inputDelay");
-		triggerObstacleSlow(game);
-		Ship ship = ship(game);
-		PlayerStatus status = game.getPlayerStatus();
-		final List<PlayerStatusEvent> events =
-				new ArrayList<PlayerStatusEvent>();
-		game.getGameplayEvents().subscribe(PlayerStatusEvent.class,
-				new GameplayEventListener<PlayerStatusEvent>() {
-					@Override
-					public void onEvent(final PlayerStatusEvent event) {
-						events.add(event);
-					}
-				});
-
-		((ItemManager) read(game, "itemManager")).spawnItem(
-				new ShieldItem(ship.getPositionX(), ship.getPositionY()));
-		game.update();
-		check(!status.isSlowActive(),
-				"Energy Shield activation immediately clears the active slow");
-		int position = ship.getPositionX();
-		ship.moveRight();
-		check(ship.getPositionX() == position + ship.getBaseSpeed(),
-				"Clearing the slow restores normal movement speed");
-		check(countSlowEvents(events, PlayerStatusEvent.Type.SLOW_ENDED) == 1,
-				"Energy Shield activation publishes one SLOW_ENDED event");
-
-		game.update();
-		status.clearSlowDebuff();
-		check(countSlowEvents(events, PlayerStatusEvent.Type.SLOW_ENDED) == 1,
-				"Repeated updates and clears do not duplicate SLOW_ENDED");
-
-		GameScreen unslowedGame = newGame(ShipType.STANDARD);
-		makeReady(unslowedGame, "inputDelay");
-		final List<PlayerStatusEvent> unslowedEvents =
-				new ArrayList<PlayerStatusEvent>();
-		unslowedGame.getGameplayEvents().subscribe(
-				PlayerStatusEvent.class,
-				new GameplayEventListener<PlayerStatusEvent>() {
-					@Override
-					public void onEvent(final PlayerStatusEvent event) {
-						unslowedEvents.add(event);
-					}
-				});
-		Ship unslowedShip = ship(unslowedGame);
-		((ItemManager) read(unslowedGame, "itemManager")).spawnItem(
-				new ShieldItem(unslowedShip.getPositionX(),
-						unslowedShip.getPositionY()));
-		unslowedGame.update();
-		check(countSlowEvents(unslowedEvents,
-				PlayerStatusEvent.Type.SLOW_ENDED) == 0,
-				"Energy Shield without an active slow emits no end event");
-	}
-
 	/** A newly created hazard cannot hit a ship overlapping its spawn point. */
 	private static void checkSpawnFrameDoesNotCollideWithChameleonShip()
 			throws Exception {
@@ -346,23 +257,18 @@ public final class FallingObstacleIntegrationTest {
 				"Normal collision handling resumes on the next frame");
 	}
 
-	/** The hazard must not cover opaque ship pixels or the shield outline. */
-	private static void checkObstacleRendersBehindShipAndShield()
+	/** The hazard must not cover opaque ship pixels. */
+	private static void checkObstacleRendersBehindShip()
 			throws Exception {
-		GameScreen game = newGame(ShipType.TANK);
+		GameScreen game = newGame(ShipType.STANDARD);
 		Ship ship = ship(game);
 		ship.setPositionX(150);
 		ship.setPositionY(220);
-		ship.setShieldActive(true);
 		int x = ship.getPositionX();
 		int y = ship.getPositionY();
 
 		invoke(game, "draw");
 		BufferedImage withoutObstacle = copyBackBuffer(game);
-		ship.setShieldActive(false);
-		invoke(game, "draw");
-		BufferedImage withoutShield = copyBackBuffer(game);
-		ship.setShieldActive(true);
 		obstacles(game).add(new FallingObstacle(x, y));
 		invoke(game, "draw");
 		BufferedImage withShipOverlap = copyBackBuffer(game);
@@ -391,86 +297,6 @@ public final class FallingObstacleIntegrationTest {
 		}
 		check(shipPixelsChecked > 0,
 				"The render test covers overlapping ship sprite pixels");
-
-		obstacles(game).clear();
-		int shieldOffsetX = 0;
-		int shieldOffsetY = 0;
-		int expectedShieldOverlap = 0;
-		for (int offsetX = -32; offsetX <= 32
-				&& expectedShieldOverlap == 0; offsetX++) {
-			for (int offsetY = -32; offsetY <= 32
-					&& expectedShieldOverlap == 0; offsetY++) {
-				int overlap = countShieldHaloObstaclePixels(withoutObstacle,
-						withoutShield, obstacleSprite, x + offsetX, y + offsetY,
-						x, y,
-						ship.getWidth(), ship.getHeight());
-				if (overlap > 0) {
-					shieldOffsetX = offsetX;
-					shieldOffsetY = offsetY;
-					expectedShieldOverlap = overlap;
-				}
-			}
-		}
-		check(expectedShieldOverlap > 0,
-				"The test finds obstacle pixels overlapping the shield outline");
-		obstacles(game).add(new FallingObstacle(x + shieldOffsetX,
-				y + shieldOffsetY));
-		invoke(game, "draw");
-		BufferedImage withShieldOverlap = copyBackBuffer(game);
-		check(countPreservedShieldHaloObstaclePixels(withoutObstacle,
-				withoutShield, withShieldOverlap, obstacleSprite,
-				x + shieldOffsetX, y + shieldOffsetY, x, y,
-				ship.getWidth(), ship.getHeight()) == expectedShieldOverlap,
-				"The obstacle cannot cover the overlapping shield ring");
-	}
-
-	private static int countShieldHaloObstaclePixels(
-			final BufferedImage withShield, final BufferedImage withoutShield,
-			final boolean[][] obstacleSprite, final int x, final int y,
-			final int shipX, final int shipY,
-			final int shipWidth, final int shipHeight) {
-		int count = 0;
-		for (int i = 0; i < obstacleSprite.length; i++)
-			for (int j = 0; j < obstacleSprite[i].length; j++) {
-				int pixelX = x + i * 2;
-				int pixelY = y + j * 2;
-				boolean outsideShip = pixelX < shipX
-						|| pixelX >= shipX + shipWidth
-						|| pixelY < shipY
-						|| pixelY >= shipY + shipHeight;
-				if (obstacleSprite[i][j] && outsideShip
-						&& withShield.getRGB(pixelX, pixelY)
-								!= withoutShield.getRGB(pixelX, pixelY))
-					count++;
-			}
-		return count;
-	}
-
-	private static int countPreservedShieldHaloObstaclePixels(
-			final BufferedImage baseline, final BufferedImage withoutShield,
-			final BufferedImage rendered,
-			final boolean[][] obstacleSprite, final int x, final int y,
-			final int shipX, final int shipY,
-			final int shipWidth, final int shipHeight) {
-		int count = 0;
-		for (int i = 0; i < obstacleSprite.length; i++)
-			for (int j = 0; j < obstacleSprite[i].length; j++) {
-				int pixelX = x + i * 2;
-				int pixelY = y + j * 2;
-				boolean outsideShip = pixelX < shipX
-						|| pixelX >= shipX + shipWidth
-						|| pixelY < shipY
-						|| pixelY >= shipY + shipHeight;
-				if (obstacleSprite[i][j] && outsideShip
-						&& baseline.getRGB(pixelX, pixelY)
-								!= withoutShield.getRGB(pixelX, pixelY)) {
-					count++;
-					check(rendered.getRGB(pixelX, pixelY)
-							== baseline.getRGB(pixelX, pixelY),
-							"The obstacle cannot cover the overlapping shield ring");
-				}
-			}
-		return count;
 	}
 
 	private static BufferedImage copyBackBuffer(final GameScreen game)
@@ -493,17 +319,7 @@ public final class FallingObstacleIntegrationTest {
 	private static void checkShipMovementTypesAndChameleon()
 			throws Exception {
 		checkOneMovement(ShipType.STANDARD, 1, false);
-		checkOneMovement(ShipType.SPEEDSTER, 2, false);
-		checkOneMovement(ShipType.TANK, 0, false);
-		checkOneMovement(ShipType.SPEEDSTER, 4, true);
-		GameScreen tankGame = newGame(ShipType.TANK);
-		triggerObstacleSlow(tankGame);
-		Ship tank = ship(tankGame);
-		int originalX = tank.getPositionX();
-		tank.moveRight();
-		tank.moveRight();
-		check(tank.getPositionX() == originalX + 1,
-				"TANK accumulates its fractional half-speed movement");
+		checkOneMovement(ShipType.STANDARD, 2, true);
 	}
 
 	private static void checkOneMovement(final ShipType type,

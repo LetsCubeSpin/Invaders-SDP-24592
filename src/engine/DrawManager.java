@@ -1,6 +1,5 @@
 package engine;
 
-import entity.ShipType;
 import entity.item.ChameleonHull;
 
 import java.awt.Color;
@@ -17,11 +16,6 @@ import java.util.logging.Logger;
 
 import screen.Screen;
 import hud.FloatingScoreHud;
-import currency.PermanentUpgrade;
-import currency.PlayerAssetsState;
-import currency.ShopCatalog.Category;
-import shop.ShopController.SaveStatus;
-import shop.ShopProduct;
 import records.Achievement;
 import records.RecordsService;
 import records.RunRecord;
@@ -384,39 +378,6 @@ public final class DrawManager {
         int scoreX = screen.getWidth() - 60;
         drawIcon(Icon.SCORE, scoreX - Icon.SCORE.getWidth() * 2 - 6, 12, 2);
         backBufferGraphics.drawString(scoreString, scoreX, 25);
-    }
-
-    /** K, M, B, T, Q suffixes for shortened credits. */
-    private static final String[] CREDIT_SUFFIXES = { "", "K", "M", "B", "T", "Q" };
-
-    /**
-     * Draws credits with a coin icon right-aligned just left of the score.
-     * Up to 4 digits fit between the level label and the score.
-     */
-    public void drawCredits(final Screen screen, final long credits) {
-        backBufferGraphics.setFont(fontRegular);
-        backBufferGraphics.setColor(Color.WHITE);
-        String text = shortenCredits(credits);
-        // Ends 8px left of the score icon drawn by drawScore().
-        int textX = screen.getWidth() - 60 - Icon.SCORE.getWidth() * 2 - 14
-                - backBufferGraphics.getFontMetrics().stringWidth(text);
-        drawIcon(Icon.COIN, textX - 4 - Icon.COIN.getWidth() * 2, 12, 2);
-        backBufferGraphics.drawString(text, textX, 25);
-    }
-
-    /** 5+ digits become 12.3K or 123K, rounded down so it never shows more. */
-    private static String shortenCredits(final long credits) {
-        if (credits < 10000)
-            return Long.toString(credits);
-        long unit = 1;
-        int suffix = 0;
-        while (suffix < CREDIT_SUFFIXES.length - 1 && credits / unit >= 1000) {
-            unit *= 1000;
-            suffix++;
-        }
-        long whole = credits / unit;
-        return whole + (whole < 100 ? "." + credits % unit / (unit / 10) : "")
-                + CREDIT_SUFFIXES[suffix];
     }
 
     /**
@@ -966,189 +927,6 @@ public final class DrawManager {
         else
             drawCenteredBigString(screen, "GO!",
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
-    }
-
-    /** Draws the shop cards and purchase/save feedback. */
-    public void drawShop(final Screen screen, final List<ShopProduct> upgrades,
-            final List<ShopProduct> unlocks, final PlayerAssetsState assets, final int section,
-            final int upgradeIndex, final int unlockIndex, final int actionIndex,
-            final String feedback, final boolean purchaseSucceeded, final SaveStatus saveStatus) {
-        int width = screen.getWidth();
-        int height = screen.getHeight();
-        backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Shop", 34);
-        backBufferGraphics.setColor(Color.WHITE);
-        String credits = "Credits: " + assets.getBalance();
-        drawCenteredRegularString(screen, credits, 61);
-        drawIcon(Icon.COIN, width / 2 - fontRegularMetrics.stringWidth(credits) / 2
-                - Icon.COIN.getWidth() * 2 - 6, 47, 2);
-
-        int cardSize = Math.max(76, Math.min(120, Math.min((width - 80) / 3, (height - 248) / 2)));
-        drawShopShelf(screen, upgrades, assets, "Upgrades", "No upgrades available",
-                96, cardSize, upgradeIndex, section == 0);
-        drawShopShelf(screen, unlocks, assets, "Unlocks", "No unlocks available",
-                132 + cardSize, cardSize, unlockIndex, section == 1);
-
-        int actionsY = height - 96;
-        drawShopText("Back (Esc)", 31, actionsY, 12,
-                section == 2 && actionIndex == 0 ? Color.GREEN : Color.WHITE, 120);
-        if (saveStatus == SaveStatus.FAILED) {
-            drawShopText("Retry save (R)", width / 2, actionsY, 12,
-                    section == 2 && actionIndex == 1 ? Color.GREEN : Color.WHITE, width / 2 - 24);
-        }
-        backBufferGraphics.setColor(purchaseSucceeded ? Color.GREEN : Color.ORANGE);
-        drawShopCentered(screen, feedback, height - 70);
-        String saveMessage = saveStatus == SaveStatus.FAILED ? "Save failed. Progress kept this session."
-                : saveStatus == SaveStatus.SAVED ? "Progress saved." : "";
-        backBufferGraphics.setColor(saveStatus == SaveStatus.FAILED ? Color.ORANGE : Color.GRAY);
-        drawShopCentered(screen, saveMessage, height - 52);
-        backBufferGraphics.setColor(Color.GRAY);
-        drawShopCentered(screen, "Up/Down: section   Left/Right: product", height - 37);
-        drawShopCentered(screen, "WASD also works   Space/Enter: confirm", height - 21);
-    }
-
-    private void drawShopShelf(Screen screen, List<ShopProduct> products, PlayerAssetsState assets,
-            String heading, String emptyText, int top, int size, int index, boolean active) {
-        int width = screen.getWidth();
-        drawShopText(heading, 31, top - 12, 12, active ? Color.GREEN : Color.WHITE, width - 110);
-        String count = products.isEmpty() ? "0 / 0" : (index + 1) + " / " + products.size();
-        drawShopText(count, width - 70, top - 12, 10, Color.GRAY, 52);
-        if (products.isEmpty()) {
-            backBufferGraphics.setColor(Color.DARK_GRAY);
-            backBufferGraphics.drawRect(31, top, width - 63, size);
-            backBufferGraphics.setColor(Color.GRAY);
-            drawShopCentered(screen, emptyText, top + size / 2);
-            return;
-        }
-
-        int first = index / 3 * 3;
-        int end = Math.min(products.size(), first + 3);
-        int rowWidth = (end - first) * size + (end - first - 1) * 10;
-        int startX = (width - rowWidth) / 2;
-        for (int productIndex = first; productIndex < end; productIndex++) {
-            drawShopCard(products.get(productIndex), assets,
-                    startX + (productIndex - first) * (size + 10), top, size,
-                    active && productIndex == index);
-        }
-        if (products.size() > 1) {
-            int cy = top + size / 2;
-            backBufferGraphics.setColor(active ? Color.GREEN : Color.GRAY);
-            backBufferGraphics.fillPolygon(new int[] { 12, 18, 18 }, new int[] { cy, cy - 5, cy + 5 }, 3);
-            backBufferGraphics.fillPolygon(new int[] { width - 13, width - 19, width - 19 },
-                    new int[] { cy, cy - 5, cy + 5 }, 3);
-        }
-    }
-
-    private void drawShopCard(ShopProduct product, PlayerAssetsState assets,
-            int x, int y, int size, boolean selected) {
-        backBufferGraphics.setColor(selected ? Color.GREEN : Color.DARK_GRAY);
-        backBufferGraphics.drawRect(x, y, size, size);
-        boolean owned = assets.getUnlockedContentIds().contains(product.getId());
-        boolean available = product.isAvailableByDefault();
-        String badge = available ? "Available" : owned ? "Owned" : "";
-        drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
-        backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
-        drawShopProductIcon(product, x + size / 2, y + 18);
-        drawShopText(product.getName(), x + 9, y + 60, 11,
-                selected ? Color.GREEN : Color.WHITE, size - 18);
-        drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);
-        backBufferGraphics.setColor(Color.DARK_GRAY);
-        backBufferGraphics.drawLine(x + 9, y + size - 25, x + size - 9, y + size - 25);
-        String price = available || owned ? "Unlocked" : product.getPrice() + " C";
-        drawShopText(price, x + 9, y + size - 9, 11, available || owned ? Color.GRAY : Color.WHITE, size - 18);
-    }
-
-    private void drawShopProductIcon(ShopProduct product, int centerX, int y) {
-        if (product.getShipType() != null) {
-            boolean[][] sprite = ShipSprites.forType(product.getShipType());
-            backBufferGraphics.setColor(Color.WHITE);
-            for (int x = 0; x < sprite.length; x++) {
-                for (int row = 0; row < sprite[x].length; row++) {
-                    if (sprite[x][row]) {
-                        backBufferGraphics.fillRect(centerX - sprite.length + x * 2, y + 8 + row * 2, 2, 2);
-                    }
-                }
-            }
-            return;
-        }
-        PermanentUpgrade upgrade = PermanentUpgrade.forProduct(product.getId());
-        if (upgrade == null) {
-            drawShopCategoryIcon(product.getCategory() == Category.UNLOCKABLE, centerX - 10, y + 2);
-            return;
-        }
-        Icon icon = switch (upgrade) {
-        case HULL -> Icon.UPGRADE_HULL;
-        case ENGINE -> Icon.UPGRADE_ENGINE;
-        case RELOADER -> Icon.UPGRADE_RELOADER;
-        };
-        drawIcon(icon, centerX - icon.getWidth(), y, 2);
-    }
-
-    /** Neutral placeholders until content owners supply agreed product artwork. */
-    private void drawShopCategoryIcon(boolean permanent, int x, int y) {
-        if (permanent) {
-            backBufferGraphics.drawRect(x + 5, y, 10, 9);
-            backBufferGraphics.fillRect(x, y + 8, 21, 15);
-            backBufferGraphics.setColor(Color.BLACK);
-            backBufferGraphics.fillRect(x + 9, y + 12, 3, 7);
-        } else {
-            backBufferGraphics.drawRect(x, y + 3, 20, 19);
-            backBufferGraphics.drawRect(x + 1, y + 4, 18, 17);
-            backBufferGraphics.drawLine(x + 1, y + 9, x + 19, y + 9);
-            backBufferGraphics.drawRect(x + 7, y + 1, 6, 4);
-        }
-    }
-
-    private void drawShopDescription(String description, int x, int y, int width) {
-        backBufferGraphics.setFont(fontRegular.deriveFont(10f));
-        backBufferGraphics.setColor(Color.GRAY);
-        FontMetrics metrics = backBufferGraphics.getFontMetrics();
-        String remaining = description.trim();
-        for (int line = 0; line < 2 && !remaining.isEmpty(); line++) {
-            String text = remaining;
-            if (line == 0 && metrics.stringWidth(text) > width) {
-                int end = text.length();
-                while (end > 1 && metrics.stringWidth(text.substring(0, end)) > width)
-                    end--;
-                int space = text.lastIndexOf(' ', end);
-                if (space > 0)
-                    end = space;
-                text = remaining.substring(0, end);
-                remaining = remaining.substring(end).trim();
-            } else {
-                remaining = "";
-            }
-            drawShopLabel(text, x, y + line * 12, width);
-        }
-    }
-
-    private void drawShopText(String text, int x, int y, int size, Color color, int width) {
-        backBufferGraphics.setFont(fontRegular.deriveFont((float) size));
-        backBufferGraphics.setColor(color);
-        drawShopLabel(text, x, y, width);
-    }
-
-    private void drawShopCentered(final Screen screen, final String text, final int y) {
-        Font fitted = fontRegular.deriveFont(11f);
-        while (fitted.getSize() > 9
-                && backBufferGraphics.getFontMetrics(fitted).stringWidth(text) > screen.getWidth() - 32) {
-            fitted = fitted.deriveFont((float) fitted.getSize() - 1);
-        }
-        backBufferGraphics.setFont(fitted);
-        int x = Math.max(16, (screen.getWidth() - backBufferGraphics.getFontMetrics().stringWidth(text)) / 2);
-        drawShopLabel(text, x, y, screen.getWidth() - x - 16);
-    }
-
-    private void drawShopLabel(final String text, final int x, final int y, final int maxWidth) {
-        String label = text;
-        FontMetrics metrics = backBufferGraphics.getFontMetrics();
-        if (metrics.stringWidth(label) > maxWidth) {
-            while (!label.isEmpty() && metrics.stringWidth(label + "...") > maxWidth) {
-                label = label.substring(0, label.length() - 1);
-            }
-            label += "...";
-        }
-        backBufferGraphics.drawString(label, x, y);
     }
 
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {
@@ -1727,12 +1505,12 @@ public final class DrawManager {
 
     public void drawMenu(final Screen screen, final int option) {
         String[] labels = {
-            "Play", "Shop", "Hangar", "High scores",
+            "Play", "High scores",
             "Records & Achievements", "Settings", "Exit"
         };
-        int[] codes = { 2, 10, 11, 3, 9, 4, 0 };
+        int[] codes = { 2, 3, 9, 4, 0 };
         Icon[] icons = {
-                Icon.PLAY, Icon.SHOP, Icon.HANGAR, Icon.HIGH_SCORES,
+                Icon.PLAY, Icon.HIGH_SCORES,
                 Icon.RECORDS, Icon.SETTINGS, Icon.EXIT
         };
         int spacing = fontRegularMetrics.getHeight() * 3 / 2;
@@ -1753,10 +1531,10 @@ public final class DrawManager {
             return -1;
 
         String[] labels = {
-                "Play", "Shop", "Hangar", "High scores",
+                "Play", "High scores",
                 "Records & Achievements", "Settings", "Exit"
         };
-        int[] codes = { 2, 10, 11, 3, 9, 4, 0 };
+        int[] codes = { 2, 3, 9, 4, 0 };
         int fontHeight = fontRegularMetrics.getHeight();
         int spacing = fontHeight * 3 / 2;
         int firstY = screen.getHeight() / 2 + fontHeight * 2;
@@ -1980,111 +1758,6 @@ public final class DrawManager {
     public void drawFloatingScores(final FloatingScoreHud hud, final Screen screen) {
         hud.draw((java.awt.Graphics2D) backBufferGraphics,
                 screen.getWidth(), screen.getHeight());
-    }
-
-    /**
-     * Draws the ship selection screen, listing every selectable ship with its
-     * stats and marking the highlighted one.
-     *
-     * @param screen
-     *                      Screen to draw on.
-     * @param selectedIndex
-     *                      Index of the currently highlighted ship.
-     * @param shipTypes
-     *                      Ships available for selection, in display order.
-     */
-    public void drawShipSelection(final Screen screen, final ShipType[] shipTypes,
-            final int selectedIndex) {
-        String titleString = "SELECT SHIP";
-        String instructionsString = Core.getShopController().isShipAvailable(shipTypes[selectedIndex])
-                ? "SPACE: SELECT   ESC: BACK" : "UNLOCK IN SHOP   ESC: BACK";
-
-        backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredRegularString(screen, titleString, screen.getHeight() / 6);
-
-        int startY = screen.getHeight() / 3;
-        int spacing = 85;
-
-        for (int i = 0; i < shipTypes.length; i++) {
-            ShipType type = shipTypes[i];
-            boolean isSelected = (i == selectedIndex);
-            boolean available = Core.getShopController().isShipAvailable(type);
-
-            if (!available) {
-                int scale = 3;
-                drawIcon(Icon.LOCK, screen.getWidth() / 2 - Icon.LOCK.getWidth() * scale / 2,
-                        startY + i * spacing - 50, scale, Color.GRAY);
-            } else if (isSelected) {
-                entity.Ship previewShip = new entity.Ship(screen.getWidth() / 2 - 13,
-                        startY + i * spacing - 40, type);
-                drawEntity(previewShip, screen.getWidth() / 2 - 13, startY + i * spacing - 40);
-            }
-
-            String name = (isSelected ? "> " : "") + type.getName()
-                    + (available ? "" : " [LOCKED]") + (isSelected ? " <" : "");
-            String stats = String.format("SPEED: %d | HP: %d | RELOAD: %dMS",
-                    type.getSpeed(), type.getMaxLives(), type.getShootingInterval());
-
-            backBufferGraphics.setColor(isSelected ? Color.GREEN : Color.GRAY);
-            drawCenteredRegularString(screen, name, startY + i * spacing);
-            drawCenteredRegularString(screen, stats, startY + i * spacing + 20);
-        }
-
-        backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, instructionsString, screen.getHeight() - 60);
-    }
-
-    /**
-     * Returns the index of the ship under the mouse cursor.
-     * Returns -1 if the cursor is outside the ship options.
-     */
-    public int getShipSelectionOptionAt(final Screen screen,
-            final ShipType[] shipTypes, final int mouseX, final int mouseY) {
-
-        if (fontRegularMetrics == null) {
-            return -1;
-        }
-
-        int startY = screen.getHeight() / 3;
-        int spacing = 85;
-
-        for (int i = 0; i < shipTypes.length; i++) {
-            int baseline = startY + i * spacing;
-
-            // Detect the mouse within the ship name and stats area.
-            int top = baseline - fontRegularMetrics.getAscent();
-            int bottom = baseline + 20 + fontRegularMetrics.getDescent();
-
-            if (mouseX >= screen.getWidth() / 4
-                    && mouseX <= screen.getWidth() * 3 / 4
-                    && mouseY >= top && mouseY <= bottom) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    public void drawHangarMenu(final Screen screen, final int selectedOption) {
-        String[] labels = { "Choose ship", "Choose color", "Back" };
-
-        backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Hangar", screen.getHeight() / 5);
-
-        int firstY = screen.getHeight() / 2;
-        int spacing = fontRegularMetrics.getHeight() * 3;
-        for (int i = 0; i < labels.length; i++) {
-            backBufferGraphics.setColor(
-                    i == selectedOption ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, labels[i], firstY + i * spacing);
-        }
-
-        backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen,
-                "Up/Down: select   Space/Enter: confirm",
-                screen.getHeight() - 50);
-        drawCenteredRegularString(screen, "Esc: main menu",
-                screen.getHeight() - 28);
     }
 
     public void drawGameModeMenu(final Screen screen, final int option) {

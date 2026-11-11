@@ -77,11 +77,11 @@ public final class BurstCancellationTest {
 	}
 
 	private static Ship rapidShip() {
-		// The Speedster fires the Rapid bullet type, which owes a second
-		// bullet after a 100 ms delay.
-		Ship ship = new Ship(100, 100, ShipType.SPEEDSTER);
+		// The Rapid bullet type owes a second bullet after a 100 ms delay.
+		Ship ship = new Ship(100, 100, ShipType.STANDARD);
+		ship.setBulletType(BulletType.RAPID);
 		check(ship.getCurrentBulletType() == BulletType.RAPID,
-				"The Speedster fires Rapid bullets");
+				"The ship fires Rapid bullets");
 		return ship;
 	}
 

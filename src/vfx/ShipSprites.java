@@ -6,7 +6,7 @@ import engine.GameColors;
 import entity.ShipType;
 
 /**
- * Custom sprites for the selectable player ships and the bullets. They keep
+ * Custom sprites for the player ship and the bullets. They keep
  * the original 13x8 ship and 3x5 bullet sizes so hitboxes are unchanged.
  */
 public final class ShipSprites {
@@ -21,28 +21,6 @@ public final class ShipSprites {
 			"#############",
 			"###.#####.###",
 			"##.........##");
-
-	/** Delta-wing jet with twin exhausts for the Speedster. */
-	private static final boolean[][] SPEEDSTER = parse(
-			"......#......",
-			".....###.....",
-			".....#.#.....",
-			"....#####....",
-			"..#########..",
-			".###########.",
-			"##..##.##..##",
-			"#....#.#....#");
-
-	/** Twin-cannon turret on armored treads for the Heavy Tank. */
-	private static final boolean[][] TANK = parse(
-			"....#...#....",
-			"....#...#....",
-			"...#######...",
-			"..#########..",
-			"#############",
-			"#.#.#.#.#.#.#",
-			"#############",
-			".###########.");
 
 	/** Plasma bolt: white-hot core, blue glow and a spark trail. */
 	private static final Color[][] PLAYER_BULLET = parseColors("WB",
@@ -74,14 +52,7 @@ public final class ShipSprites {
 	 * @return Sprite indexed [x][y].
 	 */
 	public static boolean[][] forType(final ShipType shipType) {
-		switch (shipType) {
-		case SPEEDSTER:
-			return SPEEDSTER;
-		case TANK:
-			return TANK;
-		default:
-			return STANDARD;
-		}
+		return STANDARD;
 	}
 
 	/**

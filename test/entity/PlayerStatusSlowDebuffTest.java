@@ -80,22 +80,30 @@ public final class PlayerStatusSlowDebuffTest {
 
 	private static void checkShipMovementRates() {
 		checkMovementRate(ShipType.STANDARD, 2, 1);
-		checkMovementRate(ShipType.SPEEDSTER, 4, 2);
+		checkMovementRate(ShipType.STANDARD, 4, 2);
 		checkChameleonMovementIsSlowed();
 
-		Ship tank = new Ship(100, 100, ShipType.TANK);
+		Ship tank = newShip(1);
 		FakeClockStatus status = new FakeClockStatus(3, 5);
 		check(status.applySlow(tank)
 				== PlayerStatus.SlowApplicationResult.STARTED,
-				"TANK slow starts");
+				"Speed-1 ship slow starts");
 		for (int i = 0; i < 20; i++)
 			tank.moveRight();
 		check(tank.getPositionX() == 110,
-				"TANK moves an average of half a pixel per input");
+				"A speed-1 ship moves an average of half a pixel per input");
+	}
+
+	/** Creates a standard ship whose baseline movement speed is overridden. */
+	private static Ship newShip(final int baseSpeed) {
+		Ship ship = new Ship(100, 100, ShipType.STANDARD);
+		ship.setBaseSpeed(baseSpeed);
+		ship.restoreBaseStats();
+		return ship;
 	}
 
 	private static void checkChameleonMovementIsSlowed() {
-		Ship ship = new Ship(100, 100, ShipType.SPEEDSTER);
+		Ship ship = newShip(4);
 		ship.activateChameleonHull();
 		FakeClockStatus status = new FakeClockStatus(2, 2);
 		status.applySlow(ship);
@@ -107,6 +115,8 @@ public final class PlayerStatusSlowDebuffTest {
 	private static void checkMovementRate(final ShipType type,
 			final int baseSpeed, final int expectedSlowSpeed) {
 		Ship ship = new Ship(100, 100, type);
+		ship.setBaseSpeed(baseSpeed);
+		ship.restoreBaseStats();
 		PlayerStatus status = new FakeClockStatus(
 				Math.min(3, type.getMaxLives()), type.getMaxLives());
 		check(ship.getBaseSpeed() == baseSpeed, type + " has its expected base speed");
@@ -119,7 +129,7 @@ public final class PlayerStatusSlowDebuffTest {
 	}
 
 	private static void checkTankDirectionChanges() {
-		Ship tank = new Ship(100, 100, ShipType.TANK);
+		Ship tank = newShip(1);
 		FakeClockStatus status = new FakeClockStatus(3, 5);
 		status.applySlow(tank);
 		tank.moveRight();
@@ -218,7 +228,7 @@ public final class PlayerStatusSlowDebuffTest {
 		check(ship.getShootingInterval() == 333,
 				"Slow expiry does not restore or alter the firing interval");
 
-		Ship tank = new Ship(100, 100, ShipType.TANK);
+		Ship tank = newShip(1);
 		FakeClockStatus tankStatus = new FakeClockStatus(3, 5);
 		tankStatus.applySlow(tank);
 		tank.moveRight();
@@ -230,7 +240,7 @@ public final class PlayerStatusSlowDebuffTest {
 	}
 
 	private static void checkShootingStatsAreUntouched() {
-		Ship ship = new Ship(100, 100, ShipType.TANK);
+		Ship ship = newShip(1);
 		ship.setShootingInterval(432);
 		ship.setBulletType(BulletType.MULTI);
 		FakeClockStatus status = new FakeClockStatus(3, 5);

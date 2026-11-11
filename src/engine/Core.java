@@ -1,6 +1,5 @@
 package engine;
 
-import java.io.IOException;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
@@ -9,16 +8,8 @@ import java.util.logging.Logger;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import javax.swing.JOptionPane;
-
-import screen.ShopScreen;
-import screen.HangarScreen;
-import screen.HangarMenuScreen;
 import screen.GameModeScreen;
 
-import currency.PlayerAssets;
-import currency.PlayerAssetsState;
-import hud.AssetHudSnapshot;
 import java.util.UUID;
 import records.RunSession;
 import records.RunRecord;
@@ -34,17 +25,12 @@ import screen.ScoreScreen;
 import screen.Screen;
 import screen.TitleScreen;
 import entity.ShipType;
-import screen.ShipSelectionScreen;
 import screen.PlayerRecordsScreen;
 import campaign.CampaignStageData;
 import campaign.CampaignManager;
 import screen.SettingsScreen;
 import screen.ControlsSettingsScreen;
 import screen.GameplaySettingsScreen;
-import shop.ShopController;
-import shop.ShopProduct;
-import shop.ShopProducts;
-import java.util.List;
 
 /**
  * Implements core game logic.
@@ -69,13 +55,6 @@ public final class Core {
 	private static Frame frame;
 	/** Screen currently shown. */
 	private static Screen currentScreen;
-	/** Player assets shared across levels and new games in this session. */
-	private static PlayerAssets playerAssets;
-	/** Shop controller shared for this application session. */
-	private static ShopController shopController;
-	/** Rewards shared by Campaign stages and the HUD for this session. */
-	private static CampaignRewards campaignRewards;
-	private static EndlessRewards endlessRewards;
 	private static RecordsService recordsService;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
@@ -92,12 +71,11 @@ public final class Core {
 	 *             Program args, ignored.
 	 */
 	public static void main(final String[] args) {
-		run(ShopProducts.availableProducts());
+		run();
 	}
 
-	/** Starts the game with the supplied catalog; previews can supply isolated sample products. */
-	public static void run(final List<ShopProduct> products) {
-		Objects.requireNonNull(products, "products");
+	/** Starts the game. */
+	public static void run() {
 		try {
 			LOGGER.setUseParentHandlers(false);
 
@@ -121,19 +99,6 @@ public final class Core {
 		DrawManager.getInstance().setFrame(frame);
 		int width = frame.getWidth();
 		int height = frame.getHeight();
-
-		playerAssets = new PlayerAssets();
-
-		if (!initializeShopWithRetry(products)) {
-			frame.dispose();
-			if (fileHandler != null) {
-				fileHandler.close();
-			}
-			return;
-		}
-
-		campaignRewards = new CampaignRewards(playerAssets, getFileManager());
-		endlessRewards = new EndlessRewards(playerAssets, getFileManager());
 
 		recordsService = new RecordsService(new java.io.File(System.getProperty("user.home"),
 				".space-invaders/records-achievements.properties").toPath());
@@ -173,31 +138,28 @@ public final class Core {
 				// The selected ship decides how many lives the run starts with.
 				LOGGER.info("Selected ship: " + selectedShip.getName());
 
-					CampaignUpgrades campaignUpgrades = CampaignUpgrades.from(playerAssets.snapshot());
-					gameState = new GameState(1, 0, campaignUpgrades.getMaxLives(selectedShip),
+					
+					gameState = new GameState(1, 0, selectedShip.getMaxLives(),
 							0, 0);
 
 					// Game & score.
 					RunSession runSession = new RunSession(UUID.randomUUID().toString());
-					campaignRewards.startRun(runSession.getRunId());
-					recordsService.startRun(runSession.getRunId());
+										recordsService.startRun(runSession.getRunId());
 					do {
 						// One extra live every few levels.
 						boolean bonusLife = gameState.getLevel()
 								% EXTRA_LIFE_FRECUENCY == 0
-								&& gameState.getLivesRemaining() < campaignUpgrades.getMaxLives(selectedShip);
+								&& gameState.getLivesRemaining() < selectedShip.getMaxLives();
 
 						currentScreen = new GameScreen(gameState,
 								applyDifficulty(CampaignStageData
 										.getStageSettings(gameState.getLevel())),
 								bonusLife, width, height, FPS, selectedShip,
-								runSession, campaignUpgrades);
+								runSession);
 						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 								+ " game screen at " + FPS + " fps.");
-						runCampaignStage((GameScreen) currentScreen, campaignRewards,
-								screen -> frame.setScreen(screen));
+						frame.setScreen(currentScreen);
 						LOGGER.info("Closing game screen.");
-						resolveRewards(false);
 
 						boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
 						gameState = ((GameScreen) currentScreen).getGameState();
@@ -250,37 +212,6 @@ public final class Core {
 					currentScreen = new PlayerRecordsScreen(width, height, FPS, recordsService);
 					returnCode = frame.setScreen(currentScreen);
 					break;
-				case 10:
-					// Shop.
-					currentScreen = new ShopScreen(width, height, FPS, shopController);
-					returnCode = frame.setScreen(currentScreen);
-					resolveRewards(false);
-					break;
-				case 11: {
-					currentScreen = new HangarMenuScreen(width, height, FPS);
-					returnCode = frame.setScreen(currentScreen);
-					break;
-				}
-
-				case 12: {
-					ShipSelectionScreen shipSelection = new ShipSelectionScreen(width, height, FPS);
-					currentScreen = shipSelection;
-					int selectionResult = frame.setScreen(currentScreen);
-
-					if (selectionResult == ShipSelectionScreen.SHIP_SELECTED) {
-						selectedShip = shipSelection.getSelectedShip();
-					}
-
-					returnCode = 11;
-					break;
-				}
-
-				case 13: {
-					currentScreen = new HangarScreen(width, height, FPS);
-					frame.setScreen(currentScreen);
-					returnCode = 11;
-					break;
-				}
 				case 4:
 					currentScreen = new SettingsScreen(width, height, FPS);
 					returnCode = frame.setScreen(currentScreen);
@@ -305,10 +236,8 @@ public final class Core {
 							FPS, infiniteSession);
 					LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 							+ " infinite game screen at " + FPS + " fps.");
-					runEndless((InfiniteGameScreen) currentScreen, endlessRewards,
-							screen -> frame.setScreen(screen));
+					frame.setScreen(currentScreen);
 					LOGGER.info("Closing infinite game screen.");
-					resolveRewards(false);
 
 					gameState = ((InfiniteGameScreen) currentScreen).getGameState();
 					if (!((InfiniteGameScreen) currentScreen).isAbandoned()) {
@@ -330,9 +259,6 @@ public final class Core {
 					break;
 			}
 
-			if (returnCode == 0 && !resolveRewards(true)) {
-				returnCode = 1;
-			}
 		} while (returnCode != 0);
 
 		recordsService.close();
@@ -341,100 +267,6 @@ public final class Core {
 		fileHandler.flush();
 		fileHandler.close();
 		System.exit(0);
-	}
-
-	/** Registers rewards only for the official Campaign and releases the stage listener on exit. */
-	static void runCampaignStage(final GameScreen screen, final CampaignRewards rewards,
-			final Consumer<GameScreen> runner) {
-		Objects.requireNonNull(runner, "runner");
-		try (CampaignRewards.StageSubscription subscription = rewards.subscribe(
-				screen.getGameplayEvents(), screen.getGameState().getLevel())) {
-			runner.accept(screen);
-		}
-	}
-
-	/** Keeps earned Endless rewards even when the existing records path abandons a run. */
-	static void runEndless(final InfiniteGameScreen screen, final EndlessRewards rewards,
-			final Consumer<InfiniteGameScreen> runner) {
-		Objects.requireNonNull(runner, "runner");
-		try (EndlessRewards.RunSubscription subscription = rewards.subscribe(
-				screen.getGameplayEvents(), screen.getActiveRunId())) {
-			runner.accept(screen);
-		}
-	}
-
-	/** Attempts both modes before reporting a failure, using the same saved assets. */
-	static SettlementResult retryRewards(final CampaignRewards campaign, final EndlessRewards endless) {
-		SettlementResult campaignResult = campaign.retryPendingRewards();
-		SettlementResult endlessResult = endless.retryPendingRewards();
-		if (campaignResult == SettlementResult.SETTLEMENT_FAILED
-				|| endlessResult == SettlementResult.SETTLEMENT_FAILED)
-			return SettlementResult.SETTLEMENT_FAILED;
-		if (campaignResult == SettlementResult.SAVE_FAILED || endlessResult == SettlementResult.SAVE_FAILED)
-			return SettlementResult.SAVE_FAILED;
-		return SettlementResult.SUCCESS;
-	}
-
-	private static boolean resolveRewards(final boolean exiting) {
-		SettlementResult result = retryRewards(campaignRewards, endlessRewards);
-		while (result != SettlementResult.SUCCESS) {
-			String message = result == SettlementResult.SETTLEMENT_FAILED
-					? "Your balance is full. Earned Credits remain pending in this session.\n"
-							+ "Spend Credits in the Shop to make room."
-					: "Your Credits are available in this session, but progress could not be saved.";
-			if (exiting) message += "\nExiting now will lose unsaved progress or pending Credits.";
-			String[] options = exiting
-					? new String[] { "Retry", "Return to menu", "Exit without saving" }
-					: new String[] { "Retry", "Continue" };
-			int choice = JOptionPane.showOptionDialog(frame, message,
-					"Unable to save rewards", JOptionPane.DEFAULT_OPTION,
-					JOptionPane.WARNING_MESSAGE, null, options, "Retry");
-			if (choice != 0) return !exiting || choice == 2;
-			result = retryRewards(campaignRewards, endlessRewards);
-		}
-		return true;
-	}
-
-	/** Loads shared assets before creating the session's shop controller. */
-	static ShopController initializeShop(final PlayerAssets assets,
-			final FileManager files) throws IOException {
-		return initializeShop(assets, files, files.loadPlayerAssets());
-	}
-
-	static ShopController initializeShop(final PlayerAssets assets,
-			final FileManager files, final PlayerAssetsState savedAssets) throws IOException {
-		return initializeShop(assets, files, savedAssets, ShopProducts.availableProducts());
-	}
-
-	static ShopController initializeShop(final PlayerAssets assets, final FileManager files,
-			final PlayerAssetsState savedAssets, final List<ShopProduct> products) throws IOException {
-		if (!assets.restore(savedAssets)) {
-			throw new IOException("Loaded assets could not be restored.");
-		}
-		return new ShopController(assets, files, products);
-	}
-
-	private static boolean initializeShopWithRetry(final List<ShopProduct> products) {
-		while (true) {
-			try {
-				shopController = initializeShop(playerAssets, getFileManager(),
-						getFileManager().loadPlayerAssets(), products);
-				return true;
-			} catch (IOException exception) {
-				LOGGER.warning("Player assets could not be loaded: " + exception);
-			} catch (SecurityException exception) {
-				LOGGER.warning("Player assets access denied: " + exception);
-			}
-			int choice = JOptionPane.showOptionDialog(frame,
-					"Your saved progress could not be loaded.\n"
-							+ "Your save has not been changed. Retry or quit?",
-					"Unable to load progress", JOptionPane.DEFAULT_OPTION,
-					JOptionPane.WARNING_MESSAGE, null,
-					new String[] { "Retry", "Quit" }, "Retry");
-			if (choice != 0) {
-				return false;
-			}
-		}
 	}
 
 	/**
@@ -531,35 +363,6 @@ public final class Core {
 	 */
 	public static FileManager getFileManager() {
 		return FileManager.getInstance();
-	}
-
-	/**
-	 * Returns the initialized session controller without creating or reloading assets.
-	 *
-	 * @return The existing shop controller for this application session.
-	 * @throws IllegalStateException if startup has not initialized the shop controller
-	 */
-	public static ShopController getShopController() {
-		if (shopController == null) {
-			throw new IllegalStateException("Player assets have not been initialized.");
-		}
-		return shopController;
-	}
-
-	/**
-	 * Returns balance plus pending rewards on the gameplay thread after startup.
-	 * Reads the existing session without loading, saving or settling rewards.
-	 *
-	 * @throws IllegalStateException if startup has not initialized assets and rewards
-	 */
-	public static AssetHudSnapshot getAssetHudSnapshot() {
-		ShopController shop = getShopController();
-		if (campaignRewards == null) {
-			throw new IllegalStateException("Campaign rewards have not been initialized.");
-		}
-		long pending = campaignRewards.getPendingCurrency();
-		if (endlessRewards != null) pending += endlessRewards.getPendingCurrency();
-		return new AssetHudSnapshot((long) shop.getBalance() + pending);
 	}
 
 	/**

@@ -102,9 +102,7 @@ public final class GameplayIntegrationTest {
         service.startRun(path);
         GameScreen game = new GameScreen(new GameState(7,0,3,0,0),
                 new GameSettings(1,1,1000,10000),false,448,520,60,
-                // Heavy Tank: the shield-absorption check below needs a ship
-                // that can hold the Energy Shield.
-                ShipType.TANK,new RunSession(path));
+                ShipType.STANDARD,new RunSession(path));
         game.initialize(); set(game,"inputDelay",Core.getCooldown(0));
         Ship player = (Ship)get(game,"ship");
         EnemyShipFormation formation = (EnemyShipFormation)get(game,"enemyShipFormation");
@@ -118,13 +116,6 @@ public final class GameplayIntegrationTest {
                     @Override
                     public void onEvent(final event.EnemyDefeatedEvent e) { events.add(e.getEventId()); }
                 });
-        player.setShieldActive(true);
-        Set<Bullet> incoming = (Set<Bullet>)get(game,"bullets");
-        incoming.add(BulletPool.getBullet(player.getPositionX()+4,player.getPositionY()+4,4));
-        call(game,"manageCollisions");
-        check(events.isEmpty() && game.getGameState().getLivesRemaining()==3,
-                path+" shield absorption is not an enemy defeat");
-        player.setShieldActive(false);
         if (path.equals("bullet")) {
             Set<Bullet> bullets = (Set<Bullet>)get(game,"bullets");
             bullets.add(BulletPool.getBullet(normal.getPositionX()+4,normal.getPositionY()+4,-4));

@@ -1,13 +1,11 @@
 package entity;
 
 /**
- * Defines the available player ship types and their gameplay attributes.
+ * Defines the player ship type and its gameplay attributes.
  */
 public enum ShipType {
 
-    STANDARD("Standard Ship", 2, 750, 4, false),
-    SPEEDSTER("Speedster", 4, 400, 3, false),
-    TANK("Heavy Tank", 1, 1000, 5, true);
+    STANDARD("Standard Ship", 2, 750, 4, false);
 
     /** Name displayed to the player. */
     private final String name;
@@ -66,17 +64,7 @@ public enum ShipType {
     }
 
     public BulletType getBulletType() {
-        switch (this) {
-            case SPEEDSTER:
-                return BulletType.RAPID;
-
-            case TANK:
-                return BulletType.MULTI;
-
-            case STANDARD:
-            default:
-                return BulletType.NORMAL;
-        }
+        return BulletType.NORMAL;
     }
 
 }
