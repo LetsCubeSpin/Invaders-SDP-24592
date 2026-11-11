@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.Random;
+import java.util.function.UnaryOperator;
 import campaign.CampaignStageData;
 import engine.DifficultyAdjustWhilePlaying;
 import entity.item.ChameleonHull;
@@ -51,6 +52,9 @@ import hud.FloatingScoreHud;
 import records.RunSession;
 import records.RecordsService;
 import records.Achievement;
+import story.StoryProgress;
+import story.StoryStage;
+import story.StoryStageData;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
 import event.GameplayEventListener;
@@ -87,6 +91,8 @@ public class GameScreen extends Screen {
 	private static final int FALLING_OBSTACLE_INTERVAL = 17500;
 	/** Spawn interval varies from fifteen to twenty seconds. */
 	private static final int FALLING_OBSTACLE_VARIANCE = 2500;
+	/** Average time between falling obstacles in a story asteroid field. */
+	private static final int ASTEROID_FIELD_INTERVAL = 6000;
 	/**
 	 * Enables the debug keys used to exercise player status by hand. Off
 	 * unless the game is started with -Dinvaders.debugKeys=true, so a normal
@@ -178,6 +184,10 @@ public class GameScreen extends Screen {
 	private List<WaveDefinition> customWaves;
 	/** Index of the wave currently being played. */
 	private int currentWave;
+	/** Story stage being played; null outside story mode. */
+	private StoryStage storyStage;
+	/** Boss of the story stage; null when the stage has no boss. */
+	private Boss.BossType storyBoss;
     /** Current difficulty level number. */
     private int level;
     /** Difficulty selected when this stage was started. */
@@ -462,6 +472,58 @@ public class GameScreen extends Screen {
 		screen.customWaves = definition.getWaves();
 		return screen;
 	}
+	/**
+	 * Builds one story mode stage. The stage number is taken from the game
+	 * state. Waves, boss and asteroid field come from the story data, and
+	 * the difficulty is applied to the formation timing.
+	 *
+	 * @param gameState
+	 *            State carried over from the previous stage.
+	 * @param progress
+	 *            Answers given so far in this story run.
+	 * @param difficulty
+	 *            Applies the selected difficulty to the stage settings.
+	 * @param bonusLife
+	 *            Whether the player gains a life at the start.
+	 * @param width
+	 *            Screen width.
+	 * @param height
+	 *            Screen height.
+	 * @param fps
+	 *            Frames per second.
+	 * @param shipType
+	 *            Ship picked by the player.
+	 * @param runSession
+	 *            Records session of this run.
+	 * @param campaignUpgrades
+	 *            Permanent upgrades of the player.
+	 * @return Screen of the story stage.
+	 */
+	public static GameScreen forStoryStage(final GameState gameState,
+			final StoryProgress progress,
+			final UnaryOperator<GameSettings> difficulty,
+			final boolean bonusLife, final int width, final int height,
+			final int fps, final ShipType shipType,
+			final RunSession runSession,
+			final CampaignUpgrades campaignUpgrades) {
+		if (difficulty == null)
+			throw new IllegalArgumentException("difficulty must not be null.");
+		int stageNumber = gameState.getLevel();
+		StoryStage stage = StoryStageData.get(stageNumber, progress);
+		GameSettings settings = difficulty.apply(stage.getSettings());
+		List<WaveDefinition> storyWaves = new ArrayList<WaveDefinition>();
+		for (int wave = 1; wave <= stage.getWaveCount(); wave++)
+			storyWaves.add(stage.createWave(stageNumber, wave));
+
+		GameScreen screen = new GameScreen(gameState,
+				Collections.nCopies(stage.getWaveCount(), settings), bonusLife,
+				width, height, fps, shipType, runSession, campaignUpgrades);
+		screen.customWaves = storyWaves;
+		screen.storyStage = stage;
+		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
+				? progress.bossForStage(stageNumber) : null;
+		return screen;
+	}
 
 	private EnemyShipFormation createFormation() {
 		EnemyShipFormation formation = this.customWaves == null
@@ -487,6 +549,9 @@ public class GameScreen extends Screen {
 		// over, so a plain setColour is wiped back to the default green.
 		this.ship.setBaseColor(ShipCustomization.getColor());
 		this.ship.setBaseColor(ShipCustomization.getColor());
+		// Story mode uses the normal weapon on every ship for now.
+		if (this.storyStage != null)
+			this.ship.setBulletType(BulletType.NORMAL);
         this.itemManager = new ItemManager(this.height);
 
         this.shieldDroppedThisLevel = false;
@@ -508,7 +573,7 @@ public class GameScreen extends Screen {
         this.bullets = new HashSet<Bullet>();
 		this.fallingObstacles = new HashSet<FallingObstacle>();
 		this.fallingObstacleCooldown = Core.getVariableCooldown(
-				FALLING_OBSTACLE_INTERVAL, FALLING_OBSTACLE_VARIANCE);
+				fallingObstacleInterval(), FALLING_OBSTACLE_VARIANCE);
 		this.fallingObstacleCooldown.reset();
         this.annihilator = new OrbitalAnnihilator();
 
@@ -539,9 +604,10 @@ public class GameScreen extends Screen {
 			}
 		});
 		// The boss appears only on boss stages.
-		if (isBossLevel(this.level))
+		Boss.BossType bossType = bossTypeForStage();
+		if (bossType != null)
 			this.bossManager.spawn(new BossSpawnRequest(
-					bossTypeForLevel(this.level),
+					bossType,
 					this.width / 2 - Boss.WIDTH / 2, 78,
 					this.level, 0));
 		this.bossExplosionCooldown = Core.getCooldown(BOSS_EXPLOSION_TIME);
@@ -560,7 +626,7 @@ public class GameScreen extends Screen {
 		if (this.playerStatus.getLives() == 1) {
 			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
 			this.isLowHealthBGM = true;
-		} else if (isBossLevel(this.level)) {
+		} else if (bossTypeForStage() != null) {
 			// Boss stages start the boss music right away, so it already plays
 			// during the countdown instead of switching when the boss appears.
 			AudioManager.playBGM("audio/bgm/music_boss.wav");
@@ -811,7 +877,7 @@ public class GameScreen extends Screen {
 	 * Custom levels are not included until their identifiers are agreed.
 	 */
 	private void publishLevelCompleted() {
-		if (this.customWaves != null)
+		if (this.customWaves != null && this.storyStage == null)
 			return;
 		this.recordsEvents.publish(
 				new LevelCompletedEvent(this.level, this.difficulty));
@@ -1314,7 +1380,7 @@ public class GameScreen extends Screen {
 		Boss boss = this.bossManager.getBoss();
 		if (boss == null || boss.isDefeated())
 			return;
-		boss.takeDamage(damage);
+		boss.takeDamage(storyBossDamage(damage));
 		this.bossManager.sync();
 		AudioManager.playSFX("audio/sfx/boss_hit.wav");
 
@@ -1325,9 +1391,60 @@ public class GameScreen extends Screen {
 			this.score += boss.getType().getPointValue();
 			this.logger.info("Boss " + boss.getType() + " defeated, +"
 					+ boss.getType().getPointValue() + " points.");
+			if (this.storyStage != null)
+				clearStoryEnemies();
 		}
 	}
 
+	/**
+	 * Lowers the damage a stronger story boss takes, so it lasts as long as
+	 * a boss with more health. Other bosses take the full damage.
+	 *
+	 * @param damage
+	 *            Damage of the hit.
+	 * @return Damage the boss takes, at least 1.
+	 */
+	private int storyBossDamage(final int damage) {
+		if (this.storyStage == null)
+			return damage;
+		return Math.max(1, (int) Math.round(
+				damage / this.storyStage.getBossStrength()));
+	}
+
+	/**
+	 * Removes every enemy left when the story boss is defeated, without
+	 * score or rewards, and skips the waves that have not started.
+	 */
+	private void clearStoryEnemies() {
+		List<EnemyShip> remaining = new ArrayList<EnemyShip>();
+		for (EnemyShip enemy : this.enemyShipFormation)
+			if (!enemy.isDestroyed())
+				remaining.add(enemy);
+		for (EnemyShip enemy : remaining)
+			this.enemyShipFormation.destroy(enemy);
+		this.currentWave = this.waves.size() - 1;
+		this.logger.info("Story boss defeated, " + remaining.size()
+				+ " remaining enemies removed.");
+	}
+
+	/**
+	 * @return Boss of this stage, or null when no boss appears. Story stages
+	 *         use the story data; other stages use the campaign boss stages.
+	 */
+	private Boss.BossType bossTypeForStage() {
+		if (this.storyStage != null)
+			return this.storyBoss;
+		return isBossLevel(this.level) ? bossTypeForLevel(this.level) : null;
+	}
+
+	/**
+	 * @return Average time between falling obstacles on this stage.
+	 */
+	private int fallingObstacleInterval() {
+		if (this.storyStage != null && this.storyStage.hasAsteroidField())
+			return ASTEROID_FIELD_INTERVAL;
+		return FALLING_OBSTACLE_INTERVAL;
+	}
 	/**
 	 * Returns the damage one player bullet deals to the boss. A RAPID shot
 	 * fires its bullets one after another on the same line, so they share
