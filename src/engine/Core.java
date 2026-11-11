@@ -44,6 +44,9 @@ import screen.GameplaySettingsScreen;
 import shop.ShopController;
 import shop.ShopProduct;
 import shop.ShopProducts;
+import story.PlaceholderStoryScenes;
+import story.StoryProgress;
+import story.StoryScenes;
 import java.util.List;
 
 /**
@@ -328,6 +331,11 @@ public final class Core {
 					returnCode = frame.setScreen(currentScreen);
 					LOGGER.info("Closing score screen.");
 					break;
+				case 15:
+					// Story mode & score.
+					returnCode = playStory(selectedShip, width, height,
+							new PlaceholderStoryScenes());
+					break;
 			}
 
 			if (returnCode == 0 && !resolveRewards(true)) {
@@ -351,6 +359,97 @@ public final class Core {
 				screen.getGameplayEvents(), screen.getGameState().getLevel())) {
 			runner.accept(screen);
 		}
+	}
+
+	/**
+	 * Plays story mode: the opening, the seven story stages with a question
+	 * after stages 1 and 3, the ending and the score screen. Rewards and
+	 * records work as in the campaign, but campaign progress is not saved.
+	 *
+	 * @param selectedShip
+	 *            Ship picked by the player.
+	 * @param width
+	 *            Screen width.
+	 * @param height
+	 *            Screen height.
+	 * @param scenes
+	 *            Story scenes shown between the stages.
+	 * @return Return code of the score screen.
+	 */
+	private static int playStory(final ShipType selectedShip, final int width,
+			final int height, final StoryScenes scenes) {
+		LOGGER.info("Starting story mode with " + selectedShip.getName() + ".");
+		CampaignUpgrades upgrades = CampaignUpgrades.from(playerAssets.snapshot());
+		int maxLives = upgrades.getMaxLives(selectedShip);
+		GameState gameState = new GameState(1, 0, maxLives, 0, 0);
+		StoryProgress progress = new StoryProgress();
+
+		RunSession runSession = new RunSession(UUID.randomUUID().toString());
+		campaignRewards.startRun(runSession.getRunId());
+		recordsService.startRun(runSession.getRunId());
+
+		scenes.showOpening();
+		while (gameState.getLivesRemaining() > 0
+				&& gameState.getLevel() <= StoryProgress.TOTAL_STAGES) {
+			int stage = gameState.getLevel();
+			boolean bonusLife = stage % EXTRA_LIFE_FRECUENCY == 0
+					&& gameState.getLivesRemaining() < maxLives;
+			GameScreen screen = GameScreen.forStoryStage(gameState, progress,
+					Core::applyDifficulty, bonusLife, width, height, FPS,
+					selectedShip, runSession, upgrades);
+			currentScreen = screen;
+			LOGGER.info("Starting story stage " + stage + ".");
+			runCampaignStage(screen, campaignRewards,
+					story -> frame.setScreen(story));
+			LOGGER.info("Closing story stage " + stage + ".");
+			resolveRewards(false);
+
+			gameState = screen.getGameState();
+			if (!screen.isStageCleared()) {
+				LOGGER.info("Story stage " + stage + " failed.");
+				break;
+			}
+			askStoryQuestion(stage, progress, scenes);
+			gameState = new GameState(stage + 1, gameState.getScore(),
+					gameState.getLivesRemaining(), gameState.getBulletsShot(),
+					gameState.getShipsDestroyed());
+		}
+
+		if (gameState.getLevel() > StoryProgress.TOTAL_STAGES)
+			scenes.showEnding(progress.getRoute());
+
+		RunRecord storyRecord = runSession.finish(gameState.getScore(),
+				gameState.getShipsDestroyed(), System.currentTimeMillis());
+		if (recordsService.completeRun(storyRecord))
+			LOGGER.info("Completed story run recorded:\n"
+					+ RunRecordFormatter.format(storyRecord));
+
+		currentScreen = new ScoreScreen(width, height, FPS, gameState,
+				recordsService.getCurrentRunUnlocks());
+		int returnCode = frame.setScreen(currentScreen);
+		LOGGER.info("Closing score screen.");
+		// The score screen's "play again" code is the campaign's; story mode
+		// replays itself instead.
+		return returnCode == 2 ? 15 : returnCode;
+	}
+
+	/**
+	 * Asks the story question that follows a cleared stage: the first one
+	 * after stage 1 and the second one after the stage 3 boss.
+	 *
+	 * @param stage
+	 *            Stage that was just cleared.
+	 * @param progress
+	 *            Answers given so far.
+	 * @param scenes
+	 *            Story scenes that ask the questions.
+	 */
+	static void askStoryQuestion(final int stage, final StoryProgress progress,
+			final StoryScenes scenes) {
+		if (stage == StoryProgress.FIRST_QUESTION_STAGE)
+			progress.chooseFirst(scenes.askFirst());
+		else if (stage == StoryProgress.MID_BOSS_STAGE)
+			progress.chooseSecond(scenes.askSecond(progress.getFirstChoice()));
 	}
 
 	/** Keeps earned Endless rewards even when the existing records path abandons a run. */
