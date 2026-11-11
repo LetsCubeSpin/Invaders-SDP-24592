@@ -40,7 +40,8 @@ class CampaignEnemyRewardsTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"A,10", "B,15", "C,20", "BONUS,20", "BOSS_A,50", "BOSS_B,50"})
+    @CsvSource({"A,10", "B,15", "C,20", "BONUS,20", "BOSS_A,50", "BOSS_B,50",
+            "BOSS_C,70", "BOSS_D,70"})
     void eachTypeIsVisibleWhilePlayingAndSavedAfterAnUnclearedStage(
             DefeatedEnemyType type, int amount) throws Exception {
         GameplayEventPublisher events = new GameplayEventPublisher();
@@ -53,6 +54,30 @@ class CampaignEnemyRewardsTest {
         assertEquals(amount, assets.getBalance());
         assertEquals(0, rewards.getPendingCurrency());
         assertEquals(amount, files.loadPlayerAssets(save).getBalance());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"BOSS_A,50", "BOSS_B,50", "BOSS_C,70", "BOSS_D,70"})
+    void bossesPayByTypeBeforeTheFinalStage(DefeatedEnemyType type, int amount) {
+        GameplayEventPublisher events = new GameplayEventPublisher();
+        try (CampaignRewards.StageSubscription stage = rewards.subscribe(events, 5)) {
+            defeat(events, "boss", type);
+            assertEquals(amount, rewards.getPendingCurrency());
+        }
+        assertEquals(amount, assets.getBalance());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"BOSS_A", "BOSS_B", "BOSS_C", "BOSS_D"})
+    void anyBossOnTheFinalStagePaysTheFinalBossReward(DefeatedEnemyType type) {
+        GameplayEventPublisher events = new GameplayEventPublisher();
+        try (CampaignRewards.StageSubscription stage =
+                rewards.subscribe(events, CampaignRewards.FINAL_BOSS_LEVEL)) {
+            defeat(events, "boss", type);
+            defeat(events, "enemy", DefeatedEnemyType.A);
+            assertEquals(70 + 10, rewards.getPendingCurrency());
+        }
+        assertEquals(70 + 10, assets.getBalance());
     }
 
     @Test

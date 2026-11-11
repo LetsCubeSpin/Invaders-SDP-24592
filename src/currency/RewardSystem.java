@@ -31,6 +31,9 @@ public class RewardSystem {
     /** Level-completion reward used until setBaseLevelReward() changes it. */
     private static final int DEFAULT_LEVEL_REWARD = 100;
 
+    /** Reward key for a boss defeated on the final stage, whatever its type. */
+    public static final String FINAL_BOSS = "FINAL_BOSS";
+
     /** Player assets that receive the pending rewards when settle() succeeds. */
     private final PlayerAssets playerAssets;
     /** Reward per enemy type. Keys are case-sensitive enemy type names. */
@@ -71,6 +74,9 @@ public class RewardSystem {
         enemyRewards.put("BONUS", 20);
         enemyRewards.put("BOSS_A", 50);
         enemyRewards.put("BOSS_B", 50);
+        enemyRewards.put("BOSS_C", 70);
+        enemyRewards.put("BOSS_D", 70);
+        enemyRewards.put(FINAL_BOSS, 70);
         enemyRewards.put("BASIC", 10);
         enemyRewards.put("FAST", 25);
         enemyRewards.put("TANK", 50);

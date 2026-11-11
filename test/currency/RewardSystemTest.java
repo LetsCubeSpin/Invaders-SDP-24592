@@ -25,7 +25,8 @@ class RewardSystemTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"A,10", "B,15", "C,20", "BONUS,20", "BOSS_A,50", "BOSS_B,50"})
+    @CsvSource({"A,10", "B,15", "C,20", "BONUS,20", "BOSS_A,50", "BOSS_B,50",
+            "BOSS_C,70", "BOSS_D,70", "FINAL_BOSS,70"})
     void campaignEnemyRewardsAccumulateWithoutChangingTheBalance(String type, int amount) {
         assertEquals(amount, rewards.getEnemyReward(type));
         assertTrue(rewards.rewardEnemy(type));
