@@ -20,7 +20,7 @@ public final class BurstCancellationTest {
 
 	public static void main(final String[] args) throws Exception {
 		checkBurstFiresWhenNothingBlocksIt();
-		checkChameleonHullCancelsTheBurst();
+		checkWeaponChangeCancelsTheBurst();
 		checkCancelledBurstDoesNotResume();
 
 		System.out.println("Burst cancellation checks passed.");
@@ -39,41 +39,33 @@ public final class BurstCancellationTest {
 		check(owed(ship) == 0, "Nothing is owed once the burst is done");
 	}
 
-	/**
-	 * Picking up the Chameleon Hull inside the shot delay used to leave the
-	 * owed bullet to fire anyway, even though shoot() is blocked.
-	 */
-	private static void checkChameleonHullCancelsTheBurst() throws Exception {
+	/** Switching weapons drops any outstanding RAPID follow-up. */
+	private static void checkWeaponChangeCancelsTheBurst() throws Exception {
 		Ship ship = rapidShip();
 		Set<Bullet> bullets = new HashSet<Bullet>();
 
 		ship.shoot(bullets);
-		check(owed(ship) == 1, "A bullet is owed before the transformation");
-
-		ship.activateChameleonHull();
-		check(owed(ship) == 0, "Transforming drops the owed bullet");
+		check(owed(ship) == 1, "RAPID owes its second shot");
+		ship.setBulletType(BulletType.NORMAL);
+		check(owed(ship) == 0, "Switching weapons clears the pending shot");
 
 		allowNextShot(ship);
 		check(ship.updateBurst(bullets) == 0,
-				"No bullet is fired while transformed");
+				"No old shot is emitted by the new weapon");
 	}
 
-	/**
-	 * The team chose cancelling over suppressing, so the owed bullet must
-	 * not come back when the transformation ends.
-	 */
+	/** Explicit cancellation must survive subsequent updates. */
 	private static void checkCancelledBurstDoesNotResume() throws Exception {
 		Ship ship = rapidShip();
 		Set<Bullet> bullets = new HashSet<Bullet>();
 
 		ship.shoot(bullets);
-		ship.activateChameleonHull();
-		ship.deactivateChameleonHull();
+		ship.cancelBurst();
 
 		allowNextShot(ship);
 		check(ship.updateBurst(bullets) == 0,
-				"A cancelled burst does not resume after the transformation");
-		check(owed(ship) == 0, "Nothing is owed after the transformation");
+				"A cancelled burst does not resume");
+		check(owed(ship) == 0, "No follow-up remains");
 	}
 
 	private static Ship rapidShip() {

@@ -81,7 +81,6 @@ public final class PlayerStatusSlowDebuffTest {
 	private static void checkShipMovementRates() {
 		checkMovementRate(ShipType.STANDARD, 2, 1);
 		checkMovementRate(ShipType.SPEEDSTER, 4, 2);
-		checkChameleonMovementIsSlowed();
 
 		Ship tank = new Ship(100, 100, ShipType.TANK);
 		FakeClockStatus status = new FakeClockStatus(3, 5);
@@ -92,16 +91,6 @@ public final class PlayerStatusSlowDebuffTest {
 			tank.moveRight();
 		check(tank.getPositionX() == 110,
 				"TANK moves an average of half a pixel per input");
-	}
-
-	private static void checkChameleonMovementIsSlowed() {
-		Ship ship = new Ship(100, 100, ShipType.SPEEDSTER);
-		ship.activateChameleonHull();
-		FakeClockStatus status = new FakeClockStatus(2, 2);
-		status.applySlow(ship);
-		ship.moveDown();
-		check(ship.getPositionY() == 104,
-				"Slow also halves movement while the chameleon hull is active");
 	}
 
 	private static void checkMovementRate(final ShipType type,
@@ -116,6 +105,9 @@ public final class PlayerStatusSlowDebuffTest {
 		ship.moveRight();
 		check(ship.getPositionX() == 100 + expectedSlowSpeed,
 				type + " moves at half speed");
+		ship.moveLeft();
+		check(ship.getPositionX() == 100 && ship.getPositionY() == 100,
+				type + " keeps its vertical position while slowed");
 	}
 
 	private static void checkTankDirectionChanges() {
