@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.Random;
 import java.util.function.UnaryOperator;
+
+import boss.*;
 import campaign.CampaignStageData;
 import engine.DifficultyAdjustWhilePlaying;
 import entity.item.ItemManager;
@@ -24,12 +26,6 @@ import engine.LevelGameplayAdapter;
 import level.LevelDefinition;
 import level.WaveDefinition;
 import entity.Bullet;
-import boss.BossEvent;
-import boss.BossEventListener;
-import boss.BossManager;
-import boss.BossSpawnRequest;
-import boss.BossStatus;
-import boss.LoggingBossEventListener;
 import entity.BonusEnemyManager;
 import entity.Boss;
 import entity.BossBullet;
@@ -217,6 +213,7 @@ public class GameScreen extends Screen {
     static final String DEFEAT_ID_SEPARATOR = ":";
     /** Flag to track if the urgent low-health BGM is currently playing. */
     private boolean isLowHealthBGM = false;
+    private ArrayList<EnemyShip> summonedEnemies;
 
     /**
      * Constructor, establishes the properties of the screen.
@@ -546,6 +543,7 @@ public class GameScreen extends Screen {
 		this.fallingObstacleCooldown.reset();
 
 		this.bossBullets = new HashSet<BossBullet>();
+        this.summonedEnemies = new ArrayList<EnemyShip>();
 		this.bossManager = new BossManager();
 		// Logs boss events for debugging.
 		this.bossManager.getEventManager().addListener(
@@ -715,12 +713,50 @@ public class GameScreen extends Screen {
 
 			this.bonusEnemyManager.update(this.width);
 
-			Boss boss = getBossOnScreen();
-			if (boss != null) {
-				boss.update(1, this.width - 1);
-				this.bossManager.update(
-						this.ship.getPositionX() + this.ship.getWidth() / 2,
-						this.ship.getPositionY(), this.bossBullets);
+            Boss boss = getBossOnScreen();
+            if (boss != null) {
+                boss.update(1, this.width - 1);
+                List<BossAttackSystem.SummonRequest> summons =
+                        new ArrayList<>();
+                this.bossManager.update(
+                        this.ship.getPositionX() + this.ship.getWidth() / 2,
+                        this.ship.getPositionY(), this.bossBullets, summons);
+
+                for (BossAttackSystem.SummonRequest req : summons) {
+                    EnemyShip minion = EnemyShip.createByType(
+                            req.getEnemyType(), req.getPositionX(), req.getPositionY());
+                    Cooldown shootCooldown = this.enemyShipFormation.createShooterCooldown();
+                    shootCooldown.reset();
+                    minion.setShootingCooldown(shootCooldown);
+                    this.summonedEnemies.add(minion);
+                }
+            }
+
+            for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
+                EnemyShip minion = it.next();
+                minion.update();
+                minion.move(0, 2);
+
+                if (!this.ship.isDestroyed() && minion.canShoot()) {
+                    if (minion.getDefeatedType() == DefeatedEnemyType.B) {
+                        // B: player 자리에 null을 넘겨 수직 일자 발사
+                        this.enemyShipFormation.shootFrom(minion, this.bullets, null);
+                    } else if (minion.getDefeatedType() == DefeatedEnemyType.C) {
+                        // C: player 자리에 this.ship을 넘겨 플레이어 조준 발사
+                        this.enemyShipFormation.shootFrom(minion, this.bullets, this.ship);
+                    }
+                }
+
+                if (!this.ship.isDestroyed() && checkCollision(minion, this.ship)) {
+                    minion.destroy();
+                    this.particleSystem.spawnEnemyExplosion(
+                            minion.getPositionX() + minion.getWidth() / 2,
+                            minion.getPositionY() + minion.getHeight() / 2);
+                    damagePlayer(1, "Collided with summoned enemy");
+                    it.remove();
+                } else if (minion.isDestroyed() || minion.getPositionY() > this.height) {
+                    it.remove();
+                }
             }
 
 			if (!this.ship.isDestroyed())
@@ -768,7 +804,8 @@ public class GameScreen extends Screen {
                 AudioManager.playSFX("audio/sfx/game_over.wav");
                 this.screenFinishedCooldown.reset();
                 this.logger.info("Stage " + this.level + " failed.");
-            } else if (this.enemyShipFormation.isEmpty() && isBossCleared()) {
+            } else if (this.enemyShipFormation.isEmpty()
+                    && this.summonedEnemies.isEmpty() && isBossCleared()) {
                 if (this.currentWave < this.waves.size() - 1) {
                     startNextWave();
                 } else {
@@ -827,6 +864,7 @@ public class GameScreen extends Screen {
 	private void startNextWave() {
 		this.fallingObstacles.clear();
 		this.fallingObstacleCooldown.reset();
+        this.summonedEnemies.clear();
 		this.logger.info("Stage " + this.level + " wave " +
 				(this.currentWave + 1) + " cleared.");
 		this.currentWave++;
@@ -869,6 +907,9 @@ public class GameScreen extends Screen {
 					bossBullet.getPositionY());
 
         enemyShipFormation.draw();
+        for (EnemyShip minion : this.summonedEnemies) {
+            drawManager.drawEntity(minion, minion.getPositionX(), minion.getPositionY());
+        }
 
         for (Bullet bullet : this.bullets)
 			drawManager.drawEntity(bullet, bullet.getPositionX(),
@@ -1081,6 +1122,26 @@ public class GameScreen extends Screen {
                     recyclable.add(bullet);
                 }
 
+                if (!recyclable.contains(bullet)) {
+                    for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
+                        EnemyShip minion = it.next();
+                        if (!minion.isDestroyed() && checkCollision(bullet, minion)) {
+                            recyclable.add(bullet);
+                            if (minion.hit()) {
+                                AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
+                                this.score += minion.getPointValue();
+                                floatingScoreHud.show(minion);
+                                this.shipsDestroyed++;
+                                recordEnemyDefeat(minion);
+                                this.particleSystem.spawnEnemyExplosion(
+                                        minion.getPositionX() + minion.getWidth() / 2,
+                                        minion.getPositionY() + minion.getHeight() / 2);
+                                it.remove();
+                            }
+                            break;
+                        }
+                    }
+                }
 
                 // A bullet that already hit a ship cannot also hit the boss.
                 Boss boss = getBossOnScreen();
@@ -1219,6 +1280,14 @@ public class GameScreen extends Screen {
 					+ boss.getType().getPointValue() + " points.");
 			if (this.storyStage != null)
 				clearStoryEnemies();
+
+            for (EnemyShip minion : this.summonedEnemies) {
+                this.particleSystem.spawnEnemyExplosion(
+                        minion.getPositionX() + minion.getWidth() / 2,
+                        minion.getPositionY() + minion.getHeight() / 2);
+            }
+
+            this.summonedEnemies.clear();
 		}
 	}
 
@@ -1323,10 +1392,20 @@ public class GameScreen extends Screen {
 	 *            Stage number, starting at 1.
 	 * @return Boss to spawn on that stage.
 	 */
+
+    /**
 	static Boss.BossType bossTypeForLevel(final int level) {
 		return level <= firstBossLevel() ? Boss.BossType.BOSS_A
 				: Boss.BossType.BOSS_B;
 	}
+     */
+    static Boss.BossType bossTypeForLevel(final int level) {
+        if (level <= firstBossLevel())
+            return Boss.BossType.BOSS_A;
+        if (level == 5)
+            return Boss.BossType.BOSS_B;
+        return Boss.BossType.BOSS_C;
+    }
 
 	/**
 	 * Returns the earliest boss stage, without relying on BOSS_LEVELS being
@@ -1507,12 +1586,14 @@ public class GameScreen extends Screen {
 	 */
 	private static DefeatedEnemyType classifyBoss(final Boss.BossType bossType) {
 		switch (bossType) {
-		case BOSS_A:
-			return DefeatedEnemyType.BOSS_A;
-		case BOSS_B:
-			return DefeatedEnemyType.BOSS_B;
-		default:
-			return DefeatedEnemyType.UNKNOWN;
+		    case BOSS_A:
+			    return DefeatedEnemyType.BOSS_A;
+		    case BOSS_B:
+			    return DefeatedEnemyType.BOSS_B;
+            case BOSS_C:
+                return DefeatedEnemyType.BOSS_C;
+		    default:
+			    return DefeatedEnemyType.UNKNOWN;
 		}
 	}
 

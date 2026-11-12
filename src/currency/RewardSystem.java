@@ -71,6 +71,7 @@ public class RewardSystem {
         enemyRewards.put("BONUS", 20);
         enemyRewards.put("BOSS_A", 50);
         enemyRewards.put("BOSS_B", 50);
+        enemyRewards.put("BOSS_C", 50);
         enemyRewards.put("BASIC", 10);
         enemyRewards.put("FAST", 25);
         enemyRewards.put("TANK", 50);
