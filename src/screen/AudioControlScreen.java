@@ -146,7 +146,7 @@ public class AudioControlScreen extends Screen {
 				this.selectionCooldown.reset();
 			}
 			// Esc closes the screen.
-			if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)){
+			if (inputManager.isBackDown()){
 				AudioManager.playSFX("audio/sfx/menu_back.wav");
 				this.isRunning = false;
 		}

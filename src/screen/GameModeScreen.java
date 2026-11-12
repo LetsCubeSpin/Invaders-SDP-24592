@@ -88,8 +88,8 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
                 }
             }
 
-            // ESC 처리 (뒤로가기)
-            if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+            // ESC / 우클릭 처리 (뒤로가기)
+            if (inputManager.isBackDown()) {
                 if (this.menuStep == 1) {
                     this.menuStep = 0; // 2단계에서는 1단계로 복귀
                     this.selected = this.selectedMode;

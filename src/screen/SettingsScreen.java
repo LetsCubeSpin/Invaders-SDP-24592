@@ -82,7 +82,7 @@ public class SettingsScreen extends Screen {
             AudioManager.playSFX("audio/sfx/menu_move.wav");
         } else if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
             confirmSelectedOption();
-        } else if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+        } else if (inputManager.isBackDown()) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 1;
             this.isRunning = false;

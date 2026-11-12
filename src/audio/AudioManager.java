@@ -33,6 +33,9 @@ public class AudioManager {
     /** Global mute state, visible across audio control threads. */
     private static volatile boolean muted = false;
 
+    /** Resource path of the BGM currently on the bus, or null if none. */
+    private static String currentBGMPath = null;
+
     /** Total initialization attempts, including startup and mixer recovery. */
     private static int initAttempts = 0;
 
@@ -55,6 +58,7 @@ public class AudioManager {
         try {
             bgmBus.stopAll();
             sfxBus.stopAll();
+            currentBGMPath = null;
             if (audioMixer != null) audioMixer.shutdown();
             audioMixer = new AudioMixer(new AudioMixer.MixerErrorListener() {
                 /** Marks audio unavailable and retries initialization under the manager lock. */
@@ -99,6 +103,7 @@ public class AudioManager {
                 group.stopAll();
                 group.play(resource);
                 group.setPaused(false);
+                currentBGMPath = path;
             }
         } catch (Exception e) {
             logger.log(Level.WARNING, "Failed to play BGM [path=" + path + "]: " + e, e);
@@ -106,10 +111,33 @@ public class AudioManager {
     }
 
     /**
+     * Plays the specified background music, but keeps it running without
+     * restarting if the same track is already playing. Useful for menu screens
+     * so the music continues seamlessly while navigating between them.
+     *
+     * @param path the resource path relative to the classpath root,
+     *             without a leading slash or the res directory prefix
+     */
+    public static void continueBGM(String path) {
+        synchronized (bgmBus) {
+            if (initialized && path.equals(currentBGMPath) && bgmBus.hasPlaybacks()) {
+                try {
+                    bgmBus.setPaused(false);
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Failed to resume BGM: " + e, e);
+                }
+                return;
+            }
+        }
+        playBGM(path);
+    }
+
+    /**
      * Stops the currently playing background music.
      */
     public static void stopBGM() {
         try {
+            currentBGMPath = null;
             bgmBus.stopAll();
         } catch (Exception e) {
             logger.log(Level.WARNING, "Failed to stop BGM: " + e, e);

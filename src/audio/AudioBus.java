@@ -71,6 +71,15 @@ public class AudioBus {
             throw new IllegalArgumentException("No active playback found for ID: " + id);
     }
 
+    /**
+     * Returns whether this bus currently has any active playback.
+     *
+     * @return true if at least one playback is active
+     */
+    public synchronized boolean hasPlaybacks() {
+        return !playbacks.isEmpty();
+    }
+
     /** Removes all playbacks without changing bus settings or cached resources. */
     public synchronized void stopAll() {
         playbacks.clear();
