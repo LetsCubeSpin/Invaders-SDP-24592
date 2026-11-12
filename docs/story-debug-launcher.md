@@ -39,8 +39,11 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 ## 검증
 
 ```powershell
+.\scripts\test-story-debug.ps1
 .\gradlew.bat test --tests engine.StoryDebugLauncherTest
 .\gradlew.bat test smokeTest spotlessCheck
 ```
 
 252개 조합에서 선택 경계, 보스, 기체·루트 탄종과 수류탄 조건을 확인한다. 격리 통합 테스트는 매번 새 JVM을 띄워 네 루트의 Stage 1·3·7에 실제 전투 화면을 생성하고, 기체와 난이도, 생성된 보스, 스테이지 데이터를 확인한다. 대표 최종 보스를 처치한 뒤 게임 루프가 클리어로 끝날 때까지 돌린다. 하이스코어·재화·기록 파일에 미리 넣어 둔 값과 파일 목록을 두 번의 실행 후 대조한다. 수동 장비 검증 시에는 위 표의 게임 구현 상태를 기준으로 해석한다.
+
+PowerShell 회귀 테스트는 소수 스테이지 입력 거부, 컴파일러 종료 코드 전달, 공백이 있는 경로에서 실패 후 임시 세션 정리를 검사한다. PowerShell 프로세스 자체가 강제 종료되면 임시 폴더가 남을 수 있다. 다음 실행에서는 새 폴더를 사용한다.

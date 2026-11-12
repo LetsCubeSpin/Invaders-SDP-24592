@@ -2,17 +2,21 @@
 param(
     [string]$JdkRoot = $env:JAVA_HOME,
     [string]$Route,
-    [int]$Stage,
+    [string]$Stage,
     [string]$Difficulty,
     [string]$Ship
 )
 
 $ErrorActionPreference = 'Stop'
+# Handle native tool exit codes explicitly, including when the caller enabled native error actions.
+$PSNativeCommandUseErrorActionPreference = $false
 $selection = @()
 $fields = @('Route', 'Stage', 'Difficulty', 'Ship' | Where-Object { $PSBoundParameters.ContainsKey($_) })
 if ($fields.Count -gt 0) {
     if ($fields.Count -ne 4) { throw 'Specify all four: -Route -Stage -Difficulty -Ship, or omit all to open the picker.' }
-    $selection = @($Route, [string]$Stage, $Difficulty, $Ship)
+    $stageNumber = 0
+    if (-not [int]::TryParse($Stage, [ref]$stageNumber)) { throw 'Stage must be an integer.' }
+    $selection = @($Route, [string]$stageNumber, $Difficulty, $Ship)
 }
 
 $repo = Split-Path -Parent $PSScriptRoot
@@ -26,10 +30,16 @@ Push-Location -LiteralPath $session
 try {
     # Compile the development entry point and its transitive sources; the release jar stays unchanged.
     & $compiler --release 17 -encoding UTF-8 -d $classes -sourcepath "$repo\src;$repo\test" "$repo\test\engine\StoryDebugLauncher.java"
-    if ($LASTEXITCODE -ne 0) { throw "javac failed ($LASTEXITCODE)." }
+    if ($LASTEXITCODE -ne 0) {
+        [Console]::Error.WriteLine("javac failed ($LASTEXITCODE).")
+        exit $LASTEXITCODE
+    }
     & $java '-Dinvaders.storyDebug=true' '-Djava.util.prefs.PreferencesFactory=shop.PreviewPreferencesFactory' `
         "-Duser.home=$session" "-Dinvaders.storageDir=$session" -cp "$classes;$repo\res" engine.StoryDebugLauncher @selection
-    if ($LASTEXITCODE -ne 0) { throw "Story debug failed ($LASTEXITCODE)." }
+    if ($LASTEXITCODE -ne 0) {
+        [Console]::Error.WriteLine("Story debug failed ($LASTEXITCODE).")
+        exit $LASTEXITCODE
+    }
 } finally {
     Pop-Location
     $resolved = (Resolve-Path -LiteralPath $session).Path
