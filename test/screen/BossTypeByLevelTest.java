@@ -1,10 +1,13 @@
 package screen;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 import entity.Boss;
 
 /**
- * Standalone checks that both boss types are reachable in play. Boss B was
- * implemented but never spawned, because every boss stage asked for Boss A.
+ * Standalone checks that every boss type is reachable across the boss
+ * stages and that boss tiers differ in gameplay attributes.
  */
 public final class BossTypeByLevelTest {
 
@@ -17,37 +20,40 @@ public final class BossTypeByLevelTest {
 	}
 
 	public static void main(final String[] args) {
-		checkTheFirstBossStageOpensWithTheSlowBoss();
-		checkLaterBossStagesUseTheFastBoss();
-		checkBothTypesDifferInMoreThanHealth();
+		checkEveryBossTypeIsReachable();
+		checkFirstBossStageOpensWithTheSlowBoss();
+		checkBossesDifferInMoreThanHealth();
 
 		System.out.println("Boss type by level checks passed.");
 	}
 
 	/**
-	 * Read from GameScreen.BOSS_LEVELS rather than hardcoded, so the test
-	 * follows the boss stages if the team changes them.
+	 * Reads from GameScreen.BOSS_LEVELS rather than hardcoding stage numbers,
+	 * ensuring no implemented boss type is left unreachable.
 	 */
-	private static void checkTheFirstBossStageOpensWithTheSlowBoss() {
+	private static void checkEveryBossTypeIsReachable() {
+		Set<Boss.BossType> reachable = EnumSet.noneOf(Boss.BossType.class);
+		for (int level : GameScreen.BOSS_LEVELS) {
+			Boss.BossType type = GameScreen.bossTypeForLevel(level);
+			check(type != null, "Boss stage " + level + " returns a boss");
+			reachable.add(type);
+		}
+		for (Boss.BossType type : Boss.BossType.values())
+			check(reachable.contains(type),
+					type + " is reachable in GameScreen.BOSS_LEVELS");
+	}
+
+	private static void checkFirstBossStageOpensWithTheSlowBoss() {
 		int first = GameScreen.firstBossLevel();
 		check(GameScreen.bossTypeForLevel(first) == Boss.BossType.BOSS_A,
 				"The first boss stage (" + first + ") uses the slow boss");
-	}
-
-	private static void checkLaterBossStagesUseTheFastBoss() {
-		int first = GameScreen.firstBossLevel();
-		for (int level : GameScreen.BOSS_LEVELS)
-			if (level != first)
-				check(GameScreen.bossTypeForLevel(level)
-						== Boss.BossType.BOSS_B,
-						"Boss stage " + level + " uses the fast boss");
 	}
 
 	/**
 	 * R4 asks for bosses with difficulty levels, so the two must differ in
 	 * how they play and not only in the size of their health bar.
 	 */
-	private static void checkBothTypesDifferInMoreThanHealth() {
+	private static void checkBossesDifferInMoreThanHealth() {
 		Boss.BossType slow = Boss.BossType.BOSS_A;
 		Boss.BossType fast = Boss.BossType.BOSS_B;
 

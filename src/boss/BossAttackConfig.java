@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 import entity.Boss;
+import entity.EnemyType;
 
 /**
  * Attack data of each kind of boss (PRD 4) and the attack setup of each
@@ -67,6 +68,55 @@ public final class BossAttackConfig {
             this.weights.add(weight);
             this.totalWeight += weight;
             return this;
+        }
+
+        /** Enemy type summoned in this phase, or null if summoning is disabled. */
+        private EnemyType summonEnemyType;
+        /** Interval between summons in milliseconds. */
+        private int summonIntervalMilliseconds;
+        /** Number of enemies summoned each time. */
+        private int summonCount;
+
+        /**
+         * Configures periodic minion summoning for this phase.
+         *
+         * @param enemyType
+         *            Type of enemy to summon (A, B or C).
+         * @param intervalMilliseconds
+         *            Cooldown between summons in milliseconds.
+         * @param count
+         *            Number of enemies spawned per summon.
+         * @return This phase, so calls can be chained.
+         */
+        public PhaseConfig withSummon(final EnemyType enemyType,
+                                      final int intervalMilliseconds, final int count) {
+            if (enemyType == null)
+                throw new IllegalArgumentException("Enemy type must not be null.");
+            if (intervalMilliseconds <= 0 || count <= 0)
+                throw new IllegalArgumentException(
+                        "Summon interval and count must be positive.");
+            this.summonEnemyType = enemyType;
+            this.summonIntervalMilliseconds = intervalMilliseconds;
+            this.summonCount = count;
+            return this;
+        }
+
+        public boolean isSummonEnabled() {
+            return this.summonEnemyType != null
+                    && this.summonIntervalMilliseconds > 0
+                    && this.summonCount > 0;
+        }
+
+        public EnemyType getSummonEnemyType() {
+            return this.summonEnemyType;
+        }
+
+        public int getSummonIntervalMilliseconds() {
+            return this.summonIntervalMilliseconds;
+        }
+
+        public int getSummonCount() {
+            return this.summonCount;
         }
 
         /**
@@ -142,11 +192,13 @@ public final class BossAttackConfig {
      */
     public static BossAttackConfig forType(final Boss.BossType type) {
         switch (type) {
-        case BOSS_B:
-            return createBossB();
-        case BOSS_A:
-        default:
-            return createBossA();
+            case BOSS_C:
+                return createBossC();
+            case BOSS_B:
+                return createBossB();
+            case BOSS_A:
+            default:
+                return createBossA();
         }
     }
 
@@ -188,6 +240,27 @@ public final class BossAttackConfig {
         return new BossAttackConfig(1500, 1,
                 new PhaseConfig[] { phase1, phase2, phase3 },
                 new SpecialAttack.RapidFire(10000, 800, 0.4, 3000));
+    }
+
+    /**
+     * Boss C (VESPERA): summons Enemy A in phase 1, Enemy B in phase 2,
+     * and Enemy C in phase 3 periodically.
+     *
+     * @return Attack data of boss C.
+     */
+    private static BossAttackConfig createBossC() {
+        PhaseConfig phase1 = new PhaseConfig(1.0, false)
+                .add(new AttackPattern.SingleShot(3.5), 2)
+                .withSummon(EnemyType.A, 4500, 2);
+        PhaseConfig phase2 = new PhaseConfig(0.8, false)
+                .add(new AttackPattern.SingleShot(3.5), 2)
+                .withSummon(EnemyType.B, 4000, 3);
+        PhaseConfig phase3 = new PhaseConfig(0.6, true)
+                .add(new AttackPattern.SingleShot(3.5), 2)
+                .withSummon(EnemyType.C, 2500, 2);
+        return new BossAttackConfig(1800, 1,
+                new PhaseConfig[] { phase1, phase2, phase3 },
+                new SpecialAttack.RingBurst(1200, 120, 8, 2.5));
     }
 
     /**
