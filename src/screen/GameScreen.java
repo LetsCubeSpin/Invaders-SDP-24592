@@ -1129,10 +1129,6 @@ public class GameScreen extends Screen {
                             recyclable.add(bullet);
                             if (minion.hit()) {
                                 AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
-                                this.score += minion.getPointValue();
-                                floatingScoreHud.show(minion);
-                                this.shipsDestroyed++;
-                                recordEnemyDefeat(minion);
                                 this.particleSystem.spawnEnemyExplosion(
                                         minion.getPositionX() + minion.getWidth() / 2,
                                         minion.getPositionY() + minion.getHeight() / 2);
@@ -1597,13 +1593,16 @@ public class GameScreen extends Screen {
 		}
 	}
 
-    private void recordEnemyDefeat(final EnemyShip enemy) {
-        if (this.runSession == null) return;
-        String id = this.defeatIds.get(enemy);
-        if (id == null) { id=newDefeatId(enemy.getDefeatedType()); this.defeatIds.put(enemy,id); }
-        this.recordsEvents.publish(new EnemyDefeatedEvent(this.runSession.getRunId(),id,
-                enemy.getDefeatedType()));
-    }
+	private void recordEnemyDefeat(final EnemyShip enemy) {
+		if ((this.summonedEnemies != null && this.summonedEnemies.contains(enemy))
+				|| this.runSession == null) {
+			return;
+		}
+		String id = this.defeatIds.get(enemy);
+		if (id == null) { id = newDefeatId(enemy.getDefeatedType()); this.defeatIds.put(enemy, id); }
+		this.recordsEvents.publish(new EnemyDefeatedEvent(this.runSession.getRunId(), id,
+				enemy.getDefeatedType()));
+	}
 
     /**
      * Gives other systems the shared gameplay event bus. Player status events
