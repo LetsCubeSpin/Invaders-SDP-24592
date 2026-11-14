@@ -108,6 +108,10 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
         return this.selected;
     }
 
+    public final int getPlayerCount() {
+        return this.is2P ? 2 : 1;
+    }
+
     private void draw() {
         drawManager.initDrawing(this);
         if (this.menuStep == 0) {

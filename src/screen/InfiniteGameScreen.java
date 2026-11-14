@@ -68,6 +68,8 @@ public class InfiniteGameScreen extends Screen {
 	/** Total bullets shot by the player. */
 	private int bulletsShot;
 	private int shipsDestroyed;
+	/** Number of players selected for this run. */
+	private final int playerCount;
 	private boolean gameOver;
 	private RunSession runSession;
 	private boolean abandoned;
@@ -87,8 +89,17 @@ public class InfiniteGameScreen extends Screen {
 
 	public InfiniteGameScreen(final GameState gameState, final int width,
 			final int height, final int fps, final RunSession runSession) {
+		this(gameState, width, height, fps, runSession, 1);
+	}
+
+	public InfiniteGameScreen(final GameState gameState, final int width,
+			final int height, final int fps, final RunSession runSession,
+			final int playerCount) {
 		super(width, height, fps);
+		if (playerCount != 1 && playerCount != 2)
+			throw new IllegalArgumentException("Player count must be 1 or 2.");
 		this.runSession = runSession;
+		this.playerCount = playerCount;
 		this.recordsService = Core.getRecordsService();
 		this.recordsEvents.subscribe(EnemyDefeatedEvent.class,
 				new GameplayEventListener<EnemyDefeatedEvent>() {
@@ -445,6 +456,10 @@ public class InfiniteGameScreen extends Screen {
 	}
 
 	public boolean isAbandoned() { return this.abandoned; }
+
+	public final int getPlayerCount() {
+		return this.playerCount;
+	}
 
 	public final GameState getGameState() {
 		return new GameState(1, this.score, this.lives, this.bulletsShot,

@@ -178,6 +178,8 @@ public class GameScreen extends Screen {
     private EnemyShipFormation enemyShipFormation;
     /** Player's ship. */
     private Ship ship;
+    /** Number of players selected for this run. */
+    private final int playerCount;
     /** Bonus enemy ship that appears sometimes. */
 	private BonusEnemyManager bonusEnemyManager;
     /** Time from finishing the level to screen change. */
@@ -394,16 +396,37 @@ public class GameScreen extends Screen {
                 width, height, fps, shipType, runSession, campaignUpgrades);
     }
 
+    public GameScreen(final GameState gameState, final GameSettings gameSettings,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession,
+            final CampaignUpgrades campaignUpgrades, final int playerCount) {
+        this(gameState, Collections.singletonList(gameSettings), bonusLife,
+                width, height, fps, shipType, runSession, campaignUpgrades,
+                playerCount);
+    }
+
     /** Campaign-only entry point; legacy and custom-level constructors keep base stats. */
     public GameScreen(final GameState gameState, final List<GameSettings> waves,
             final boolean bonusLife, final int width, final int height, final int fps,
             final ShipType shipType, final RunSession runSession,
             final CampaignUpgrades campaignUpgrades) {
+		this(gameState, waves, bonusLife, width, height, fps, shipType,
+				runSession, campaignUpgrades, 1);
+	}
+
+    /** Campaign stage entry point with the selected player count. */
+    public GameScreen(final GameState gameState, final List<GameSettings> waves,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession,
+            final CampaignUpgrades campaignUpgrades, final int playerCount) {
         super(width, height, fps);
         if (campaignUpgrades == null) {
             throw new IllegalArgumentException("Campaign upgrades cannot be null.");
         }
+		if (playerCount != 1 && playerCount != 2)
+			throw new IllegalArgumentException("Player count must be 1 or 2.");
         this.campaignUpgrades = campaignUpgrades;
+		this.playerCount = playerCount;
 
 		this.runSession = runSession;
 		this.recordsService = Core.getRecordsService();
@@ -1367,6 +1390,10 @@ public class GameScreen extends Screen {
 	 */
 	public final PlayerStatus getPlayerStatus() {
 		return this.playerStatus;
+	}
+
+	public final int getPlayerCount() {
+		return this.playerCount;
 	}
 
 	/**

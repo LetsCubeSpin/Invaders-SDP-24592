@@ -148,6 +148,7 @@ public final class Core {
 
 		GameState gameState;
 		ShipType selectedShip = ShipType.STANDARD;
+		int playerCount = 1;
 
 		int returnCode = 1;
 		do {
@@ -170,6 +171,7 @@ public final class Core {
 				currentScreen = new GameModeScreen(width, height, FPS);
 				LOGGER.info("Starting game mode selection screen.");
 				returnCode = frame.setScreen(currentScreen);
+				playerCount = ((GameModeScreen) currentScreen).getPlayerCount();
 				LOGGER.info("Closing game mode selection screen.");
 				break;
 			case 2:
@@ -194,7 +196,7 @@ public final class Core {
 								applyDifficulty(CampaignStageData
 										.getStageSettings(gameState.getLevel())),
 								bonusLife, width, height, FPS, selectedShip,
-								runSession, campaignUpgrades);
+								runSession, campaignUpgrades, playerCount);
 						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 								+ " game screen at " + FPS + " fps.");
 						runCampaignStage((GameScreen) currentScreen, campaignRewards,
@@ -305,7 +307,7 @@ public final class Core {
 					RunSession infiniteSession = new RunSession(UUID.randomUUID().toString());
 					recordsService.startRun(infiniteSession.getRunId());
 					currentScreen = new InfiniteGameScreen(gameState, width, height,
-							FPS, infiniteSession);
+							FPS, infiniteSession, playerCount);
 					LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 							+ " infinite game screen at " + FPS + " fps.");
 					runEndless((InfiniteGameScreen) currentScreen, endlessRewards,
