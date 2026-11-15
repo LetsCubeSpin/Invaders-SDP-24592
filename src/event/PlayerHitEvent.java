@@ -10,7 +10,7 @@ package event;
  * <p>Like {@link EnemyDefeatedEvent}, the event ID must stay the same if the
  * same hit is delivered again, so a listener can drop the duplicate.</p>
  */
-public final class PlayerHitEvent implements GameplayEvent {
+public final class PlayerHitEvent implements IdentifiedGameplayEvent {
 
     private final String runId;
     private final String eventId;
@@ -47,8 +47,10 @@ public final class PlayerHitEvent implements GameplayEvent {
         this.livesRemaining = livesRemaining;
     }
 
+    @Override
     public String getRunId() { return this.runId; }
 
+    @Override
     public String getEventId() { return this.eventId; }
 
     /** @return What hit the player, never null. */

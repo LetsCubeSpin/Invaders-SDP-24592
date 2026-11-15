@@ -2,15 +2,17 @@ package boss;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.LongSupplier;
 
 import entity.Boss;
 import entity.BossBullet;
 import event.BossDefeatedEvent;
 import event.DefeatedEnemyType;
+import event.GameplayEventIds;
 import event.GameplayEventPublisher;
 
 /**
@@ -54,6 +56,8 @@ public final class BossManager {
     private GameplayEventPublisher gameplayEvents;
     /** Run the defeats belong to, or null outside a recorded run. */
     private String runId;
+    /** Defeat ID of each boss, so one boss always has the same ID. */
+    private final Map<Boss, String> defeatIds = new IdentityHashMap<Boss, String>();
 
     /** Constructor. */
     public BossManager() {
@@ -175,9 +179,28 @@ public final class BossManager {
             return;
         long duration = Math.max(0L,
                 this.clock.getAsLong() - this.spawnTimeMillis);
+        DefeatedEnemyType type = classify(this.boss.getType());
         this.gameplayEvents.publish(new BossDefeatedEvent(this.runId,
-                UUID.randomUUID().toString(),
-                classify(this.boss.getType()), duration));
+                defeatIdOf(this.boss, type), type, duration));
+    }
+
+    /**
+     * Gives the boss its defeat ID the first time and the same ID after
+     * that, as GameScreen does for the enemy defeat IDs.
+     *
+     * @param defeated
+     *            Defeated boss.
+     * @param type
+     *            Classification of the boss, which groups the ID.
+     * @return Defeat ID of this boss.
+     */
+    private String defeatIdOf(final Boss defeated, final DefeatedEnemyType type) {
+        String id = this.defeatIds.get(defeated);
+        if (id == null) {
+            id = GameplayEventIds.newId(type.name());
+            this.defeatIds.put(defeated, id);
+        }
+        return id;
     }
 
     /**

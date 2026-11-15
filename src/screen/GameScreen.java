@@ -56,6 +56,7 @@ import story.StoryStage;
 import story.StoryStageData;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
 import event.ItemUsedEvent;
@@ -1540,18 +1541,29 @@ public class GameScreen extends Screen {
 		}
 	}
 
+    /*
+     * Each of the events below has a single place that accepts the action
+     * (one volley, one hit past every protection, one launch or pickup), so
+     * the ID is given right there, once per action, grouped by its kind like
+     * the defeat IDs. Bullets are pooled and reused, so an ID cannot be kept
+     * per bullet the way defeat IDs are kept per enemy.
+     */
+
+    /** Kind that groups the shot IDs. */
+    static final String SHOT_ID_KIND = "SHOT";
+
     /** Sends the bullets fired this frame, if any, for accuracy statistics. */
     private void publishShotFired(final int bulletCount) {
         if (bulletCount <= 0 || this.runSession == null) return;
         this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
-                UUID.randomUUID().toString(), bulletCount));
+                GameplayEventIds.newId(SHOT_ID_KIND), bulletCount));
     }
 
     /** Sends a hit that cost the player lives; shielded hits never get here. */
     private void publishPlayerHit(final PlayerHitSource source, final int livesLost) {
         if (livesLost <= 0 || this.runSession == null) return;
         this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
-                UUID.randomUUID().toString(), source, livesLost,
+                GameplayEventIds.newId(source.name()), source, livesLost,
                 this.playerStatus.getLives()));
     }
 
@@ -1559,7 +1571,7 @@ public class GameScreen extends Screen {
     private void publishItemUsed(final UsedItemType itemType) {
         if (this.runSession == null) return;
         this.recordsEvents.publish(new ItemUsedEvent(this.runSession.getRunId(),
-                UUID.randomUUID().toString(), itemType));
+                GameplayEventIds.newId(itemType.name()), itemType));
     }
 
     /**

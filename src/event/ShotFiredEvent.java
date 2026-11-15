@@ -11,7 +11,7 @@ package event;
  * <p>Like {@link EnemyDefeatedEvent}, the event ID must stay the same if the
  * same shot is delivered again, so a listener can drop the duplicate.</p>
  */
-public final class ShotFiredEvent implements GameplayEvent {
+public final class ShotFiredEvent implements IdentifiedGameplayEvent {
 
     private final String runId;
     private final String eventId;
@@ -35,8 +35,10 @@ public final class ShotFiredEvent implements GameplayEvent {
         this.bulletCount = bulletCount;
     }
 
+    @Override
     public String getRunId() { return this.runId; }
 
+    @Override
     public String getEventId() { return this.eventId; }
 
     /** @return Bullets fired by this shot. */
