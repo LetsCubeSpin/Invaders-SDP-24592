@@ -41,7 +41,7 @@ class CampaignEnemyRewardsTest {
 
     @ParameterizedTest
     @CsvSource({"A,10", "B,15", "C,20", "BONUS,20", "BOSS_A,50", "BOSS_B,50",
-            "BOSS_C,70", "BOSS_D,70"})
+            "BOSS_C,50", "BOSS_D,70"})
     void eachTypeIsVisibleWhilePlayingAndSavedAfterAnUnclearedStage(
             DefeatedEnemyType type, int amount) throws Exception {
         GameplayEventPublisher events = new GameplayEventPublisher();
@@ -57,7 +57,7 @@ class CampaignEnemyRewardsTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"BOSS_A,50", "BOSS_B,50", "BOSS_C,70", "BOSS_D,70"})
+    @CsvSource({"BOSS_A,50", "BOSS_B,50", "BOSS_C,50", "BOSS_D,70"})
     void bossesPayByTypeBeforeTheFinalStage(DefeatedEnemyType type, int amount) {
         GameplayEventPublisher events = new GameplayEventPublisher();
         try (CampaignRewards.StageSubscription stage = rewards.subscribe(events, 5)) {
