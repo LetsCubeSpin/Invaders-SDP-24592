@@ -4,9 +4,14 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.LongSupplier;
 
 import entity.Boss;
 import entity.BossBullet;
+import event.BossDefeatedEvent;
+import event.DefeatedEnemyType;
+import event.GameplayEventPublisher;
 
 /**
  * Connects the boss made by Boss Developer 1 with the attack system,
@@ -24,6 +29,8 @@ public final class BossManager {
     private final BossEventManager eventManager = new BossEventManager();
     /** Random generator used to pick attack patterns. */
     private final Random random;
+    /** Current time in milliseconds, for the battle duration. */
+    private final LongSupplier clock;
     /** Bosses already defeated, so they are not spawned again. */
     private final Set<String> defeatedBosses = new HashSet<String>();
 
@@ -41,6 +48,12 @@ public final class BossManager {
     private boolean finished;
     /** True if this class set the boss state to ATTACKING. */
     private boolean attackingStateSet;
+    /** Time the current boss spawned, in milliseconds. */
+    private long spawnTimeMillis;
+    /** Shared gameplay bus that receives BossDefeatedEvent, or null. */
+    private GameplayEventPublisher gameplayEvents;
+    /** Run the defeats belong to, or null outside a recorded run. */
+    private String runId;
 
     /** Constructor. */
     public BossManager() {
@@ -54,7 +67,36 @@ public final class BossManager {
      *            Random generator used to pick attack patterns.
      */
     public BossManager(final Random random) {
+        this(random, System::currentTimeMillis);
+    }
+
+    /**
+     * Constructor with a given random generator and clock.
+     *
+     * @param random
+     *            Random generator used to pick attack patterns.
+     * @param clock
+     *            Current time in milliseconds.
+     */
+    public BossManager(final Random random, final LongSupplier clock) {
         this.random = random;
+        this.clock = clock;
+    }
+
+    /**
+     * Publishes a {@link BossDefeatedEvent} on the shared gameplay bus for
+     * every boss this manager defeats from now on. Without a run ID nothing
+     * is published, like the other run events.
+     *
+     * @param publisher
+     *            Shared gameplay bus, or null to stop publishing.
+     * @param runId
+     *            Run the defeats belong to, or null outside a recorded run.
+     */
+    public void connectGameplayEvents(final GameplayEventPublisher publisher,
+            final String runId) {
+        this.gameplayEvents = publisher;
+        this.runId = runId;
     }
 
     /**
@@ -83,6 +125,7 @@ public final class BossManager {
         this.lastPhase = this.boss.getPhase();
         this.finished = false;
         this.attackingStateSet = false;
+        this.spawnTimeMillis = this.clock.getAsLong();
         this.eventManager.publish(BossEvent.spawned(this.boss));
         return this.boss;
     }
@@ -118,6 +161,38 @@ public final class BossManager {
             this.finished = true;
             this.defeatedBosses.add(this.currentKey);
             this.eventManager.publish(BossEvent.defeated(this.boss));
+            publishBossDefeated();
+        }
+    }
+
+    /**
+     * Sends the defeat of the current boss to the shared gameplay bus. Runs
+     * once per boss, as {@link #sync} marks the battle finished first.
+     */
+    private void publishBossDefeated() {
+        if (this.gameplayEvents == null || this.runId == null
+                || this.runId.trim().isEmpty())
+            return;
+        long duration = Math.max(0L,
+                this.clock.getAsLong() - this.spawnTimeMillis);
+        this.gameplayEvents.publish(new BossDefeatedEvent(this.runId,
+                UUID.randomUUID().toString(),
+                classify(this.boss.getType()), duration));
+    }
+
+    /**
+     * @param type
+     *            Kind of boss.
+     * @return Classification of the boss, UNKNOWN for an unlisted kind.
+     */
+    private static DefeatedEnemyType classify(final Boss.BossType type) {
+        switch (type) {
+        case BOSS_A:
+            return DefeatedEnemyType.BOSS_A;
+        case BOSS_B:
+            return DefeatedEnemyType.BOSS_B;
+        default:
+            return DefeatedEnemyType.UNKNOWN;
         }
     }
 
