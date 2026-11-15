@@ -9,6 +9,12 @@ package event;
  *
  * <p>Like {@link EnemyDefeatedEvent}, the event ID must stay the same if the
  * same hit is delivered again, so a listener can drop the duplicate.</p>
+ *
+ * <p>Use this event for records, achievements and statistics. In Campaign
+ * mode the same hit also produces {@code PlayerStatusEvent.Type.DAMAGE_TAKEN},
+ * which is meant for the HUD and sounds; it has no IDs or hit source and is
+ * not sent in Infinite mode. Subscribe to one of the two, never both, or each
+ * hit is counted twice.</p>
  */
 public final class PlayerHitEvent implements IdentifiedGameplayEvent {
 
