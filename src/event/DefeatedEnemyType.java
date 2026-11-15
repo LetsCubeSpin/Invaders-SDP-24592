@@ -21,6 +21,10 @@ public enum DefeatedEnemyType {
     BOSS_A,
     /** Fast boss, stronger earlier. */
     BOSS_B,
+    /** Final boss of the Hybrid route (VESPERA). */
+    BOSS_C,
+    /** Final boss of the Truce route (OBELISK). */
+    BOSS_D,
     /** No classification was supplied by the caller. */
     UNKNOWN
 }

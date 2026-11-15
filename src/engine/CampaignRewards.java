@@ -16,10 +16,13 @@ import java.util.Set;
 
 /** Campaign rewards for one application session; use on the gameplay thread. */
 final class CampaignRewards {
+    /** Stage of the final boss; any boss defeated there pays the final-boss reward. */
+    static final int FINAL_BOSS_LEVEL = 7;
+
     private final RewardSystem rewards;
     private final RewardSettlementCoordinator settlement;
     private final Deque<Integer> waitingCompletions = new ArrayDeque<Integer>();
-    private final Deque<DefeatedEnemyType> waitingDefeats = new ArrayDeque<DefeatedEnemyType>();
+    private final Deque<String> waitingDefeats = new ArrayDeque<String>();
     private final Set<String> seenDefeats = new HashSet<String>();
     private String activeRunId;
     private SettlementResult lastResult = SettlementResult.SUCCESS;
@@ -57,8 +60,8 @@ final class CampaignRewards {
     /** Includes current defeats; a clear bonus is included only after its screen exits. */
     long getPendingCurrency() {
         long pending = rewards.getPendingCurrency();
-        for (DefeatedEnemyType type : waitingDefeats) {
-            pending += rewards.getEnemyReward(type.name());
+        for (String rewardKey : waitingDefeats) {
+            pending += rewards.getEnemyReward(rewardKey);
         }
         for (int difficulty : waitingCompletions) {
             pending += rewards.getLevelReward(difficulty);
@@ -74,7 +77,7 @@ final class CampaignRewards {
         }
         // Retain defeats that did not fit the pending amount until settlement makes room.
         while (!waitingDefeats.isEmpty()) {
-            if (!rewards.rewardEnemy(waitingDefeats.peekFirst().name())) {
+            if (!rewards.rewardEnemy(waitingDefeats.peekFirst())) {
                 lastResult = SettlementResult.SETTLEMENT_FAILED;
                 return lastResult;
             }
@@ -98,6 +101,18 @@ final class CampaignRewards {
         return lastResult;
     }
 
+    private static boolean isBoss(DefeatedEnemyType type) {
+        switch (type) {
+            case BOSS_A:
+            case BOSS_B:
+            case BOSS_C:
+            case BOSS_D:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /** Each screen is a separate attempt, so a new run can earn the same stage again. */
     final class StageSubscription implements AutoCloseable, GameplayEventListener<LevelCompletedEvent> {
         private final GameplayEventPublisher events;
@@ -118,12 +133,17 @@ final class CampaignRewards {
         private void onEnemyDefeated(EnemyDefeatedEvent event) {
             if (closed || completedDifficulty != null || runId == null
                     || !runId.equals(activeRunId) || !runId.equals(event.getRunId())) return;
-            DefeatedEnemyType type = event.getEnemyType();
-            if (rewards.getEnemyReward(type.name()) == 0
+            String rewardKey = rewardKey(event.getEnemyType());
+            if (rewards.getEnemyReward(rewardKey) == 0
                     || !seenDefeats.add(event.getEventId())) return;
-            if (!rewards.rewardEnemy(type.name())) {
-                waitingDefeats.addLast(type);
+            if (!rewards.rewardEnemy(rewardKey)) {
+                waitingDefeats.addLast(rewardKey);
             }
+        }
+
+        /** A boss on the final stage pays the final-boss reward; other defeats pay by type. */
+        private String rewardKey(DefeatedEnemyType type) {
+            return level == FINAL_BOSS_LEVEL && isBoss(type) ? RewardSystem.FINAL_BOSS : type.name();
         }
 
         @Override

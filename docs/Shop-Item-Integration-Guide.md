@@ -15,7 +15,7 @@ Standard Ship and Heavy Tank are free; Speedster costs 200 Credits in the lower 
 
 `ShopController` saves after a successful purchase. Check `getSaveStatus()` separately from `PurchaseResult`. If saving fails, the purchase remains in memory; `retrySave()` writes the latest assets without charging or granting ownership again.
 
-`CampaignRewards` subscribes to each official Campaign screen. `EnemyDefeatedEvent.getEnemyType()` selects the reward: A/B/C = 10/15/20, BONUS = 20, BOSS_A/BOSS_B = 50 Credits. The active run ID and opaque event ID prevent duplicate payouts; `UNKNOWN` and other runs are ignored. Defeat rewards accumulate immediately and settle when the screen exits, including on failure.
+`CampaignRewards` subscribes to each official Campaign screen. `EnemyDefeatedEvent.getEnemyType()` selects the reward: A/B/C = 10/15/20, BONUS = 20, BOSS_A/BOSS_B/BOSS_C = 50, BOSS_D = 70 Credits. Any boss defeated on the final stage (stage 7) pays 70 Credits. The active run ID and opaque event ID prevent duplicate payouts; `UNKNOWN` and other runs are ignored. Defeat rewards accumulate immediately and settle when the screen exits, including on failure.
 
 `LevelCompletedEvent` records a clear, but its bonus is added only after the game screen and end-of-stage delay finish. Save retries use the same shared assets as the Shop without paying twice. Custom levels and Infinite mode do not subscribe to Campaign rewards.
 
