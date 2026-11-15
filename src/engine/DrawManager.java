@@ -1595,18 +1595,17 @@ public final class DrawManager {
     }
 
     public void drawAchievementList(final Screen screen, final RecordsService service, int y) {
+        // Two rows per achievement so every achievement fits above the status line.
         for (Achievement achievement : Achievement.values()) {
             Long unlocked = service.getUnlockTime(achievement);
             backBufferGraphics.setColor(unlocked == null ? Color.WHITE : Color.GREEN);
-            drawCenteredRegularString(screen, achievement.getName() + (unlocked == null ? " [Locked]" : " [Unlocked]"),
+            drawCenteredRegularString(screen, achievement.getName() + (unlocked == null ? " [Locked]"
+                    : " [" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                            .format(new Date(unlocked)) + "]"),
                     y);
             backBufferGraphics.setColor(Color.GRAY);
             drawCenteredRegularString(screen, achievement.getCondition(), y + fontRegularMetrics.getHeight());
-            if (unlocked != null)
-                drawCenteredRegularString(screen, "Unlocked: "
-                        + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(unlocked)),
-                        y + fontRegularMetrics.getHeight() * 2);
-            y += fontRegularMetrics.getHeight() * 3 + 4;
+            y += fontRegularMetrics.getHeight() * 2 + 8;
         }
     }
 

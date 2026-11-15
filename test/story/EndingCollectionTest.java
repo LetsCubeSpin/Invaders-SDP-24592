@@ -1,5 +1,6 @@
 package story;
 
+import event.AllEndingsSeenEvent;
 import event.EndingReachedEvent;
 import event.GameplayEventPublisher;
 import org.junit.jupiter.api.Test;
@@ -22,10 +23,13 @@ class EndingCollectionTest {
     private final GameplayEventPublisher events = new GameplayEventPublisher();
     private final List<EndingReachedEvent> received =
             new ArrayList<EndingReachedEvent>();
+    private final List<AllEndingsSeenEvent> completed =
+            new ArrayList<AllEndingsSeenEvent>();
     private final EndingCollection endings = new EndingCollection(events);
 
     EndingCollectionTest() {
         events.subscribe(EndingReachedEvent.class, received::add);
+        events.subscribe(AllEndingsSeenEvent.class, completed::add);
     }
 
     @Test
@@ -80,6 +84,43 @@ class EndingCollectionTest {
 
         assertTrue(endings.hasSeenAll());
         assertEquals(EnumSet.allOf(Ending.class), endings.getSeen());
+    }
+
+    @Test
+    void theLastNewEndingPublishesAllEndingsSeenOnce() {
+        Ending[] all = Ending.values();
+        for (int i = 0; i < all.length - 1; i++) {
+            endings.see(all[i]);
+            endings.see(all[i]);
+        }
+        assertTrue(completed.isEmpty(), "not every ending seen yet");
+
+        endings.see(all[all.length - 1]);
+        assertEquals(1, completed.size());
+
+        for (Ending ending : all)
+            endings.see(ending);
+        assertEquals(1, completed.size(), "seeing endings again adds nothing");
+    }
+
+    @Test
+    void endingsRestoredFromASaveCountTowardsAllEndingsSeen() {
+        Ending[] all = Ending.values();
+        endings.restore(Arrays.asList(all).subList(0, all.length - 1));
+        assertTrue(completed.isEmpty());
+
+        endings.see(all[all.length - 1]);
+        assertEquals(1, completed.size());
+    }
+
+    @Test
+    void aFullyRestoredCollectionDoesNotPublishAllEndingsSeenAgain() {
+        endings.restore(Arrays.asList(Ending.values()));
+
+        endings.see(Ending.ENDING1);
+
+        assertTrue(endings.hasSeenAll());
+        assertTrue(completed.isEmpty());
     }
 
     @Test

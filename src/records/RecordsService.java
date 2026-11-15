@@ -93,6 +93,16 @@ public final class RecordsService {
             unlock(Achievement.SIXTY_SECONDS, System.currentTimeMillis());
     }
 
+    /**
+     * Unlocks {@link Achievement#ALL_ENDINGS}. Meant to be called for
+     * {@code event.AllEndingsSeenEvent}, for example
+     * {@code publisher.subscribe(AllEndingsSeenEvent.class, e -> records.allEndingsSeen())}.
+     */
+    public synchronized void allEndingsSeen() {
+        if (!this.closed)
+            unlock(Achievement.ALL_ENDINGS, System.currentTimeMillis());
+    }
+
     public synchronized boolean completeRun(final RunRecord record) {
         if (this.closed || record == null || this.records.containsKey(record.getRunId()))
             return false;

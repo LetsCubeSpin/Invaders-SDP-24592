@@ -6,7 +6,8 @@ public enum Achievement {
     FIRST_ENEMY("first_enemy", "First Contact", "Defeat your first enemy."),
     TWENTY_ENEMIES("twenty_enemies", "Ace Pilot", "Defeat 20 enemies in one run."),
     SIXTY_SECONDS("sixty_seconds", "Still Flying", "Survive 60 active seconds in one run."),
-    BEAT_HIGH_SCORE("beat_high_score", "Top That", "Beat a previous run's high score.");
+    BEAT_HIGH_SCORE("beat_high_score", "Top That", "Beat a previous run's high score."),
+    ALL_ENDINGS("all_endings", "Every Ending", "See all four story endings.");
 
     private final String id;
     private final String name;

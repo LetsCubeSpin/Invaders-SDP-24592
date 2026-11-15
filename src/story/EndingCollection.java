@@ -1,5 +1,6 @@
 package story;
 
+import event.AllEndingsSeenEvent;
 import event.EndingReachedEvent;
 import event.GameplayEventPublisher;
 
@@ -37,6 +38,9 @@ public final class EndingCollection {
      * {@link EndingReachedEvent}. Seeing the same ending again publishes
      * the event again, with {@link EndingReachedEvent#isFirstTime()} false.
      *
+     * When this ending is the last one not seen yet, an
+     * {@link AllEndingsSeenEvent} is published after it.
+     *
      * @param ending
      *            Ending the player saw.
      * @return Whether this is the first time the ending was seen.
@@ -46,6 +50,8 @@ public final class EndingCollection {
             throw new IllegalArgumentException("ending must not be null.");
         boolean firstTime = this.seen.add(ending);
         this.events.publish(new EndingReachedEvent(ending, firstTime));
+        if (firstTime && hasSeenAll())
+            this.events.publish(new AllEndingsSeenEvent());
         return firstTime;
     }
 
