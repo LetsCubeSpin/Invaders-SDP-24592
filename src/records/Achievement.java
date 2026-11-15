@@ -7,6 +7,10 @@ public enum Achievement {
     TWENTY_ENEMIES("twenty_enemies", "Ace Pilot", "Defeat 20 enemies in one run."),
     SIXTY_SECONDS("sixty_seconds", "Still Flying", "Survive 60 active seconds in one run."),
     BEAT_HIGH_SCORE("beat_high_score", "Top That", "Beat a previous run's high score."),
+    /**
+     * Listed on the achievements page, but it cannot be unlocked in the game
+     * until story.EndingCollection is connected (see that class).
+     */
     ALL_ENDINGS("all_endings", "Every Ending", "See all four story endings.");
 
     private final String id;

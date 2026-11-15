@@ -7,6 +7,9 @@ import story.Ending;
  *
  * Subscribe with
  * {@code publisher.subscribe(EndingReachedEvent.class, listener)}.
+ *
+ * <p>Not published in the game yet; it is ready to use once
+ * {@link story.EndingCollection} is connected (see that class).</p>
  */
 public final class EndingReachedEvent implements GameplayEvent {
     private final Ending ending;
