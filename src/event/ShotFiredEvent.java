@@ -1,12 +1,12 @@
 package event;
 
 /**
- * One trigger pull by the player that fired at least one bullet, for
- * accuracy statistics.
+ * Player bullets fired in one frame, for accuracy statistics.
  *
- * <p>A single shot can fire several bullets (multi-shot). The bullet count
- * is the number that counts towards accuracy, the same number the screens
- * add to their {@code bulletsShot} total.</p>
+ * <p>The first volley of a shot and each later volley of a rapid-fire burst
+ * are separate events. The bullet counts of all events add up to the
+ * {@code bulletsShot} total the screens keep, so accuracy computed from these
+ * events matches the score screen.</p>
  *
  * <p>Like {@link EnemyDefeatedEvent}, the event ID must stay the same if the
  * same shot is delivered again, so a listener can drop the duplicate.</p>
