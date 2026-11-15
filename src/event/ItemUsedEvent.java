@@ -6,7 +6,7 @@ package event;
  * <p>Like {@link EnemyDefeatedEvent}, the event ID must stay the same if the
  * same use is delivered again, so a listener can drop the duplicate.</p>
  */
-public final class ItemUsedEvent implements GameplayEvent {
+public final class ItemUsedEvent implements IdentifiedGameplayEvent {
 
     private final String runId;
     private final String eventId;
@@ -31,8 +31,10 @@ public final class ItemUsedEvent implements GameplayEvent {
         this.itemType = itemType;
     }
 
+    @Override
     public String getRunId() { return this.runId; }
 
+    @Override
     public String getEventId() { return this.eventId; }
 
     /** @return Kind of item used, never null. */

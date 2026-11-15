@@ -12,7 +12,7 @@ package event;
  * Only boss classifications are accepted; {@link DefeatedEnemyType#UNKNOWN}
  * stays allowed for a boss kind that has no classification yet.</p>
  */
-public final class BossDefeatedEvent implements GameplayEvent {
+public final class BossDefeatedEvent implements IdentifiedGameplayEvent {
 
     private final String runId;
     private final String eventId;
@@ -51,8 +51,10 @@ public final class BossDefeatedEvent implements GameplayEvent {
                 || type == DefeatedEnemyType.UNKNOWN;
     }
 
+    @Override
     public String getRunId() { return this.runId; }
 
+    @Override
     public String getEventId() { return this.eventId; }
 
     /** @return Kind of boss defeated, never null. */

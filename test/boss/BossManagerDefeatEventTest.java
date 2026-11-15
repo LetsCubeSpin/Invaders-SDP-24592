@@ -54,6 +54,8 @@ class BossManagerDefeatEventTest {
         assertEquals("run", event.getRunId());
         assertSame(DefeatedEnemyType.BOSS_B, event.getBossType());
         assertEquals(4_000L, event.getBattleDurationMillis());
+        assertTrue(event.getEventId().startsWith("BOSS_B:"),
+                "the defeat ID is grouped under its boss type");
     }
 
     @Test

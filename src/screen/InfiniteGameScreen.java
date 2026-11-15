@@ -14,6 +14,7 @@ import records.RunSession;
 import records.Achievement;
 import records.RecordsService;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
 import event.PlayerHitEvent;
@@ -462,14 +463,17 @@ public class InfiniteGameScreen extends Screen {
 	private void publishShotFired(final int bulletCount) {
 		if (bulletCount <= 0 || this.runSession == null) return;
 		this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
-				UUID.randomUUID().toString(), bulletCount));
+				GameplayEventIds.newId(GameScreen.SHOT_ID_KIND), bulletCount));
 	}
 
-	/** Sends a hit that cost the player one life. */
+	/**
+	 * Sends a hit that cost the player one life. As in Campaign, the ID is
+	 * given once, at the one place each hit is accepted.
+	 */
 	private void publishPlayerHit(final PlayerHitSource source) {
 		if (this.runSession == null) return;
 		this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
-				UUID.randomUUID().toString(), source, 1, Math.max(0, this.lives)));
+				GameplayEventIds.newId(source.name()), source, 1, Math.max(0, this.lives)));
 	}
 
 	private void recordEnemyDefeat(final Entity enemy) {
