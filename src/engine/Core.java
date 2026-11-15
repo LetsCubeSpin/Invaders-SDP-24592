@@ -179,7 +179,11 @@ public final class Core {
 				LOGGER.info("Selected ship: " + selectedShip.getName());
 
 					CampaignUpgrades campaignUpgrades = CampaignUpgrades.from(playerAssets.snapshot());
-					gameState = new GameState(1, 0, campaignUpgrades.getMaxLives(selectedShip),
+					// Campaign lives belong to the run; in 2P, start at one and cap at two.
+					int campaignMaxLives = playerCount == 2 ? 2
+							: campaignUpgrades.getMaxLives(selectedShip);
+					int startingLives = playerCount == 2 ? 1 : campaignMaxLives;
+					gameState = new GameState(1, 0, startingLives,
 							0, 0);
 
 					// Game & score.
@@ -187,10 +191,10 @@ public final class Core {
 					campaignRewards.startRun(runSession.getRunId());
 					recordsService.startRun(runSession.getRunId());
 					do {
-						// One extra live every few levels.
+						// Award one team life at the usual milestones, up to this mode's cap.
 						boolean bonusLife = gameState.getLevel()
 								% EXTRA_LIFE_FRECUENCY == 0
-								&& gameState.getLivesRemaining() < campaignUpgrades.getMaxLives(selectedShip);
+								&& gameState.getLivesRemaining() < campaignMaxLives;
 
 						currentScreen = new GameScreen(gameState,
 								applyDifficulty(CampaignStageData
