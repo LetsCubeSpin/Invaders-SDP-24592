@@ -13,8 +13,26 @@ import java.util.Set;
  * Keeps the endings the player has seen and publishes an
  * {@link EndingReachedEvent} each time an ending is seen.
  *
- * The collection only lives in memory. A save system can fill it with
- * {@link #restore(Collection)} and read it back with {@link #getSeen()}.
+ * The collection only lives in memory. {@code records.RecordsService}
+ * saves the seen endings in the profile; fill the collection from the save
+ * with {@link #restore(Collection)}.
+ *
+ * <p>Not connected to the game yet: nothing creates this class during
+ * play, so the ending events, the ending music, the ending save and the
+ * all-endings achievement do not happen in the game. Everything is ready
+ * and tested, so take it and connect it when the story endings need it,
+ * for example when the game starts:</p>
+ *
+ * <pre>{@code
+ * EndingCollection endings = new EndingCollection(publisher);
+ * endings.restore(records.getSeenEndings());   // endings from the save
+ * publisher.subscribe(EndingReachedEvent.class, e -> records.endingSeen(e.getEnding()));
+ * publisher.subscribe(EndingReachedEvent.class, new EndingBgm());
+ * publisher.subscribe(AllEndingsSeenEvent.class, e -> records.allEndingsSeen());
+ * }</pre>
+ *
+ * and {@code endings.see(ending)} where a story ending is shown
+ * ({@code StoryScenes.showEnding}).
  */
 public final class EndingCollection {
 
