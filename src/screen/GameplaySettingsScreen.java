@@ -79,7 +79,7 @@ public class GameplaySettingsScreen extends Screen {
             AudioManager.playSFX("audio/sfx/menu_move.wav");
         } else if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
             confirmDifficulty();
-        } else if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+        } else if (inputManager.isBackDown()) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             returnCode = 4;
             isRunning = false;

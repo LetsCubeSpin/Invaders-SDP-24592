@@ -165,7 +165,7 @@ public class ScoreScreen extends Screen {
 
 		draw();
 		if (this.inputDelay.checkFinished()) {
-			if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+			if (inputManager.isBackDown()) {
 				// Return to main menu.
 				AudioManager.playSFX("audio/sfx/menu_back.wav");
 				this.returnCode = 1;
