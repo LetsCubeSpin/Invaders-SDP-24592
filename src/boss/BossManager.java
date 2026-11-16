@@ -50,8 +50,15 @@ public final class BossManager {
     private boolean finished;
     /** True if this class set the boss state to ATTACKING. */
     private boolean attackingStateSet;
-    /** Time the current boss spawned, in milliseconds. */
-    private long spawnTimeMillis;
+    /**
+     * True once the current boss battle has started, at the first
+     * {@link #update} after the spawn. GameScreen spawns the boss before the
+     * start countdown and calls update only after it, so the countdown is
+     * not part of the battle.
+     */
+    private boolean battleStarted;
+    /** Time the current boss battle started, in milliseconds. */
+    private long battleStartMillis;
     /** Shared gameplay bus that receives BossDefeatedEvent, or null. */
     private GameplayEventPublisher gameplayEvents;
     /** Run the defeats belong to, or null outside a recorded run. */
@@ -129,7 +136,7 @@ public final class BossManager {
         this.lastPhase = this.boss.getPhase();
         this.finished = false;
         this.attackingStateSet = false;
-        this.spawnTimeMillis = this.clock.getAsLong();
+        this.battleStarted = false;
         this.eventManager.publish(BossEvent.spawned(this.boss));
         return this.boss;
     }
@@ -162,10 +169,10 @@ public final class BossManager {
 
         if (this.boss.isDefeated()) {
             // A DEFEATED listener may spawn the next boss, which replaces
-            // this.boss and the spawn time, so read them before notifying.
+            // this.boss and the battle start, so read them before notifying.
             Boss defeated = this.boss;
-            long duration = Math.max(0L,
-                    this.clock.getAsLong() - this.spawnTimeMillis);
+            long duration = this.battleStarted ? Math.max(0L,
+                    this.clock.getAsLong() - this.battleStartMillis) : 0L;
             this.attackSystem.stop();
             this.finished = true;
             this.defeatedBosses.add(this.currentKey);
@@ -248,6 +255,10 @@ public final class BossManager {
     public void update(final int targetX, final int targetY,
                        final Collection<BossBullet> bossBullets,
                        final Collection<BossAttackSystem.SummonRequest> summonRequests) {
+        if (this.boss != null && !this.finished && !this.battleStarted) {
+            this.battleStarted = true;
+            this.battleStartMillis = this.clock.getAsLong();
+        }
         sync();
         if (this.boss == null || this.finished)
             return;

@@ -27,7 +27,8 @@ public final class BossDefeatedEvent implements IdentifiedGameplayEvent {
      * @param bossType
      *            BOSS_A, BOSS_B, BOSS_C or UNKNOWN.
      * @param battleDurationMillis
-     *            Time from the boss spawn to its defeat, 0 or more.
+     *            Time from the start of the battle to the defeat, 0 or more.
+     *            The start countdown before the boss can act is not included.
      */
     public BossDefeatedEvent(final String runId, final String eventId,
             final DefeatedEnemyType bossType, final long battleDurationMillis) {
@@ -61,6 +62,6 @@ public final class BossDefeatedEvent implements IdentifiedGameplayEvent {
     /** @return Kind of boss defeated, never null. */
     public DefeatedEnemyType getBossType() { return this.bossType; }
 
-    /** @return Milliseconds from the boss spawn to its defeat. */
+    /** @return Milliseconds from the start of the battle to the defeat. */
     public long getBattleDurationMillis() { return this.battleDurationMillis; }
 }

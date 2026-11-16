@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 import entity.Boss;
+import entity.BossBullet;
 import event.BossDefeatedEvent;
 import event.DefeatedEnemyType;
 import event.GameplayEventPublisher;
@@ -32,10 +33,16 @@ class BossManagerDefeatEventTest {
         return manager.spawn(new BossSpawnRequest(type, 100, 78, 3, 0));
     }
 
+    /** One frame of the battle, as GameScreen runs it once the countdown is over. */
+    private static void frame(final BossManager manager) {
+        manager.update(0, 500, new ArrayList<BossBullet>());
+    }
+
     @Test
     void aDefeatIsPublishedOnceWithItsTypeAndBattleDuration() {
         BossManager manager = manager("run");
         Boss boss = spawn(manager, Boss.BossType.BOSS_B);
+        frame(manager);
 
         now[0] += 1_500L;
         boss.takeDamage(boss.getMaxHealth() - 1);
@@ -62,11 +69,13 @@ class BossManagerDefeatEventTest {
     void eachBossGetsItsOwnEventAndDuration() {
         BossManager manager = manager("run");
         Boss first = spawn(manager, Boss.BossType.BOSS_A);
+        frame(manager);
         now[0] += 1_000L;
         first.takeDamage(first.getMaxHealth());
         manager.sync();
 
         Boss second = manager.spawn(new BossSpawnRequest(Boss.BossType.BOSS_B, 100, 78, 5, 0));
+        frame(manager);
         now[0] += 3_000L;
         second.takeDamage(second.getMaxHealth());
         manager.sync();
@@ -92,6 +101,39 @@ class BossManagerDefeatEventTest {
 
         assertTrue(bossEvents.contains(BossEvent.Type.DEFEATED));
         assertEquals(1, defeats.size());
+    }
+
+    @Test
+    void theStartCountdownIsNotPartOfTheBattle() {
+        BossManager manager = manager("run");
+        Boss boss = spawn(manager, Boss.BossType.BOSS_A);
+
+        // GameScreen spawns the boss, then runs no boss frame until its
+        // start countdown is over.
+        now[0] += 6_000L;
+        frame(manager);
+        now[0] += 500L;
+        frame(manager);
+        now[0] += 1_000L;
+        boss.takeDamage(boss.getMaxHealth());
+        manager.sync();
+
+        assertEquals(1, defeats.size());
+        assertEquals(1_500L, defeats.get(0).getBattleDurationMillis(),
+                "the battle runs from the first boss frame, not from the spawn");
+    }
+
+    @Test
+    void aBossDefeatedBeforeItsBattleStartsHasNoDuration() {
+        BossManager manager = manager("run");
+        Boss boss = spawn(manager, Boss.BossType.BOSS_A);
+
+        now[0] += 6_000L;
+        boss.takeDamage(boss.getMaxHealth());
+        manager.sync();
+
+        assertEquals(1, defeats.size());
+        assertEquals(0L, defeats.get(0).getBattleDurationMillis());
     }
 
     @Test
@@ -123,6 +165,7 @@ class BossManagerDefeatEventTest {
                         new BossSpawnRequest(Boss.BossType.BOSS_B, 100, 78, 5, 0));
         });
         Boss first = spawn(manager, Boss.BossType.BOSS_A);
+        frame(manager);
 
         now[0] += 1_000L;
         first.takeDamage(first.getMaxHealth());
@@ -135,6 +178,7 @@ class BossManagerDefeatEventTest {
         assertEquals(1_000L, defeats.get(0).getBattleDurationMillis());
         assertTrue(defeats.get(0).getEventId().startsWith("BOSS_A:"));
 
+        frame(manager);
         now[0] += 2_000L;
         next[0].takeDamage(next[0].getMaxHealth());
         manager.sync();
