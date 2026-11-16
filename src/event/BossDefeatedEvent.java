@@ -25,7 +25,7 @@ public final class BossDefeatedEvent implements IdentifiedGameplayEvent {
      * @param eventId
      *            ID of this defeat, stable across redelivery.
      * @param bossType
-     *            BOSS_A, BOSS_B or UNKNOWN.
+     *            BOSS_A, BOSS_B, BOSS_C or UNKNOWN.
      * @param battleDurationMillis
      *            Time from the boss spawn to its defeat, 0 or more.
      */
@@ -48,6 +48,7 @@ public final class BossDefeatedEvent implements IdentifiedGameplayEvent {
     private static boolean isBossClassification(final DefeatedEnemyType type) {
         return type == DefeatedEnemyType.BOSS_A
                 || type == DefeatedEnemyType.BOSS_B
+                || type == DefeatedEnemyType.BOSS_C
                 || type == DefeatedEnemyType.UNKNOWN;
     }
 

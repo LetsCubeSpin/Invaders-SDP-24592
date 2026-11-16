@@ -222,6 +222,8 @@ public final class BossManager {
             return DefeatedEnemyType.BOSS_A;
         case BOSS_B:
             return DefeatedEnemyType.BOSS_B;
+        case BOSS_C:
+            return DefeatedEnemyType.BOSS_C;
         default:
             return DefeatedEnemyType.UNKNOWN;
         }

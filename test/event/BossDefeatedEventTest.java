@@ -21,7 +21,8 @@ class BossDefeatedEventTest {
     @Test
     void acceptsEveryBossClassification() {
         DefeatedEnemyType[] bosses = {
-            DefeatedEnemyType.BOSS_A, DefeatedEnemyType.BOSS_B, DefeatedEnemyType.UNKNOWN };
+            DefeatedEnemyType.BOSS_A, DefeatedEnemyType.BOSS_B, DefeatedEnemyType.BOSS_C,
+            DefeatedEnemyType.UNKNOWN };
         for (DefeatedEnemyType type : bosses)
             assertSame(type, new BossDefeatedEvent("run", "boss", type, 0L).getBossType());
     }

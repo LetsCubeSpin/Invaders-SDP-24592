@@ -95,6 +95,25 @@ class BossManagerDefeatEventTest {
     }
 
     @Test
+    void everyBossTypeHasItsOwnClassification() {
+        BossManager manager = manager("run");
+        int level = 1;
+        for (Boss.BossType type : Boss.BossType.values()) {
+            Boss boss = manager.spawn(new BossSpawnRequest(type, 100, 78, level++, 0));
+            boss.takeDamage(boss.getMaxHealth());
+            manager.sync();
+        }
+
+        assertEquals(Boss.BossType.values().length, defeats.size());
+        for (int i = 0; i < defeats.size(); i++) {
+            String expected = Boss.BossType.values()[i].name();
+            assertEquals(expected, defeats.get(i).getBossType().name(),
+                    "no boss type is reported as UNKNOWN");
+            assertTrue(defeats.get(i).getEventId().startsWith(expected + ":"));
+        }
+    }
+
+    @Test
     void aBossSpawnedByADefeatListenerDoesNotReplaceTheDefeatedOne() {
         BossManager manager = manager("run");
         Boss[] next = new Boss[1];
