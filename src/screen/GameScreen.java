@@ -52,9 +52,15 @@ import story.StoryStage;
 import story.StoryStageData;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
+import event.ItemUsedEvent;
 import event.LevelCompletedEvent;
+import event.PlayerHitEvent;
+import event.PlayerHitSource;
+import event.ShotFiredEvent;
+import event.UsedItemType;
 import java.util.Map;
 import java.util.IdentityHashMap;
 import java.util.UUID;
@@ -62,6 +68,7 @@ import entity.Grenade;
 import entity.GrenadeFragment;
 import entity.item.BuffHud;
 import entity.item.ClusterGrenadeItem;
+import entity.item.Item;
 
 /**
  * Implements the game screen, where the action happens.
@@ -545,6 +552,7 @@ public class GameScreen extends Screen {
 		this.bossBullets = new HashSet<BossBullet>();
         this.summonedEnemies = new ArrayList<EnemyShip>();
 		this.bossManager = new BossManager();
+		this.bossManager.connectGameplayEvents(this.recordsEvents, getActiveRunId());
 		// Logs boss events for debugging.
 		this.bossManager.getEventManager().addListener(
 				new LoggingBossEventListener());
@@ -676,6 +684,7 @@ public class GameScreen extends Screen {
 						ControlsConfig.getKey(ControlsConfig.FIRE))) {
 					int fired = this.ship.shoot(this.bullets);
 					this.bulletsShot += fired;
+					publishShotFired(fired);
 					if (fired > 0)
 						AudioManager.playSFX("audio/sfx/player_shoot.wav");
 				}
@@ -686,8 +695,10 @@ public class GameScreen extends Screen {
                 boolean grenadeKeyDown = !isGrenadeKeyBoundElsewhere()
                         && inputManager.isKeyDown(KeyEvent.VK_G);
                 if (grenadeKeyDown && !this.grenadeKeyPressed) {
-                    if (this.ship.launchGrenade(this.grenades, GRENADE_DETONATION_Y))
+                    if (this.ship.launchGrenade(this.grenades, GRENADE_DETONATION_Y)) {
                         AudioManager.playSFX("audio/sfx/item_grenade_launch.wav");
+                        publishItemUsed(UsedItemType.CLUSTER_GRENADE);
+                    }
                 }
                 this.grenadeKeyPressed = grenadeKeyDown;
 
@@ -752,15 +763,19 @@ public class GameScreen extends Screen {
                     this.particleSystem.spawnEnemyExplosion(
                             minion.getPositionX() + minion.getWidth() / 2,
                             minion.getPositionY() + minion.getHeight() / 2);
-                    damagePlayer(1, "Collided with summoned enemy");
+                    damagePlayer(1, PlayerHitSource.ENEMY_COLLISION,
+                            "Collided with summoned enemy");
                     it.remove();
                 } else if (minion.isDestroyed() || minion.getPositionY() > this.height) {
                     it.remove();
                 }
             }
 
-			if (!this.ship.isDestroyed())
-				this.bulletsShot += this.ship.updateBurst(this.bullets);
+			if (!this.ship.isDestroyed()) {
+				int burstFired = this.ship.updateBurst(this.bullets);
+				this.bulletsShot += burstFired;
+				publishShotFired(burstFired);
+			}
 
             this.enemyShipFormation.update();
 			this.enemyShipFormation.shoot(this.bullets, this.ship);
@@ -772,7 +787,7 @@ public class GameScreen extends Screen {
             this.itemManager.update(this.ship);
 
             if (!this.ship.isDestroyed()) {
-                this.itemManager.checkCollisions(this.ship);
+                publishItemsUsed(this.itemManager.checkCollisions(this.ship));
 				// Clear immediately in the frame an Energy Shield is collected.
 				clearSlowIfEnergyShieldActive();
             }
@@ -1065,7 +1080,7 @@ public class GameScreen extends Screen {
             if (bullet.isEnemyBullet()) {
                 if (checkCollision(bullet, this.ship) && !this.levelFinished) {
                     recyclable.add(bullet);
-                    damagePlayer(1, "Hit on player ship");
+                    damagePlayer(1, PlayerHitSource.ENEMY_BULLET, "Hit on player ship");
                 }
             } else {
                 for (EnemyShip enemyShip : this.enemyShipFormation) {
@@ -1156,7 +1171,7 @@ public class GameScreen extends Screen {
         for (BossBullet bossBullet : this.bossBullets) {
             if (checkCollision(bossBullet, this.ship) && !this.levelFinished) {
                 hitBossBullets.add(bossBullet);
-                damagePlayer(bossBullet.getDamage(),
+                damagePlayer(bossBullet.getDamage(), PlayerHitSource.BOSS_BULLET,
                         "Hit on player ship by the boss");
             }
         }
@@ -1182,6 +1197,15 @@ public class GameScreen extends Screen {
 	 */
 	// The damage path is accessible to tests in the screen package.
 	boolean damagePlayer(final int damage, final String logMessage) {
+		return damagePlayer(damage, PlayerHitSource.UNKNOWN, logMessage);
+	}
+
+	/**
+	 * Same as {@link #damagePlayer(int, String)}, naming what hit the player
+	 * for the {@link PlayerHitEvent} sent when a life is lost.
+	 */
+	boolean damagePlayer(final int damage, final PlayerHitSource source,
+			final String logMessage) {
 		// Still inside the recovery period from an earlier hit. This outlasts
 		// the time the ship cannot move, so that the player is not killed by
 		// the shots that were aimed at them while they were held in place.
@@ -1199,6 +1223,7 @@ public class GameScreen extends Screen {
 		}
 		// PlayerStatus owns the timed shield, so its answer decides whether
 		// the hit lands at all; the effects below must not run otherwise.
+		int livesBefore = this.playerStatus.getLives();
         if (!this.playerStatus.takeDamage(damage)) {
             if (this.playerStatus.isShieldActive())
                 AudioManager.playSFX("audio/sfx/item_shield_block.wav");
@@ -1218,6 +1243,7 @@ public class GameScreen extends Screen {
 		}
 		this.logger.info(logMessage + ", " + this.playerStatus.getLives()
 				+ " lives remaining.");
+		publishPlayerHit(source, livesBefore - this.playerStatus.getLives());
 		return true;
 	}
 
@@ -1592,6 +1618,50 @@ public class GameScreen extends Screen {
 			    return DefeatedEnemyType.UNKNOWN;
 		}
 	}
+
+    /*
+     * Each of the events below has a single place that accepts the action
+     * (one volley, one hit past every protection, one launch or pickup), so
+     * the ID is given right there, once per action, grouped by its kind like
+     * the defeat IDs. Bullets are pooled and reused, so an ID cannot be kept
+     * per bullet the way defeat IDs are kept per enemy.
+     */
+
+    /** Kind that groups the shot IDs. */
+    static final String SHOT_ID_KIND = "SHOT";
+
+    /** Sends the bullets fired this frame, if any, for accuracy statistics. */
+    private void publishShotFired(final int bulletCount) {
+        if (bulletCount <= 0 || this.runSession == null) return;
+        this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(SHOT_ID_KIND), bulletCount));
+    }
+
+    /** Sends a hit that cost the player lives; shielded hits never get here. */
+    private void publishPlayerHit(final PlayerHitSource source, final int livesLost) {
+        if (livesLost <= 0 || this.runSession == null) return;
+        this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(source.name()), source, livesLost,
+                this.playerStatus.getLives()));
+    }
+
+    /** Sends one use of an item. */
+    private void publishItemUsed(final UsedItemType itemType) {
+        if (this.runSession == null) return;
+        this.recordsEvents.publish(new ItemUsedEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(itemType.name()), itemType));
+    }
+
+    /**
+     * Sends the items used by being collected. An Energy Shield is used the
+     * moment it is caught, but only by a ship that can hold it; a Cluster
+     * Grenade is only stocked here and counts as used when launched.
+     */
+    private void publishItemsUsed(final List<Item> collected) {
+        for (Item item : collected)
+            if (item instanceof ShieldItem && this.ship.isShieldActive())
+                publishItemUsed(UsedItemType.ENERGY_SHIELD);
+    }
 
 	private void recordEnemyDefeat(final EnemyShip enemy) {
 		if ((this.summonedEnemies != null && this.summonedEnemies.contains(enemy))

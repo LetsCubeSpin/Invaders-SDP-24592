@@ -14,8 +14,12 @@ import records.RunSession;
 import records.Achievement;
 import records.RecordsService;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
+import event.PlayerHitEvent;
+import event.PlayerHitSource;
+import event.ShotFiredEvent;
 import java.util.Map;
 import java.util.IdentityHashMap;
 import java.util.UUID;
@@ -206,6 +210,7 @@ public class InfiniteGameScreen extends Screen {
 		if (inputManager.isKeyDown(ControlsConfig.getKey(ControlsConfig.FIRE))) {
 			int fired = this.ship.shoot(this.bullets);
 			this.bulletsShot += fired;
+			publishShotFired(fired);
 			// Play the shot sound only when a bullet was actually fired.
 			if (fired > 0)
 				AudioManager.playSFX("audio/sfx/player_shoot.wav");
@@ -215,6 +220,7 @@ public class InfiniteGameScreen extends Screen {
 			// so a burst does not sound like a single shot.
 			int burstFired = this.ship.updateBurst(this.bullets);
 			this.bulletsShot += burstFired;
+			publishShotFired(burstFired);
 			if (burstFired > 0)
 				AudioManager.playSFX("audio/sfx/player_shoot.wav");
 		}
@@ -397,6 +403,7 @@ public class InfiniteGameScreen extends Screen {
 				}
 				this.logger.info("Hit by enemy bullet, " + this.lives
 						+ " lives remaining.");
+				publishPlayerHit(PlayerHitSource.ENEMY_BULLET);
 				return;
 			}
 		}
@@ -424,6 +431,7 @@ public class InfiniteGameScreen extends Screen {
 				}
 				this.logger.info("Hit on player ship, " + this.lives
 						+ " lives remaining.");
+				publishPlayerHit(PlayerHitSource.ENEMY_COLLISION);
 				break;
 			}
 		}
@@ -449,6 +457,23 @@ public class InfiniteGameScreen extends Screen {
 	public final GameState getGameState() {
 		return new GameState(1, this.score, this.lives, this.bulletsShot,
 				this.shipsDestroyed);
+	}
+
+	/** Sends the bullets fired this frame, if any, for accuracy statistics. */
+	private void publishShotFired(final int bulletCount) {
+		if (bulletCount <= 0 || this.runSession == null) return;
+		this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(GameScreen.SHOT_ID_KIND), bulletCount));
+	}
+
+	/**
+	 * Sends a hit that cost the player one life. As in Campaign, the ID is
+	 * given once, at the one place each hit is accepted.
+	 */
+	private void publishPlayerHit(final PlayerHitSource source) {
+		if (this.runSession == null) return;
+		this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(source.name()), source, 1, Math.max(0, this.lives)));
 	}
 
 	private void recordEnemyDefeat(final Entity enemy) {
