@@ -783,7 +783,7 @@ public final class DrawManager {
      */
     public void drawHighScoreMenu(final Screen screen) {
         String highScoreString = "High Scores";
-        String instructionsString = "Press Space to return";
+        String instructionsString = "Press Space or Esc to return";
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, highScoreString, screen.getHeight() / 8);
@@ -1972,7 +1972,7 @@ public final class DrawManager {
     }
 
     public void drawGameModeMenu(final Screen screen, final int option) {
-        String[] labels = { "Endless Mode", "Campaign Mode", "Back" };
+        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Back" };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);

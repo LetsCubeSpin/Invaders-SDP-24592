@@ -21,7 +21,7 @@ public enum DefeatedEnemyType {
     BOSS_A,
     /** Fast boss, stronger earlier. */
     BOSS_B,
-    /** Final boss of the Hybrid route (VESPERA). */
+    /** VESPERA, summons minions **/
     BOSS_C,
     /** Final boss of the Truce route (OBELISK). */
     BOSS_D,

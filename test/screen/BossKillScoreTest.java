@@ -26,12 +26,9 @@ public final class BossKillScoreTest {
 
 	public static void main(final String[] args) throws Exception {
 		checkEachBossTypeHasAScore();
-		checkDefeatGivesTheScoreOnce(GameScreen.firstBossLevel(),
-				Boss.BossType.BOSS_A);
 		for (int level : GameScreen.BOSS_LEVELS)
-			if (level != GameScreen.firstBossLevel())
-				checkDefeatGivesTheScoreOnce(level, Boss.BossType.BOSS_B);
-
+			checkDefeatGivesTheScoreOnce(level,
+				GameScreen.bossTypeForLevel(level));
 		System.out.println("Boss kill score checks passed.");
 	}
 
@@ -42,6 +39,9 @@ public final class BossKillScoreTest {
 		check(Boss.BossType.BOSS_B.getPointValue()
 				> Boss.BossType.BOSS_A.getPointValue(),
 				"The harder boss is worth more");
+        check(Boss.BossType.BOSS_C.getPointValue()
+                > Boss.BossType.BOSS_B.getPointValue(),
+                "The final boss is worth more");
 	}
 
 	private static void checkDefeatGivesTheScoreOnce(final int level,
