@@ -9,11 +9,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.UUID;
+
+import story.Ending;
 
 /** Versioned UTF-8 profile storage with validation, backup, and atomic replace. */
 public final class ProfileStore {
@@ -88,6 +92,11 @@ public final class ProfileStore {
             properties.setProperty(prefix + "id", entry.getKey());
             properties.setProperty(prefix + "unlocked", Long.toString(entry.getValue()));
         }
+        properties.setProperty("ending.count",
+                Integer.toString(snapshot.getSeenEndings().size()));
+        index = 0;
+        for (Ending ending : snapshot.getSeenEndings())
+            properties.setProperty("ending." + index++, ending.name());
 
         Path temporary = Files.createTempFile(parent, "profile-", ".tmp");
         boolean moved = false;
@@ -184,7 +193,27 @@ public final class ProfileStore {
                 throw new IOException("Invalid achievement time.");
             unlocked.put(id, Long.valueOf(time));
         }
-        return new ProfileSnapshot(records, unlocked);
+        return new ProfileSnapshot(records, unlocked, readEndings(properties));
+    }
+
+    /** Profiles saved before endings were stored have no ending entries. */
+    private static Set<Ending> readEndings(final Properties properties)
+            throws IOException {
+        Set<Ending> endings = EnumSet.noneOf(Ending.class);
+        if (properties.getProperty("ending.count") == null)
+            return endings;
+        int endingCount = count(properties, "ending.count", Ending.values().length);
+        for (int i = 0; i < endingCount; i++) {
+            Ending ending;
+            try {
+                ending = Ending.valueOf(required(properties, "ending." + i));
+            } catch (IllegalArgumentException exception) {
+                throw new IOException("Unknown ending in profile.", exception);
+            }
+            if (!endings.add(ending))
+                throw new IOException("Duplicate ending in profile.");
+        }
+        return endings;
     }
 
     private static int count(final Properties properties, final String key,

@@ -25,7 +25,9 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 | Stage 1~3 | 선택 기체의 기본 탄종. Stage 3은 첫 선택에 따라 ARGUS 또는 NOX | 기체와 보스 적용. 모든 기체의 시작 탄종은 NORMAL |
 | Stage 4~7 | 루트 탄종 및 수류탄 지급 여부. Stage 7은 루트의 최종 보스 | 현재 등록된 보스와 웨이브 적용. 시작 탄종 NORMAL, 시작 수류탄 0 |
 
-통합 기준 main은 `0412ff2f423d6c16079d7b8ebeb7a26f59e63c33`이다. VESPERA(BOSS_C)의 소환 전투는 구현되어 일반 Campaign Stage 7에서 사용된다. 그러나 `StoryRoute`는 여전히 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. **BOSS_C 구현과 HYBRID 연결 완료는 별개다.** OBELISK와 PIERCE는 이 main에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다. 미병합 PR #9·#10·#13의 기능은 포함하지 않았다.
+통합 기준 main은 `d8a57eafc5ff0f28f7fe141dfdf74fba1d3b526b`이다. VESPERA(BOSS_C)의 소환 전투는 구현되어 일반 Campaign Stage 7에서 사용된다. 그러나 `StoryRoute`는 여전히 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. **BOSS_C 구현과 HYBRID 연결 완료는 별개다.** OBELISK 전투와 PIERCE는 이 main에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
+
+2026-11-16 검증 도중 PR #9가 main에 병합되어 최종 기준에 포함되었다. BOSS_D 처치 분류·최종 보스 보상과 엔딩 수집·저장·BGM·업적 API가 추가되었지만, 엔딩 API의 본 게임 연결은 해당 담당자의 미완료 항목이다. 디버그 실행은 엔딩 API나 기록·보상 구독을 생성하지 않는다. 아직 미병합인 PR #10·#13의 변경은 가져오지 않았다.
 
 ## 저장 격리와 연동 지점
 
