@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import audio.AudioManager;
@@ -18,9 +20,9 @@ import boss.BossManager;
 import entity.Boss;
 import entity.EnemyShip;
 import entity.EnemyShipFormation;
-import event.DefeatedEnemyType;
 import entity.Ship;
 import entity.ShipType;
+import event.DefeatedEnemyType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -94,12 +96,28 @@ class StoryDebugLauncherTest {
         child(dir, "bossC");
     }
 
+    @Test
+    void debugAndNormalStoryStartWithSameEquipment(@TempDir Path dir) throws Exception {
+        child(dir, "loadout");
+    }
+
     private static void child(Path dir, String scenario) throws Exception {
         String cp = System.getProperty("invaders.test.classpath", System.getProperty("java.class.path"));
         String absoluteCp = String.join(File.pathSeparator, Arrays.stream(cp.split(File.pathSeparator))
                 .map(path -> Path.of(path).toAbsolutePath().toString()).toList());
         var args = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                "-Djava.awt.headless=true", "-Duser.home=" + dir, "-Dinvaders.storageDir=" + dir));
+                "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8",
+                "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
+                "-Duser.home=" + dir, "-Dinvaders.storageDir=" + dir));
+        String coverageAgent = System.getProperty("invaders.test.coverageAgent");
+        if (coverageAgent != null && !coverageAgent.isBlank()) {
+            Matcher destination = Pattern.compile("destfile=([^,]+)").matcher(coverageAgent);
+            if (!destination.find()) throw new IllegalStateException("JaCoCo agent must specify a coverage destination.");
+            Path coverageFile = Path.of(destination.group(1)).toAbsolutePath().normalize();
+            String childDestination = dir.toAbsolutePath().normalize().relativize(coverageFile).toString();
+            // Match the other isolated test JVMs: relative destinations avoid JDK 17's Korean-path encoding issue.
+            args.add(destination.replaceFirst(Matcher.quoteReplacement("destfile=" + childDestination)));
+        }
         if (!scenario.equals("disabled")) args.add("-Dinvaders.storyDebug=true");
         if (!scenario.equals("normalPreferences"))
             args.add("-Djava.util.prefs.PreferencesFactory=" + PreviewPreferencesFactory.class.getName());
@@ -109,13 +127,18 @@ class StoryDebugLauncherTest {
                 .redirectOutput(log.toFile()).start();
         try {
             assertTrue(p.waitFor(45, TimeUnit.SECONDS), "Story debug subprocess timed out");
-            assertEquals(0, p.exitValue(), Files.readString(log, java.nio.charset.StandardCharsets.ISO_8859_1));
+            assertEquals(0, p.exitValue(), Files.readString(log, java.nio.charset.StandardCharsets.UTF_8));
         } finally {
             if (p.isAlive()) p.destroyForcibly().waitFor();
         }
     }
 
     public static void main(String[] args) throws Exception {
+        if (args[0].equals("loadout")) {
+            StoryDebugLauncher.requireDebugSession();
+            checkLoadoutParity();
+            return;
+        }
         if (args[0].equals("bossC")) {
             StoryDebugLauncher.requireDebugSession();
             checkBossC();
@@ -179,6 +202,35 @@ class StoryDebugLauncherTest {
             }
         }
         System.out.println("PASS: 252 actual Story initializations, all non-boss waves, isolated restart.");
+        AudioManager.stopBGM();
+    }
+
+    private static void checkLoadoutParity() throws Exception {
+        AudioManager.setMuted(true);
+        for (StoryRoute route : StoryRoute.values()) {
+            for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
+                for (ShipType type : ShipType.values()) {
+                    var choice = new StoryDebugSelection(route, stage, StoryDebugSelection.Difficulty.NORMAL, type);
+                    GameScreen debug = StoryDebugLauncher.createScreen(choice, 448, 520);
+                    debug.initialize();
+                    // Reproduce normal Story's answers independently of the debug selection helper.
+                    StoryProgress progress = new StoryProgress();
+                    if (stage > StoryProgress.FIRST_QUESTION_STAGE) progress.chooseFirst(route.getFirstChoice());
+                    if (stage > StoryProgress.MID_BOSS_STAGE) progress.chooseSecond(route.getSecondChoice());
+                    GameScreen normal = GameScreen.forStoryStage(
+                            new GameState(stage, 0, type.getMaxLives(), 0, 0), progress,
+                            settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
+                            false, 448, 520, 60, type, null, CampaignUpgrades.none());
+                    normal.initialize();
+                    Ship actual = (Ship) field(debug, "ship");
+                    Ship expected = (Ship) field(normal, "ship");
+                    assertEquals(expected.getCurrentBulletType(), actual.getCurrentBulletType(), choice.toString());
+                    assertEquals(expected.getGrenadeCount(), actual.getGrenadeCount(), choice.toString());
+                }
+            }
+        }
+        // Parity is distinct from satisfying weaponForStage/givesGrenadesOnStage; those integrations remain pending.
+        System.out.println("PASS: 84 Debug/normal Story starting-equipment comparisons.");
         AudioManager.stopBGM();
     }
 

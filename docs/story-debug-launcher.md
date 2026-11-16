@@ -1,13 +1,15 @@
 # KAN-56 · 개발자용 Story 스테이지 런처
 
-Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다. JDK 17 이상이 필요하다. `JAVA_HOME` 또는 PATH의 `javac`를 사용하며, 여러 버전을 설치했다면 `-JdkRoot 'C:\Program Files\Java\jdk-17'`로 선택할 수 있다.
+Windows의 **PowerShell 7 (`pwsh`)**에서 2차 프로젝트 루트로 이동한 뒤 실행한다. JDK 17 이상과 GUI를 표시할 수 있는 데스크톱 세션이 필요하다. `JAVA_HOME` 또는 PATH의 `javac`를 사용하며, 여러 버전을 설치했다면 `-JdkRoot`로 선택한다. 아래 설치 경로는 실제 JDK 위치에 맞춘다.
 
 ```powershell
-.\scripts\run-story-debug.ps1
-.\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Difficulty HARD -Ship SPEEDSTER
+pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17'
+pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17' -Route TRUCE -Stage 7 -Difficulty HARD -Ship SPEEDSTER
 ```
 
 첫 명령은 선택 창을 연다. Tab과 Shift+Tab으로 항목을 이동하고 방향키로 값을 고른다. 미리보기에서 현재 데이터의 보스, 웨이브 수, 스토리가 요구하는 장비를 확인한 뒤 **Start stage** 버튼에서 Space를 누른다. Cancel 또는 Esc로 취소한다. 네 인수를 모두 지정하면 같은 설정을 선택 창 없이 바로 재현할 수 있다. 실행 중에는 좌우 방향키로 이동하고 Space로 발사한다. G는 보유한 수류탄을 쓴다. 창을 닫거나 한 스테이지를 클리어하거나 패배하면 디버그 실행이 끝난다.
+
+`JDK compiler not found` 또는 `JDK runtime not found`가 나오면 `-JdkRoot`가 `bin`의 부모인 완전한 JDK 설치 폴더인지 확인한다. 이 검사는 임시 세션 생성 전에 수행된다. 스크립트는 실행 정책을 변경하지 않는다. `AllSigned` 환경에서 서명 오류가 발생하면 해당 환경의 승인된 스크립트 서명·실행 절차가 필요하다. Windows PowerShell 5.1은 구문 검사만 통과했으며, 현재 검증 환경의 서명 정책 때문에 실제 실행 호환성은 미확인이다.
 
 | 항목 | 선택 |
 | --- | --- |
@@ -27,7 +29,7 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 
 통합 기준 main은 `d8a57eafc5ff0f28f7fe141dfdf74fba1d3b526b`이다. VESPERA(BOSS_C)의 소환 전투는 구현되어 일반 Campaign Stage 7에서 사용된다. 그러나 `StoryRoute`는 여전히 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. **BOSS_C 구현과 HYBRID 연결 완료는 별개다.** OBELISK 전투와 PIERCE는 이 main에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
 
-2026-11-16 검증 도중 PR #9가 main에 병합되어 최종 기준에 포함되었다. BOSS_D 처치 분류·최종 보스 보상과 엔딩 수집·저장·BGM·업적 API가 추가되었지만, 엔딩 API의 본 게임 연결은 해당 담당자의 미완료 항목이다. 디버그 실행은 엔딩 API나 기록·보상 구독을 생성하지 않는다. 아직 미병합인 PR #10·#13의 변경은 가져오지 않았다.
+기준 main에는 PR #9의 BOSS_D 처치 분류·최종 보스 보상과 엔딩 수집·저장·BGM·업적 API가 포함되어 있다. 엔딩 API의 본 게임 연결은 해당 담당자의 미완료 항목이다. 디버그 실행은 엔딩 API나 기록·보상 구독을 생성하지 않는다. 이 기준에서 미병합인 PR #10·#13의 변경은 포함하지 않는다.
 
 ## 저장 격리와 연동 지점
 
@@ -52,13 +54,15 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 ## 검증
 
 ```powershell
-.\scripts\test-story-debug.ps1
+pwsh -NoProfile -File .\scripts\test-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17'
 .\gradlew.bat test --tests engine.StoryDebugLauncherTest
 .\gradlew.bat test smokeTest spotlessCheck
 ```
 
 252개 설정 조합에서 선택 경계, 보스, 기체·루트 탄종과 수류탄 조건을 확인한다. 격리 통합 테스트는 새 JVM마다 **4루트×7단계×3난이도×3기체 = 252개 실제 전투 화면**을 초기화하고 기체·난이도·초기 생명·스테이지 데이터를 확인한다. 보스 없는 단계는 모든 웨이브를 비우고 실제 진행 메서드로 마지막 웨이브에서만 클리어되는지 확인한다. 대표 최종 보스를 처치한 뒤 실제 루프의 클리어와 실행 종료도 검증한다. 하이스코어·재화·기록 파일에 미리 넣어 둔 표식 값과 파일 목록은 두 차례 실행 후 대조한다.
 
+추가로 **4루트×7단계×3기체 = 84개**에서 일반 Story 팩토리와 Debug의 시작 탄종·수류탄 수를 비교한다. 이는 두 경로의 동등성 검사이며, NORMAL·수류탄 0을 올바른 게임 규칙으로 고정하는 검사가 아니다. 실제 시작 장비가 스토리 데이터의 요구를 충족하는지는 위 미완료 항목으로 별도 관리한다. 격리 자식 JVM에는 Gradle이 제공하는 JaCoCo 에이전트 인수를 전달한다.
+
 별도 격리 테스트는 main의 일반 Campaign Stage 7을 통해 BOSS_C를 생성한다. 대기 시계만 만료시켜 페이즈별 A/B/C 소환 요청이 실제 `GameScreen`의 적으로 변환되는지, 보스 처치 시 소환 적 정리와 스테이지 종료가 이어지는지 검사한다. 이는 HYBRID가 BOSS_C로 연결되었다는 증거가 아니다. 위 장비 연동 전까지는 이 문서의 미완료 상태를 유지한 채 해석한다.
 
-PowerShell 회귀 테스트는 소수 스테이지 입력 거부, `javac` 종료 코드 2 전달, Java의 잘못된 스테이지 종료 코드 1 전달, 공백이 있는 경로에서 각 실패 후 임시 폴더 정리를 검사한다. Java 실패 시나리오에서는 실제 선택적 컴파일도 수행한다. PowerShell 프로세스 자체가 강제 종료되면 임시 폴더가 남을 수 있다. 다음 실행에서는 새 폴더를 사용한다.
+PowerShell 회귀 테스트는 불완전한 선택 인수, 잘못된 JDK 경로, 소수 스테이지 입력 거부, `javac` 종료 코드 2 전달, Java의 잘못된 스테이지 종료 코드 1 전달과 각 실패 후 임시 폴더 정리를 검사한다. 임시 경로에는 공백이 있으며 Java 실패 시나리오에서는 실제 선택적 컴파일도 수행한다. PowerShell 프로세스 자체가 강제 종료되면 임시 폴더가 남을 수 있다. 다음 실행에서는 새 폴더를 사용한다.
