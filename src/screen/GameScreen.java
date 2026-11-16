@@ -763,7 +763,8 @@ public class GameScreen extends Screen {
                     this.particleSystem.spawnEnemyExplosion(
                             minion.getPositionX() + minion.getWidth() / 2,
                             minion.getPositionY() + minion.getHeight() / 2);
-                    damagePlayer(1, "Collided with summoned enemy");
+                    damagePlayer(1, PlayerHitSource.ENEMY_COLLISION,
+                            "Collided with summoned enemy");
                     it.remove();
                 } else if (minion.isDestroyed() || minion.getPositionY() > this.height) {
                     it.remove();

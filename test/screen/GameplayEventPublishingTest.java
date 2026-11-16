@@ -11,6 +11,8 @@ import entity.Boss;
 import entity.BossBullet;
 import entity.Bullet;
 import entity.BulletPool;
+import entity.EnemyShip;
+import entity.EnemyType;
 import entity.Ship;
 import entity.ShipType;
 import entity.ZigzagEnemyShip;
@@ -129,6 +131,23 @@ class GameplayEventPublishingTest {
 
         assertEquals(1, hits.size());
         assertSame(PlayerHitSource.BOSS_BULLET, hits.get(0).getSource());
+    }
+
+    @Test
+    void campaignSummonedEnemyCollisionsAreReportedAsEnemyCollisions() throws Exception {
+        GameScreen game = campaign(3, ShipType.STANDARD, "summon-hit");
+        Seen<PlayerHitEvent> hits = watch(game.getGameplayEvents(), PlayerHitEvent.class);
+        Ship ship = (Ship) get(game, "ship");
+        set(game, "inputDelay", Core.getCooldown(0));
+
+        summonedEnemies(game).add(EnemyShip.createByType(EnemyType.A,
+                ship.getPositionX(), ship.getPositionY()));
+        game.update();
+
+        assertTrue(summonedEnemies(game).isEmpty(), "the summoned enemy hit the ship");
+        assertEquals(1, hits.size());
+        assertSame(PlayerHitSource.ENEMY_COLLISION, hits.get(0).getSource());
+        assertEquals(2, hits.get(0).getLivesRemaining());
     }
 
     @Test
@@ -408,6 +427,11 @@ class GameplayEventPublishingTest {
     @SuppressWarnings("unchecked")
     private static Set<BossBullet> bossBullets(final GameScreen game) throws Exception {
         return (Set<BossBullet>) get(game, "bossBullets");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<EnemyShip> summonedEnemies(final GameScreen game) throws Exception {
+        return (List<EnemyShip>) get(game, "summonedEnemies");
     }
 
     private static void damageBoss(final GameScreen game, final int damage) throws Exception {
