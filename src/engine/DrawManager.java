@@ -1,6 +1,5 @@
 package engine;
 
-import entity.item.ChameleonHull;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -24,7 +23,6 @@ import java.util.Date;
 import entity.Entity;
 import entity.Grenade;
 import entity.GrenadeFragment;
-import entity.item.AnnihilatorItem;
 import entity.item.ClusterGrenadeItem;
 import entity.Ship;
 import entity.Bullet;
@@ -165,8 +163,6 @@ public final class DrawManager {
         EnemyShipC2,
         /** Bonus ship. */
         EnemyShipSpecial,
-        /** Hyperfire falling power-up. */
-        Hyperfire,
         /** Destroyed enemy ship. */
         Explosion,
         /** Falling hazard. */
@@ -200,28 +196,6 @@ public final class DrawManager {
 
             fileManager.loadSprite(spriteMap);
             logger.info("Finished loading the sprites.");
-
-            // Hyperfire lightning bolt sprite (8 x 12 pixels), built in code
-            // because it is not part of the graphics file.
-            boolean[][] hyperfireSprite = new boolean[8][12];
-            String[] lightning = {
-                    "....##..",
-                    "...###..",
-                    "...##...",
-                    "..###...",
-                    "..##....",
-                    ".######.",
-                    "...##...",
-                    "...##...",
-                    "..##....",
-                    "..##....",
-                    ".##.....",
-                    ".#......"
-            };
-            for (int y = 0; y < lightning.length; y++)
-                for (int x = 0; x < lightning[y].length(); x++)
-                    hyperfireSprite[x][y] = lightning[y].charAt(x) == '#';
-            spriteMap.put(SpriteType.Hyperfire, hyperfireSprite);
 
             // Font loading.
             fontRegular = fileManager.loadFont(14f);
@@ -268,16 +242,7 @@ public final class DrawManager {
      */
     public void drawEntity(final Entity entity, final int positionX,
             final int positionY) {
-        if (entity instanceof AnnihilatorItem) {
-            drawFallingLaser(entity, positionX, positionY);
-            return;
-        }
-
         boolean[][] image = spriteMap.get(entity.getSpriteType());
-
-        if (entity instanceof ChameleonHull) {
-            image = ChameleonHull.getStarSprite();
-        }
 
         if (entity instanceof Ship
                 && entity.getSpriteType() == SpriteType.Ship) {
@@ -294,11 +259,6 @@ public final class DrawManager {
                 && entity.getSpriteType() == SpriteType.EnemyBullet) {
             drawPixels(ShipSprites.enemyBullet(), positionX, positionY);
             return;
-        }
-
-        if (entity instanceof Ship
-                && ((Ship) entity).isChameleonHullActive()) {
-            image = ChameleonHull.getBallSprite();
         }
 
         backBufferGraphics.setColor(entity.getColor());
@@ -619,26 +579,6 @@ public final class DrawManager {
     }
 
     /**
-     * Draws the Orbital Annihilator recharge gauge under the score.
-     *
-     * @param screen
-     *                 Screen to draw on.
-     * @param progress
-     *                 Recharge progress between 0 and 1.
-     */
-    public void drawAnnihilatorGauge(final Screen screen, final float progress) {
-        int barWidth = 80;
-        int barX = screen.getWidth() - barWidth - 20;
-        int barY = 29;
-
-        backBufferGraphics.setColor(Color.DARK_GRAY);
-        backBufferGraphics.fillRect(barX, barY, barWidth, 6);
-
-        backBufferGraphics.setColor(progress >= 1f ? Color.GREEN : Color.RED);
-        backBufferGraphics.fillRect(barX, barY, (int) (barWidth * progress), 6);
-    }
-
-    /**
      * Draws game title.
      *
      * @param screen
@@ -804,7 +744,7 @@ public final class DrawManager {
      */
     public void drawHighScoreMenu(final Screen screen) {
         String highScoreString = "High Scores";
-        String instructionsString = "Press Space to return";
+        String instructionsString = "Press Space or Esc to return";
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, highScoreString, screen.getHeight() / 8);
@@ -1133,48 +1073,6 @@ public final class DrawManager {
     }
 
     /**
-     * Draws the Orbital Annihilator item as a short laser bolt that falls:
-     * the tail fades out at the top, and a bright pointed head blinks at the
-     * front (bottom).
-     *
-     * @param entity
-     *                  Item to be drawn.
-     * @param positionX
-     *                  Coordinates for the left side of the item.
-     * @param positionY
-     *                  Coordinates for the upper side of the item.
-     */
-    private void drawFallingLaser(final Entity entity, final int positionX,
-            final int positionY) {
-        int w = entity.getWidth();
-        int h = entity.getHeight();
-        boolean blink = (System.currentTimeMillis() / 150) % 2 == 0;
-
-        // Body: red beam with a white core, more opaque towards the head.
-        int slices = h / 2;
-        for (int i = 0; i < slices; i++) {
-            int y = positionY + i * 2;
-            int alpha = 60 + (int) (195.0 * i / slices);
-
-            backBufferGraphics.setColor(new Color(255, 0, 0, alpha / 3));
-            backBufferGraphics.fillRect(positionX, y, w, 2);
-
-            backBufferGraphics.setColor(new Color(255, 0, 0, alpha));
-            backBufferGraphics.fillRect(positionX + 3, y, w - 6, 2);
-
-            backBufferGraphics.setColor(new Color(255, 255, 255, alpha));
-            backBufferGraphics.fillRect(positionX + w / 2 - 1, y, 2, 2);
-        }
-
-        // Head: bright triangle pointing down, blinking.
-        int headTop = positionY + h - 8;
-        int[] xs = { positionX + 1, positionX + w - 1, positionX + w / 2 };
-        int[] ys = { headTop, headTop, positionY + h };
-        backBufferGraphics.setColor(blink ? Color.WHITE : Color.YELLOW);
-        backBufferGraphics.fillPolygon(xs, ys, 3);
-    }
-
-    /**
      * Draws a pixel-art sprite (2x2 pixels per cell) in the current color,
      * the same way as the other entities of the game.
      */
@@ -1283,19 +1181,6 @@ public final class DrawManager {
                     screen.getWidth() - textWidth - 10, y);
             y += 20;
         }
-    }
-
-    /**
-     * Draws a blinking message in the top bar when the Orbital Annihilator
-     * is ready to be used.
-     *
-     * @param screen
-     *               Screen to draw on.
-     */
-    public void drawAnnihilatorReady(final Screen screen) {
-        boolean blink = (System.currentTimeMillis() / 300) % 2 == 0;
-        backBufferGraphics.setColor(blink ? Color.RED : Color.WHITE);
-        drawCenteredRegularString(screen, "HOLD SPACE = LASER", 78);
     }
 
     /**
@@ -1761,7 +1646,7 @@ public final class DrawManager {
     }
 
     public void drawGameModeMenu(final Screen screen, final int option) {
-        String[] labels = { "Endless Mode", "Campaign Mode", "Back" };
+        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Back" };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);

@@ -1,6 +1,7 @@
 package screen;
 
 import java.lang.reflect.Field;
+import entity.item.ShieldItem;
 
 import engine.GameSettings;
 import engine.GameState;
@@ -25,7 +26,9 @@ public final class PlayerDamagePathTest {
 
 	public static void main(final String[] args) throws Exception {
 		checkUnprotectedHitCostsOneLife();
-		checkChameleonHullStopsBossDamage();
+		checkEnergyShieldStopsBossDamage();
+		checkExpiredProtectionAllowsBossDamage();
+		checkTimedShieldStopsDamageAndEffects();
 		checkOverlappingBulletsCostOneLifeBetweenThem();
 		checkProtectionOutlastsTheStun();
 
@@ -44,16 +47,52 @@ public final class PlayerDamagePathTest {
 				"An accepted hit starts the recovery period");
 	}
 
-	/** The Chameleon Hull makes the ship immune, bosses included. */
-	private static void checkChameleonHullStopsBossDamage() throws Exception {
-		GameScreen game = newGame();
+	/**
+	 * The collected Energy Shield lives on Ship. A boss bullet used to skip
+	 * this check entirely.
+	 */
+	private static void checkEnergyShieldStopsBossDamage() throws Exception {
+		// Only a shield-capable ship can hold the Energy Shield.
+		GameScreen game = newGame(ShipType.STANDARD);
 		PlayerStatus status = statusOf(game);
-		shipOf(game).activateChameleonHull();
+		shipOf(game).setShieldActive(true);
 
 		check(!game.damagePlayer(3, "boss"),
-				"A boss bullet is refused while the Chameleon Hull is active");
+				"A boss bullet is refused while the Energy Shield is up");
 		check(status.getLives() == 3,
-				"The Chameleon Hull protects against boss damage");
+				"The Energy Shield protects against boss damage");
+		check(!shipOf(game).isDestroyed(),
+				"A shielded hit does not start the recovery period");
+	}
+
+	/** After the Energy Shield ends, boss hits use the normal damage path. */
+	private static void checkExpiredProtectionAllowsBossDamage() throws Exception {
+		GameScreen game = newGame(ShipType.STANDARD);
+		Ship ship = shipOf(game);
+		ShieldItem shield = new ShieldItem(0, 0);
+		shield.applyEffect(ship);
+		shield.removeEffect(ship);
+		check(game.damagePlayer(2, "boss"), "Boss damage lands after shield expiry");
+		check(statusOf(game).getLives() == 1, "The unshielded hit costs two lives");
+	}
+
+	/**
+	 * PlayerStatus owns the timed shield. When it refuses the damage, the
+	 * destruction effects must not run either.
+	 */
+	private static void checkTimedShieldStopsDamageAndEffects()
+			throws Exception {
+		// Only a shield-capable ship may raise one, so this case has to be
+		// played with the Heavy Tank rather than the default ship.
+		GameScreen game = newGame(ShipType.STANDARD);
+		PlayerStatus status = statusOf(game);
+		check(status.activateShield(), "The Heavy Tank raises a shield");
+
+		check(!game.damagePlayer(1, "test"),
+				"A hit is refused while the timed shield is up");
+		check(status.getLives() == 3, "The timed shield preserves lives");
+		check(!shipOf(game).isDestroyed(),
+				"A hit blocked by the timed shield does not destroy the ship");
 	}
 
 	/**

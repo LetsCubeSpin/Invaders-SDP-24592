@@ -64,15 +64,16 @@ class EnemyDefeatedEventTest {
     }
 
     @Test
-    void coversEveryClassificationTheRewardListenerExpects() {
-        assertSame(DefeatedEnemyType.A, DefeatedEnemyType.valueOf("A"));
-        assertSame(DefeatedEnemyType.B, DefeatedEnemyType.valueOf("B"));
-        assertSame(DefeatedEnemyType.C, DefeatedEnemyType.valueOf("C"));
-        assertSame(DefeatedEnemyType.BONUS, DefeatedEnemyType.valueOf("BONUS"));
-        assertSame(DefeatedEnemyType.BOSS_A, DefeatedEnemyType.valueOf("BOSS_A"));
-        assertSame(DefeatedEnemyType.BOSS_B, DefeatedEnemyType.valueOf("BOSS_B"));
-        assertSame(DefeatedEnemyType.UNKNOWN, DefeatedEnemyType.valueOf("UNKNOWN"));
-        assertEquals(7, DefeatedEnemyType.values().length,
-                "a new classification needs an agreed reward mapping");
-    }
+	void coversEveryClassificationTheRewardListenerExpects() {
+		assertSame(DefeatedEnemyType.A, DefeatedEnemyType.valueOf("A"));
+		assertSame(DefeatedEnemyType.B, DefeatedEnemyType.valueOf("B"));
+		assertSame(DefeatedEnemyType.C, DefeatedEnemyType.valueOf("C"));
+		assertSame(DefeatedEnemyType.BONUS, DefeatedEnemyType.valueOf("BONUS"));
+		assertSame(DefeatedEnemyType.BOSS_A, DefeatedEnemyType.valueOf("BOSS_A"));
+		assertSame(DefeatedEnemyType.BOSS_B, DefeatedEnemyType.valueOf("BOSS_B"));
+		assertSame(DefeatedEnemyType.BOSS_C, DefeatedEnemyType.valueOf("BOSS_C"));
+		assertSame(DefeatedEnemyType.UNKNOWN, DefeatedEnemyType.valueOf("UNKNOWN"));
+		assertEquals(8, DefeatedEnemyType.values().length,
+				"a new classification needs an agreed reward mapping");
+	}
 }

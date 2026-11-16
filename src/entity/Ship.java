@@ -45,18 +45,11 @@ public class Ship extends Entity {
     /** Number of times the current stats have explicitly been restored. */
     private long baseStatsRestoreVersion;
 
-    /** Whether the Hyperfire buff is currently enabled. */
-    private boolean hyperfireEnabled = false;
-
-    /** Distance from the ship center to each barrel of the Twin Cannon. */
-    private static final int TWIN_CANNON_OFFSET = 8;
     /** Minimum time between two grenade launches. */
     private static final int GRENADE_COOLDOWN = 800;
     /** Maximum number of grenades the ship can carry. */
     private static final int MAX_GRENADES = 1;
 
-    /** Whether the Twin Cannon buff (double barrel) is currently active. */
-    private boolean twinCannonActive = false;
     /** Grenades left (given by the Cluster Grenade item). */
     private int grenadeCount = 0;
     /** Minimum time between two grenade launches. */
@@ -77,27 +70,10 @@ public class Ship extends Entity {
 
     private boolean isShieldActive = false;
 
-    private static final Color[] CHAMELEON_COLORS = {
-            Color.CYAN,
-            Color.MAGENTA,
-            Color.YELLOW,
-            Color.ORANGE,
-            Color.BLUE
-    };
-
-    private boolean chameleonHullActive;
-    private long chameleonActivationTime;
-    private Color colorBeforeChameleon;
-    private double chameleonMovementRemainder;
-
     /** Whether the player-status slow debuff is affecting ship movement. */
     private boolean slowDebuffActive;
     /** Fractional slow movement retained independently for each direction. */
-    private final double[] slowMovementRemainders = new double[4];
-
-    private int widthBeforeChameleon;
-    private int heightBeforeChameleon;
-    private int normalPositionY;
+    private final double[] slowMovementRemainders = new double[2];
 
     /** Duration of the damage flashing feedback in milliseconds (0.5s). */
     private static final int DAMAGE_FEEDBACK_DURATION = 500;
@@ -169,7 +145,6 @@ public class Ship extends Entity {
             return;
         }
         this.positionX += this.speed;
-        addChameleonMovement(1);
     }
 
     /**
@@ -182,7 +157,6 @@ public class Ship extends Entity {
             return;
         }
         this.positionX -= this.speed;
-        addChameleonMovement(-1);
     }
 
     /** Enables or disables the PlayerStatus-owned slow movement modifier. */
@@ -223,19 +197,9 @@ public class Ship extends Entity {
      * @return Number of bullets added to the screen.
      */
     public final int shoot(final Set<Bullet> bullets) {
-        if (this.chameleonHullActive) {
-            return 0;
-        }
-
         long currentTime = System.currentTimeMillis();
 
-        int interval = this.shootingInterval;
-
-        if (this.hyperfireEnabled) {
-            interval = (int) (this.shootingInterval * 0.40);
-        }
-
-        if (lastShotTime != 0 && currentTime - lastShotTime < interval) {
+        if (lastShotTime != 0 && currentTime - lastShotTime < this.shootingInterval) {
             return 0;
         }
 
@@ -259,7 +223,7 @@ public class Ship extends Entity {
             return count;
         }
 
-        int added = addPlayerBullets(bullets, x, y);
+        int added = addPlayerBullet(bullets, x, y);
 
         this.remainingShots = this.currentBulletType.getShotCount() - 1;
         this.nextShotTime = currentTime
@@ -269,8 +233,7 @@ public class Ship extends Entity {
     }
 
     /**
-     * Adds the bullets of one straight shot: one bullet, or two parallel
-     * bullets while the Twin Cannon is active.
+     * Adds one straight player bullet.
      *
      * @param bullets
      *            Bullets on screen, to add the new bullets.
@@ -280,18 +243,8 @@ public class Ship extends Entity {
      *            Starting position of the shot on the Y axis.
      * @return Number of bullets added.
      */
-    private int addPlayerBullets(final Set<Bullet> bullets, final int x,
+    private int addPlayerBullet(final Set<Bullet> bullets, final int x,
             final int y) {
-        if (this.twinCannonActive) {
-            int count = 0;
-            if (bullets.add(BulletPool.getBullet(x - TWIN_CANNON_OFFSET, y,
-                    this.bulletSpeed, Bullet.Owner.PLAYER)))
-                count++;
-            if (bullets.add(BulletPool.getBullet(x + TWIN_CANNON_OFFSET, y,
-                    this.bulletSpeed, Bullet.Owner.PLAYER)))
-                count++;
-            return count;
-        }
         return bullets.add(BulletPool.getBullet(x, y, this.bulletSpeed,
                 Bullet.Owner.PLAYER)) ? 1 : 0;
     }
@@ -304,11 +257,7 @@ public class Ship extends Entity {
      * @return Number of bullets added to the screen.
      */
     public final int updateBurst(final Set<Bullet> bullets) {
-        // The Chameleon Hull blocks shoot(), so it has to block the rest of
-        // a burst too. The shots are cancelled when it is picked up, and
-        // this guard keeps the rule true however updateBurst is reached.
-        if (this.remainingShots <= 0 || this.isDestroyed()
-                || this.chameleonHullActive) {
+        if (this.remainingShots <= 0 || this.isDestroyed()) {
             return 0;
         }
 
@@ -318,7 +267,7 @@ public class Ship extends Entity {
             return 0;
         }
 
-        int added = addPlayerBullets(bullets,
+        int added = addPlayerBullet(bullets,
                 this.positionX + this.width / 2, this.positionY);
 
         this.remainingShots--;
@@ -326,41 +275,6 @@ public class Ship extends Entity {
                 + this.currentBulletType.getShotDelay();
 
         return added;
-    }
-
-    /**
-     * Enables or disables the Hyperfire shooting buff.
-     *
-     * @param enabled True to enable Hyperfire, false to disable it.
-     */
-    public final void setHyperfireEnabled(final boolean enabled) {
-        this.hyperfireEnabled = enabled;
-    }
-
-    /**
-     * Checks whether Hyperfire is currently enabled.
-     */
-    public final boolean isHyperfireEnabled() {
-        return this.hyperfireEnabled;
-    }
-
-    /**
-     * Enables or disables the Twin Cannon buff (double barrel).
-     *
-     * @param active
-     *            True to shoot two parallel bullets.
-     */
-    public final void setTwinCannonActive(final boolean active) {
-        this.twinCannonActive = active;
-    }
-
-    /**
-     * Checks whether the Twin Cannon buff is currently active.
-     *
-     * @return True if the ship shoots two parallel bullets.
-     */
-    public final boolean isTwinCannonActive() {
-        return this.twinCannonActive;
     }
 
     /**
@@ -385,8 +299,7 @@ public class Ship extends Entity {
 
     /**
      * Launches a grenade upwards if the ship has one and the launcher is
-     * ready. Like the bullets, grenades cannot be launched while the
-     * Chameleon Hull is active.
+     * ready.
      *
      * @param grenades
      *            Set of grenades on screen, to add the new grenade.
@@ -396,7 +309,7 @@ public class Ship extends Entity {
      */
     public final boolean launchGrenade(final Set<Grenade> grenades,
             final int detonationY) {
-        if (this.chameleonHullActive || isDestroyed()) {
+        if (isDestroyed()) {
             return false;
         }
         if (this.grenadeCount > 0 && this.grenadeCooldown.checkFinished()) {
@@ -413,14 +326,7 @@ public class Ship extends Entity {
      * Updates status and visual feedback of the ship.
      */
     public final void update() {
-        if (this.chameleonHullActive) {
-            long elapsed = System.nanoTime() - this.chameleonActivationTime;
-
-            int index = (int) ((elapsed / entity.item.ChameleonHull.COLOR_INTERVAL_NANOS)
-                    % CHAMELEON_COLORS.length);
-
-            setColor(CHAMELEON_COLORS[index]);
-        } else if (this.damageFeedbackCooldown != null
+        if (this.damageFeedbackCooldown != null
                 && !this.damageFeedbackCooldown.checkFinished()) {
             // Alternate red and normal for 0.5s immediately after damage
             long elapsed = System.currentTimeMillis() - this.damageFeedbackStartTime;
@@ -444,13 +350,6 @@ public class Ship extends Entity {
      * Switches the ship to its destroyed state.
      */
     public final void destroy() {
-        if (this.chameleonHullActive) {
-            return;
-        }
-
-        // The Twin Cannon buff expires when a life is lost.
-        this.twinCannonActive = false;
-        deactivateChameleonHull();
         this.destructionCooldown.reset();
         this.invulnerabilityCooldown.reset();
     }
@@ -635,87 +534,15 @@ public class Ship extends Entity {
         this.nextShotTime = 0;
     }
 
-    public final void activateChameleonHull() {
-        if (!this.chameleonHullActive) {
-            cancelBurst();
-            this.colorBeforeChameleon = getColor();
-            this.widthBeforeChameleon = this.width;
-            this.heightBeforeChameleon = this.height;
-            this.normalPositionY = this.positionY;
-
-            this.width = entity.item.ChameleonHull.BALL_SIZE;
-            this.height = entity.item.ChameleonHull.BALL_SIZE;
-        }
-
-        this.chameleonHullActive = true;
-        this.chameleonActivationTime = System.nanoTime();
-
-        setColor(CHAMELEON_COLORS[0]);
-    }
-
-    public final void deactivateChameleonHull() {
-        if (this.chameleonHullActive) {
-            setColor(this.colorBeforeChameleon);
-
-            this.width = this.widthBeforeChameleon;
-            this.height = this.heightBeforeChameleon;
-            this.positionY = this.normalPositionY;
-        }
-
-        this.chameleonHullActive = false;
-        this.chameleonMovementRemainder = 0;
-    }
-
-    public final boolean isChameleonHullActive() {
-        return this.chameleonHullActive;
-    }
-
     public final double getMovementSpeed() {
-        return this.speed * (this.chameleonHullActive
-                ? entity.item.ChameleonHull.SPEED_MULTIPLIER
-                : 1.0);
-    }
-
-    /** Adds the power-up movement; the original movement code is preserved. */
-    private void addChameleonMovement(final int direction) {
-        if (!this.chameleonHullActive) {
-            return;
-        }
-
-        this.chameleonMovementRemainder += direction * this.speed
-                * (entity.item.ChameleonHull.SPEED_MULTIPLIER - 1.0);
-
-        int extraPixels = (int) (this.chameleonMovementRemainder >= 0
-                ? Math.floor(this.chameleonMovementRemainder + 1e-9)
-                : Math.ceil(this.chameleonMovementRemainder - 1e-9));
-
-        this.positionX += extraPixels;
-        this.chameleonMovementRemainder -= extraPixels;
-    }
-
-    public final void moveUp() {
-        if (this.chameleonHullActive && !isDestroyed()) {
-            if (this.slowDebuffActive)
-                this.positionY -= getSlowedMovementPixels(2);
-            else
-                this.positionY -= (int) getMovementSpeed();
-        }
-    }
-
-    public final void moveDown() {
-        if (this.chameleonHullActive && !isDestroyed()) {
-            if (this.slowDebuffActive)
-                this.positionY += getSlowedMovementPixels(3);
-            else
-                this.positionY += (int) getMovementSpeed();
-        }
+        return this.speed;
     }
 
     /**
      * Triggers the 0.5-second red flashing damage feedback.
      */
     public final void triggerDamageFeedback() {
-        if (this.chameleonHullActive || this.isShieldActive) {
+        if (this.isShieldActive) {
             return;
         }
         this.damageFeedbackStartTime = System.currentTimeMillis();

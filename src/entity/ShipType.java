@@ -5,7 +5,7 @@ package entity;
  */
 public enum ShipType {
 
-    STANDARD("Standard Ship", 2, 750, 4, false);
+    STANDARD("Standard Ship", 2, 750, 4, true);
 
     /** Name displayed to the player. */
     private final String name;

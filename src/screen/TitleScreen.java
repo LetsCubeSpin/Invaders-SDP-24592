@@ -42,7 +42,7 @@ public class TitleScreen extends Screen {
         this.selectionCooldown = Core.getCooldown(SELECTION_TIME);
         this.selectionCooldown.reset();
 
-        AudioManager.playBGM("audio/bgm/music_menu.wav");
+        AudioManager.continueBGM("audio/bgm/music_menu.wav");
     }
 
     /**
