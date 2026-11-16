@@ -122,10 +122,6 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
         return this.selected;
     }
 
-    public final int getSelectedGameMode() {
-        return this.selected;
-    }
-
     public final int getPlayerCount() {
         return this.is2P ? 2 : 1;
     }
@@ -154,18 +150,6 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
             throw new IllegalArgumentException("Unknown game mode: " + mode);
         }
     }
-
-    private void draw() {
-        drawManager.initDrawing(this);
-        if (this.menuStep == 0) {
-            drawManager.drawGameModeMenu(this, this.selected);
-        } else {
-            drawManager.drawPlayerSelectMenu(this, this.selected);
-        }
-        drawManager.completeDrawing(this);
-    }
-}
-
 
     private void draw() {
         drawManager.initDrawing(this);
