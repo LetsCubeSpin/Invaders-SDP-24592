@@ -2,7 +2,10 @@ package engine;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.awt.Font;
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -10,6 +13,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import screen.GameScreen;
 import shop.PreviewPreferencesFactory;
 import story.StoryProgress;
@@ -78,16 +84,69 @@ class StoryDebugLauncherTest {
 
     @Test
     void restartResetsPreferencesAndPreservesNormalFiles(@TempDir Path dir) throws Exception {
+        // Linux's JDK can create .java/fonts/<version>/fcinfo-*.properties on first use.
+        // Establish that baseline using only JDK drawing APIs, before any game code runs.
+        child(dir, "fontWarmup");
+        System.out.println("JDK-only filesystem baseline: " + snapshotFiles(dir).keySet());
         Path profile = dir.resolve(".space-invaders/records-achievements.properties");
         Files.createDirectories(profile.getParent());
         List<Path> saves = List.of(dir.resolve("scores"), dir.resolve(FileManager.ASSETS_FILENAME), profile);
         for (Path save : saves) Files.writeString(save, "sentinel-" + save.getFileName());
+        Map<Path, byte[]> expected = snapshotFiles(dir);
         for (String scenario : List.of("disabled", "normalPreferences", "battle", "battle")) {
             child(dir, scenario);
-            for (Path save : saves) assertEquals("sentinel-" + save.getFileName(), Files.readString(save));
+            assertFilesUnchanged(dir, expected, scenario);
         }
-        try (var files = Files.walk(dir)) {
-            assertEquals(4, files.filter(Files::isRegularFile).count(), "Only sentinels and the process log");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"unexpected-save", ".space-invaders/unexpected.properties",
+            ".java/fonts/test/fcinfo-unexpected.properties", ".java/.userPrefs/unexpected/prefs.xml"})
+    void isolationRejectsAdditionalFiles(String relativePath, @TempDir Path dir) throws Exception {
+        Map<Path, byte[]> expected = snapshotFiles(dir);
+        Path unexpected = dir.resolve(relativePath);
+        Files.createDirectories(unexpected.getParent());
+        Files.writeString(unexpected, "unexpected persistence");
+        AssertionError failure = assertThrows(AssertionError.class,
+                () -> assertFilesUnchanged(dir, expected, "additional file"));
+        assertTrue(failure.getMessage().contains(Path.of(relativePath).toString()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"scores", FileManager.ASSETS_FILENAME,
+            ".space-invaders/records-achievements.properties", ".java/fonts/test/fcinfo-existing.properties"})
+    void isolationRejectsChangedAndDeletedFiles(String relativePath, @TempDir Path dir) throws Exception {
+        Path saved = dir.resolve(relativePath);
+        Files.createDirectories(saved.getParent());
+        Files.writeString(saved, "original");
+        Map<Path, byte[]> expected = snapshotFiles(dir);
+        Files.writeString(saved, "modified");
+        assertThrows(AssertionError.class, () -> assertFilesUnchanged(dir, expected, "changed file"));
+        Files.delete(saved);
+        assertThrows(AssertionError.class, () -> assertFilesUnchanged(dir, expected, "deleted file"));
+        // A deletion and a new save must fail even if the total file count is unchanged.
+        Files.writeString(dir.resolve("replacement-save"), "original");
+        assertThrows(AssertionError.class, () -> assertFilesUnchanged(dir, expected, "replaced file"));
+    }
+
+    private static Map<Path, byte[]> snapshotFiles(Path dir) throws IOException {
+        Map<Path, byte[]> snapshot = new TreeMap<>();
+        try (var paths = Files.walk(dir)) {
+            for (Path path : paths.filter(Files::isRegularFile).toList()) {
+                Path relative = dir.relativize(path);
+                // Only the known process-output file may change; no directory is excluded.
+                if (!relative.equals(Path.of("child.log"))) snapshot.put(relative, Files.readAllBytes(path));
+            }
+        }
+        return snapshot;
+    }
+
+    private static void assertFilesUnchanged(Path dir, Map<Path, byte[]> expected, String scenario)
+            throws IOException {
+        Map<Path, byte[]> actual = snapshotFiles(dir);
+        assertEquals(expected.keySet(), actual.keySet(), scenario + ": unexpected or missing files");
+        for (var entry : expected.entrySet()) {
+            assertArrayEquals(entry.getValue(), actual.get(entry.getKey()), scenario + ": changed " + entry.getKey());
         }
     }
 
@@ -134,6 +193,15 @@ class StoryDebugLauncherTest {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args[0].equals("fontWarmup")) {
+            var graphics = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB).createGraphics();
+            try {
+                assertTrue(graphics.getFontMetrics(new Font(Font.DIALOG, Font.PLAIN, 12)).stringWidth("Story") > 0);
+            } finally {
+                graphics.dispose();
+            }
+            return;
+        }
         if (args[0].equals("loadout")) {
             StoryDebugLauncher.requireDebugSession();
             checkLoadoutParity();
