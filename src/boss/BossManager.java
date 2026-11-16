@@ -161,27 +161,35 @@ public final class BossManager {
         }
 
         if (this.boss.isDefeated()) {
+            // A DEFEATED listener may spawn the next boss, which replaces
+            // this.boss and the spawn time, so read them before notifying.
+            Boss defeated = this.boss;
+            long duration = Math.max(0L,
+                    this.clock.getAsLong() - this.spawnTimeMillis);
             this.attackSystem.stop();
             this.finished = true;
             this.defeatedBosses.add(this.currentKey);
-            this.eventManager.publish(BossEvent.defeated(this.boss));
-            publishBossDefeated();
+            this.eventManager.publish(BossEvent.defeated(defeated));
+            publishBossDefeated(defeated, duration);
         }
     }
 
     /**
-     * Sends the defeat of the current boss to the shared gameplay bus. Runs
-     * once per boss, as {@link #sync} marks the battle finished first.
+     * Sends a boss defeat to the shared gameplay bus. Runs once per boss, as
+     * {@link #sync} marks the battle finished first.
+     *
+     * @param defeated
+     *            Defeated boss.
+     * @param duration
+     *            Time from its spawn to its defeat, in milliseconds.
      */
-    private void publishBossDefeated() {
+    private void publishBossDefeated(final Boss defeated, final long duration) {
         if (this.gameplayEvents == null || this.runId == null
                 || this.runId.trim().isEmpty())
             return;
-        long duration = Math.max(0L,
-                this.clock.getAsLong() - this.spawnTimeMillis);
-        DefeatedEnemyType type = classify(this.boss.getType());
+        DefeatedEnemyType type = classify(defeated.getType());
         this.gameplayEvents.publish(new BossDefeatedEvent(this.runId,
-                defeatIdOf(this.boss, type), type, duration));
+                defeatIdOf(defeated, type), type, duration));
     }
 
     /**

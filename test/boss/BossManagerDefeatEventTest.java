@@ -95,6 +95,39 @@ class BossManagerDefeatEventTest {
     }
 
     @Test
+    void aBossSpawnedByADefeatListenerDoesNotReplaceTheDefeatedOne() {
+        BossManager manager = manager("run");
+        Boss[] next = new Boss[1];
+        manager.getEventManager().addListener(event -> {
+            if (event.getType() == BossEvent.Type.DEFEATED && next[0] == null)
+                next[0] = manager.spawn(
+                        new BossSpawnRequest(Boss.BossType.BOSS_B, 100, 78, 5, 0));
+        });
+        Boss first = spawn(manager, Boss.BossType.BOSS_A);
+
+        now[0] += 1_000L;
+        first.takeDamage(first.getMaxHealth());
+        manager.sync();
+
+        assertTrue(next[0] != null && !next[0].isDefeated(),
+                "the listener spawned a living boss");
+        assertEquals(1, defeats.size());
+        assertSame(DefeatedEnemyType.BOSS_A, defeats.get(0).getBossType());
+        assertEquals(1_000L, defeats.get(0).getBattleDurationMillis());
+        assertTrue(defeats.get(0).getEventId().startsWith("BOSS_A:"));
+
+        now[0] += 2_000L;
+        next[0].takeDamage(next[0].getMaxHealth());
+        manager.sync();
+
+        assertEquals(2, defeats.size());
+        assertSame(DefeatedEnemyType.BOSS_B, defeats.get(1).getBossType());
+        assertEquals(2_000L, defeats.get(1).getBattleDurationMillis());
+        assertTrue(!defeats.get(0).getEventId().equals(defeats.get(1).getEventId()),
+                "the spawned boss gets its own defeat ID");
+    }
+
+    @Test
     void nothingIsPublishedOutsideARecordedRun() {
         BossManager unrecorded = manager(null);
         Boss boss = spawn(unrecorded, Boss.BossType.BOSS_A);
