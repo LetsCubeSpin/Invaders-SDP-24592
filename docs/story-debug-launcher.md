@@ -51,6 +51,26 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\J
 
 장비 지급 및 HYBRID 연결이 남아 있으므로 Jira 완료 조건 전체가 충족된 상태는 아니다. 일반 Story와 Debug가 같은 미완료 초기화를 사용한다는 사실을 장비 요구사항 충족으로 해석하지 않는다.
 
+## Linux/macOS 실행
+
+POSIX `sh`와 JDK 17 이상으로 실행한다. Gradle이나 추가 라이브러리 설치는 필요 없다. 기존 Windows PowerShell 스크립트와 **동일한 `engine.StoryDebugLauncher` 및 `GameScreen.forStoryStage`**를 사용한다.
+
+```sh
+sh ./scripts/run-story-debug.sh
+sh ./scripts/run-story-debug.sh --route TRUCE --stage 7 --difficulty HARD --ship SPEEDSTER
+sh ./scripts/run-story-debug.sh --jdk-root '/path with spaces/to/jdk-17'
+```
+
+첫 명령은 선택 창을 열고, 네 선택값을 모두 전달하면 해당 전투에 바로 진입한다. 선택 창과 직접 실행 모두 게임 창을 표시할 **GUI 데스크톱 세션**이 필요하다. SSH·컨테이너·헤드리스 CI에서 실제 전투 화면을 띄우는 용도로 사용하지 않는다. 셸 입력 검증은 부분 선택, 누락/중복/알 수 없는 옵션과 잘못된 값을 거부한다. 루트·난이도·기체의 영문 대소문자는 구분하지 않으며, 스테이지는 `1`~`7` 한 자리 정수로 지정한다.
+
+JDK 탐색 순서는 `--jdk-root` → `JAVA_HOME` → PATH의 `javac`이다. 명시한 JDK 경로가 잘못되면 다른 설치로 조용히 대체하지 않고 오류를 낸다. PATH의 `javac` 심볼릭 링크를 해석한 뒤 같은 `bin` 디렉터리의 `java`를 사용한다. macOS에서는 예를 들어 `/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home`을 JDK 설치 경로로 지정할 수 있다. `javac -version`으로 17 이상인지 먼저 확인한다.
+
+프로젝트·JDK·`TMPDIR` 경로는 따옴표로 전달한다. 공백, 따옴표, `$`, 세미콜론, 대괄호, 콜론이 포함된 경로를 문자열 명령 실행 없이 처리한다. 컴파일의 소스 경로는 `src:test`, 실행 클래스패스는 임시 세션 기준 `classes:resources`로 지정하므로 경로 자체의 콜론이 구분자로 해석되지 않는다. 리소스는 원본 `res`를 가리키는 심볼릭 링크로 읽는다. 줄바꿈이 포함된 디렉터리·스크립트·PATH 값은 지원하지 않는다.
+
+Unix에서도 매 실행을 새 JVM으로 시작하며, `invaders.storyDebug=true`, 메모리 전용 `PreviewPreferencesFactory`, 독립된 `user.home`·`invaders.storageDir`·작업 디렉터리를 사용한다. 일반 파일 기반 Preferences와 게임 저장 데이터를 사용하지 않는다. `TMPDIR`(기본 `/tmp`) 아래 `mktemp -d`로 전용 세션을 만들고, 성공·컴파일 실패·실행 실패 후 해당 세션만 정리한다. 정리는 부모 경로·생성 이름·소유 마커를 확인하고, 세션이 심볼릭 링크로 교체되었으면 삭제를 거부한다. 프로젝트 리소스 링크의 대상은 삭제하지 않는다. `SIGKILL`이나 전원 종료처럼 셸 종료 처리가 실행되지 않는 경우에는 임시 폴더가 남을 수 있으며, 다음 실행은 별도의 새 폴더를 사용한다.
+
+입력·JDK 검증 오류는 종료 코드 2, 컴파일·Java 실행 실패는 해당 프로세스의 종료 코드를 전달한다. 정상 종료는 0이다. 이 개선은 플랫폼 실행 방식만 다루며 기존 시작 무기·수류탄·보스·엔딩 연동의 완료를 의미하지 않는다. 개발 런처는 계속 `test/`에 있고 일반 실행 메뉴와 배포 JAR에는 포함되지 않는다.
+
 ## 검증
 
 ```powershell
@@ -58,6 +78,16 @@ pwsh -NoProfile -File .\scripts\test-story-debug.ps1 -JdkRoot 'C:\Program Files\
 .\gradlew.bat test --tests engine.StoryDebugLauncherTest
 .\gradlew.bat test smokeTest spotlessCheck
 ```
+
+Linux/macOS에서는 다음 명령을 사용한다.
+
+```sh
+sh ./scripts/test-story-debug.sh
+sh ./gradlew test --tests engine.StoryDebugLauncherTest
+sh ./gradlew test smokeTest spotlessCheck
+```
+
+Unix 스크립트 검증은 가짜 JDK로 성공·인수 경계·예외 종료 코드·JDK 탐색·정리 보호를 검사하고, 실제 JDK로 컴파일 실패 및 헤드리스 Java 실패 경로를 검사한다. 실제 소스와 리소스를 공백·특수문자가 있는 경로에 복사해 컴파일·실행한다. GUI 성공은 가짜 실행기로만 검사하며, 실제 Java 실행에는 `java.awt.headless=true`를 적용해 창을 열지 않는다. 기존 Java 저장 데이터 격리 테스트는 그대로 유지한다. CI의 Ubuntu 작업은 Unix 스크립트 검증을, Windows 작업은 기존 PowerShell 검증을 실행하며 이후 전체 Gradle build를 수행한다. macOS 실환경 실행은 별도 확인이 필요하다.
 
 252개 설정 조합에서 선택 경계, 보스, 기체·루트 탄종과 수류탄 조건을 확인한다. 격리 통합 테스트는 새 JVM마다 **4루트×7단계×3난이도×3기체 = 252개 실제 전투 화면**을 초기화하고 기체·난이도·초기 생명·스테이지 데이터를 확인한다. 보스 없는 단계는 모든 웨이브를 비우고 실제 진행 메서드로 마지막 웨이브에서만 클리어되는지 확인한다. 대표 최종 보스를 처치한 뒤 실제 루프의 클리어와 실행 종료도 검증한다. 하이스코어·재화·기록 파일에 미리 넣어 둔 표식 값과 파일 목록은 두 차례 실행 후 대조한다.
 

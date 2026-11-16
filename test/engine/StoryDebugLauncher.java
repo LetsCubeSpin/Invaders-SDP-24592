@@ -29,7 +29,7 @@ public final class StoryDebugLauncher {
 
     static void requireDebugSession() {
         if (!Boolean.getBoolean("invaders.storyDebug")) {
-            throw new IllegalStateException("Enable the launcher with scripts/run-story-debug.ps1.");
+            throw new IllegalStateException("Enable the launcher with scripts/run-story-debug.ps1 (Windows) or scripts/run-story-debug.sh (Linux/macOS).");
         }
         if (!PreviewPreferencesFactory.class.getName().equals(System.getProperty("java.util.prefs.PreferencesFactory"))
                 || Preferences.userRoot().getClass() != new PreviewPreferencesFactory().userRoot().getClass()
