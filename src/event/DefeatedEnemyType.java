@@ -23,6 +23,8 @@ public enum DefeatedEnemyType {
     BOSS_B,
     /** VESPERA, summons minions **/
     BOSS_C,
+    /** Final boss of the Truce route (OBELISK). */
+    BOSS_D,
     /** No classification was supplied by the caller. */
     UNKNOWN
 }
