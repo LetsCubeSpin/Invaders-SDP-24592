@@ -1973,7 +1973,7 @@ public final class DrawManager {
     }
 
     public void drawGameModeMenu(final Screen screen, final int option) {
-        String[] labels = { "Endless Mode", "Campaign Mode", "Back" };
+        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Back" };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);
