@@ -46,7 +46,7 @@ public class HangarScreen extends Screen {
                 ShipCustomization.changeColor(1);
                 this.selectionCooldown.reset();
                 AudioManager.playSFX("audio/sfx/menu_move.wav");
-            } else if (this.inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+            } else if (this.inputManager.isBackDown()) {
                 this.returnCode = 1;
                 this.isRunning = false;
                 AudioManager.playSFX("audio/sfx/menu_back.wav");

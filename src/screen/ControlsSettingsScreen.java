@@ -20,6 +20,8 @@ public class ControlsSettingsScreen extends Screen {
     private int selectedOption;
     private boolean waitingForKey;
     private boolean waitingForKeyRelease;
+    /** True after a right click cancelled key capture, until it is released. */
+    private boolean waitingForRightRelease;
     private int capturedKeyCode;
     /** Option under the mouse on the last frame, -1 if none. */
     private int lastHoveredOption = -1;
@@ -59,8 +61,24 @@ public class ControlsSettingsScreen extends Screen {
         }
 
         if (this.waitingForKey) {
+            // Right click cancels choosing a new key, like Esc.
+            if (inputManager.isRightMousePressed()) {
+                this.waitingForKey = false;
+                this.waitingForRightRelease = true;
+                this.selectionCooldown.reset();
+                AudioManager.playSFX("audio/sfx/menu_back.wav");
+                return;
+            }
             captureKey();
             return;
+        }
+
+        // Do not let the cancelling right click also leave the screen.
+        if (this.waitingForRightRelease) {
+            if (inputManager.isRightMousePressed()) {
+                return;
+            }
+            this.waitingForRightRelease = false;
         }
 
         // Do not let the newly assigned key also move the menu selection.
@@ -90,7 +108,7 @@ public class ControlsSettingsScreen extends Screen {
             AudioManager.playSFX("audio/sfx/menu_move.wav");
         } else if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
             confirmSelectedOption();
-        } else if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+        } else if (inputManager.isBackDown()) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 4;
             this.isRunning = false;
