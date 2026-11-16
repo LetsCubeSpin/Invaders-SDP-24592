@@ -131,13 +131,19 @@ public final class BossManager {
      * @param bossBullets
      *            Set the new boss bullets are added to.
      */
+
     public void update(final int targetX, final int targetY,
-            final Collection<BossBullet> bossBullets) {
+                       final Collection<BossBullet> bossBullets) {
+        update(targetX, targetY, bossBullets, null);
+    }
+
+    public void update(final int targetX, final int targetY,
+                       final Collection<BossBullet> bossBullets,
+                       final Collection<BossAttackSystem.SummonRequest> summonRequests) {
         sync();
         if (this.boss == null || this.finished)
             return;
 
-        // The attacking pose lasts one frame, or the whole special windup.
         if (this.attackingStateSet && !this.attackSystem.isWindingUp()) {
             if (this.boss.getState() == Boss.State.ATTACKING)
                 this.boss.setState(Boss.State.MOVING);
@@ -151,15 +157,21 @@ public final class BossManager {
         if (result == null)
             return;
 
-        if (this.boss.getState() == Boss.State.MOVING
-                || this.boss.getState() == Boss.State.IDLE) {
-            this.boss.setState(Boss.State.ATTACKING);
-            this.attackingStateSet = true;
-        }
         bossBullets.addAll(result.getBullets());
-        this.eventManager.publish(BossEvent.attack(this.boss,
-                result.getAttackType(), result.isSpecial(), result.isWindup(),
-                result.getBullets().size()));
+        if (summonRequests != null && !result.getSummons().isEmpty()) {
+            summonRequests.addAll(result.getSummons());
+        }
+
+        if (!result.getBullets().isEmpty() || result.isWindup()) {
+            if (this.boss.getState() == Boss.State.MOVING
+                    || this.boss.getState() == Boss.State.IDLE) {
+                this.boss.setState(Boss.State.ATTACKING);
+                this.attackingStateSet = true;
+            }
+            this.eventManager.publish(BossEvent.attack(this.boss,
+                    result.getAttackType(), result.isSpecial(), result.isWindup(),
+                    result.getBullets().size()));
+        }
     }
 
     /** @return Boss information for the Level Design System. */

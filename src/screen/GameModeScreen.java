@@ -8,7 +8,14 @@ import engine.Core;
 public class GameModeScreen extends Screen { // Implementation of the game mode selection screen.
 
     private static final int SELECTION_TIME = 200;
-    private static final int NUM_CHOICES = 3; // Number of game mode choices (0: Infinite, 1: Campaign, 2: Back)
+    /** Choices of the mode step: 0 Endless, 1 Campaign, 2 Story, 3 Back. */
+    static final int MODE_CHOICES = 4;
+    /** Choices of the player step: 0 1P, 1 2P, 2 Back. */
+    static final int PLAYER_CHOICES = 3;
+    /** Mode index of story mode, which is played by one player. */
+    static final int STORY_MODE = 2;
+    /** Mode index of Back on the mode step. */
+    static final int MODE_BACK = 3;
 
     private int selected;
     private Cooldown selectionCooldown;
@@ -43,14 +50,16 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
 
             if (inputManager.isKeyDown(KeyEvent.VK_UP)
                     || inputManager.isKeyDown(KeyEvent.VK_W)) {
-                this.selected = this.selected == 0 ? NUM_CHOICES - 1
+                this.selected = this.selected == 0
+                        ? choiceCount(this.menuStep) - 1
                         : this.selected - 1;
                 this.selectionCooldown.reset();
                 AudioManager.playSFX("audio/sfx/menu_move.wav");   // 추가 (두 곳 모두)
             }
             if (inputManager.isKeyDown(KeyEvent.VK_DOWN)
                     || inputManager.isKeyDown(KeyEvent.VK_S)) {
-                this.selected = (this.selected + 1) % NUM_CHOICES;
+                this.selected = (this.selected + 1)
+                        % choiceCount(this.menuStep);
                 this.selectionCooldown.reset();
                 AudioManager.playSFX("audio/sfx/menu_move.wav");
             }
@@ -58,10 +67,15 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
             if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
                 if (this.menuStep == 0) {
                     // [1단계] 모드 선택 처리
-                    if (this.selected == 2) { // Back
+                    if (this.selected == MODE_BACK) { // Back
                         this.returnCode = 1;
                         this.isRunning = false;
                         AudioManager.playSFX("audio/sfx/menu_back.wav");
+                    } else if (this.selected == STORY_MODE) {
+                        // Story mode is one player only, so it starts right away.
+                        this.returnCode = returnCodeFor(STORY_MODE);
+                        this.isRunning = false;
+                        AudioManager.playSFX("audio/sfx/menu_select.wav");
                     } else { // Endless(0) 또는 Campaign(1) 선택 시 2단계(인원 선택)로 전진
                         this.selectedMode = this.selected;
                         this.menuStep = 1;
@@ -81,15 +95,15 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
                         this.is2P = (this.selected == 1);
 
                         // 기존 returnCode 유지 (Endless: 8, Campaign: 2)
-                        this.returnCode = (this.selectedMode == 0) ? 8 : 2;
+                        this.returnCode = returnCodeFor(this.selectedMode);
                         this.isRunning = false;
                         AudioManager.playSFX("audio/sfx/menu_select.wav");
                     }
                 }
             }
 
-            // ESC 처리 (뒤로가기)
-            if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+            // ESC / 우클릭 처리 (뒤로가기)
+            if (inputManager.isBackDown()) {
                 if (this.menuStep == 1) {
                     this.menuStep = 0; // 2단계에서는 1단계로 복귀
                     this.selected = this.selectedMode;
@@ -108,8 +122,50 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
         return this.selected;
     }
 
+    public final int getSelectedGameMode() {
+        return this.selected;
+    }
+
     public final int getPlayerCount() {
         return this.is2P ? 2 : 1;
+    }
+
+    /**
+     * @param menuStep 0 for the mode step, 1 for the player step.
+     * @return Number of choices on that step.
+     */
+    static int choiceCount(final int menuStep) {
+        return menuStep == 0 ? MODE_CHOICES : PLAYER_CHOICES;
+    }
+
+    /**
+     * @param mode Mode index: 0 Endless, 1 Campaign, 2 Story.
+     * @return Code Core uses to start the mode.
+     */
+    static int returnCodeFor(final int mode) {
+        switch (mode) {
+        case 0:
+            return 8;
+        case 1:
+            return 2;
+        case STORY_MODE:
+            return 15;
+        default:
+            throw new IllegalArgumentException("Unknown game mode: " + mode);
+        }
+    }
+
+    private void draw() {
+        drawManager.initDrawing(this);
+        if (this.menuStep == 0) {
+            drawManager.drawGameModeMenu(this, this.selected);
+        } else {
+            drawManager.drawPlayerSelectMenu(this, this.selected);
+        }
+        drawManager.completeDrawing(this);
+    }
+}
+
     }
 
     private void draw() {

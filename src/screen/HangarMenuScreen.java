@@ -56,7 +56,7 @@ public class HangarMenuScreen extends Screen {
         } else if (this.inputManager.isKeyDown(KeyEvent.VK_SPACE)
                 || this.inputManager.isKeyDown(KeyEvent.VK_ENTER)) {
             selectOption();
-        } else if (this.inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+        } else if (this.inputManager.isBackDown()) {
             this.returnCode = RETURN_TO_MAIN_MENU;
             this.isRunning = false;
             AudioManager.playSFX("audio/sfx/menu_back.wav");
