@@ -21,6 +21,8 @@ public enum DefeatedEnemyType {
     BOSS_A,
     /** Fast boss, stronger earlier. */
     BOSS_B,
+    /** VESPERA, summons minions **/
+    BOSS_C,
     /** No classification was supplied by the caller. */
     UNKNOWN
 }

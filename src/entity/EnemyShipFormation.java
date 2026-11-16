@@ -281,7 +281,7 @@ private int getBulletSpeed() {
 	}
 
 	/** Creates a cooldown for one shooter, based on the level's settings. */
-	private Cooldown createShooterCooldown() {
+	public Cooldown createShooterCooldown() {
 		return Core.getVariableCooldown(this.shootingInterval / 2,
 				this.shootingVariance / 2);
 	}
@@ -667,57 +667,61 @@ private int getBulletSpeed() {
 	 * @param player
 	 *            Player ship to aim at, or null to shoot straight down.
 	 */
-	public final void shoot(final Set<Bullet> bullets, final Ship player) {
-		if (this.shootingCooldown == null
-				|| !this.shootingCooldown.checkFinished())
-			return;
+    public final void shoot(final Set<Bullet> bullets, final Ship player) {
+        if (this.shootingCooldown == null
+                || !this.shootingCooldown.checkFinished())
+            return;
 
-		// Only ships in the bottom row shoot, and each has its own cooldown.
-		List<EnemyShip> readyShooters = new ArrayList<EnemyShip>();
-		for (EnemyShip shooter : this.shooters)
-			if (shooter.canShoot())
-				readyShooters.add(shooter);
-		if (readyShooters.isEmpty())
-			return;
+        // Only ships in the bottom row shoot, and each has its own cooldown.
+        List<EnemyShip> readyShooters = new ArrayList<EnemyShip>();
+        for (EnemyShip shooter : this.shooters)
+            if (shooter.canShoot())
+                readyShooters.add(shooter);
+        if (readyShooters.isEmpty())
+            return;
 
-		int index = (int) (Math.random() * readyShooters.size());
-		EnemyShip shooter = readyShooters.get(index);
-		this.shootingCooldown.reset();
-		shooter.resetShootingCooldown();
+        int index = (int) (Math.random() * readyShooters.size());
+        EnemyShip shooter = readyShooters.get(index);
+        this.shootingCooldown.reset();
+        shootFrom(shooter, bullets, player);
+    }
 
-		int enemyX = shooter.getPositionX() + shooter.width / 2;
-		int enemyY = shooter.getPositionY();
+    /**
+     * Fires a bullet from a single enemy ship (used by both formation and
+     * boss-summoned enemies).
+     */
+    public final void shootFrom(final EnemyShip shooter,
+                                final Set<Bullet> bullets, final Ship player) {
+        shooter.resetShootingCooldown();
 
-		if (player == null) {
+        int enemyX = shooter.getPositionX() + shooter.width / 2;
+        int enemyY = shooter.getPositionY();
 
+        if (player == null) {
+            bullets.add(BulletPool.getBullet(enemyX, enemyY, getBulletSpeed(),
+                    Bullet.Owner.ENEMY));
+            AudioManager.playSFX("audio/sfx/enemy_shoot.wav");
+            return;
+        }
 
+        // Aim the bullet at the player instead of straight down.
+        int playerX = player.getPositionX() + player.width / 2;
+        int playerY = player.getPositionY() + player.height / 2;
+        double dx = playerX - enemyX;
+        double dy = playerY - enemyY;
+        double distance = Math.sqrt(dx * dx + dy * dy);
 
-			bullets.add(BulletPool.getBullet(enemyX, enemyY, getBulletSpeed(),
-					Bullet.Owner.ENEMY));
-			AudioManager.playSFX("audio/sfx/enemy_shoot.wav");
-			return;
-		}
+        int speedX = 0;
+        int speedY = getBulletSpeed();
+        if (distance > 0) {
+            speedX = (int) Math.round((dx / distance) * getBulletSpeed());
+            speedY = (int) Math.round((dy / distance) * getBulletSpeed());
+        }
 
-		// Aim the bullet at the player instead of straight down.
-		int playerX = player.getPositionX() + player.width / 2;
-		int playerY = player.getPositionY() + player.height / 2;
-		double dx = playerX - enemyX;
-		double dy = playerY - enemyY;
-		double distance = Math.sqrt(dx * dx + dy * dy);
-
-		int speedX = 0;
-		int speedY = getBulletSpeed(); // Default to straight down if distance is zero.
-		if (distance > 0) {
-			speedX = (int) Math.round((dx / distance) * getBulletSpeed());
-			speedY = (int) Math.round((dy / distance) * getBulletSpeed());
-		}
-
-		// An aimed shot can travel sideways or upwards, so the owner is set
-		// explicitly rather than inferred from the speed.
-		bullets.add(BulletPool.getBullet(enemyX, enemyY, speedY, speedX,
-				Bullet.Owner.ENEMY));
-		AudioManager.playSFX("audio/sfx/enemy_shoot.wav");
-	}
+        bullets.add(BulletPool.getBullet(enemyX, enemyY, speedY, speedX,
+                Bullet.Owner.ENEMY));
+        AudioManager.playSFX("audio/sfx/enemy_shoot.wav");
+    }
 
 	/**
 	 * Destroys a ship.

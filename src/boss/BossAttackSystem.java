@@ -8,6 +8,7 @@ import java.util.Random;
 import engine.Cooldown;
 import engine.Core;
 import entity.BossBullet;
+import entity.EnemyType;
 
 /**
  * Boss attack system: attack interval and cooldowns, attack patterns per
@@ -36,6 +37,14 @@ public final class BossAttackSystem {
         private final boolean windup;
         /** Bullets fired. Empty during windup. */
         private final List<BossBullet> bullets;
+        /** Enemies spawned */
+        private final List<SummonRequest> summons;
+
+        AttackResult(final String attackType, final boolean special,
+                     final boolean windup, final List<BossBullet> bullets) {
+            this(attackType, special, windup, bullets,
+                    Collections.<SummonRequest>emptyList());
+        }
 
         /**
          * Constructor.
@@ -48,13 +57,18 @@ public final class BossAttackSystem {
          *            True for the warning before a special attack.
          * @param bullets
          *            Bullets fired.
+         * @param summons
+         *            Enemies spawned.
          */
+
         AttackResult(final String attackType, final boolean special,
-                final boolean windup, final List<BossBullet> bullets) {
+                     final boolean windup, final List<BossBullet> bullets,
+                     final List<SummonRequest> summons) {
             this.attackType = attackType;
             this.special = special;
             this.windup = windup;
             this.bullets = Collections.unmodifiableList(bullets);
+            this.summons = Collections.unmodifiableList(summons);
         }
 
         public String getAttackType() {
@@ -71,6 +85,9 @@ public final class BossAttackSystem {
 
         public List<BossBullet> getBullets() {
             return this.bullets;
+        }
+        public List<SummonRequest> getSummons() {
+            return this.summons;
         }
     }
 
@@ -94,6 +111,8 @@ public final class BossAttackSystem {
     private Cooldown buffCooldown;
     /** True after the first update, when the boss battle really begins. */
     private boolean started;
+    /** Time until the next minion summon, or null if disabled in current phase. */
+    private Cooldown summonCooldown;
     /**
      * True when a phase that allows the special attack has just begun. The
      * first special attack of the phase then starts right away, without
@@ -135,6 +154,7 @@ public final class BossAttackSystem {
         this.phase = newPhase;
         this.pendingSpecial = null;
         restartAttackCooldown();
+        restartSummonCooldown();
         // The first special attack of the phase is used right away (PRD 2.5).
         if (!specialWasEnabled)
             markSpecialDueIfEnabled();
@@ -161,6 +181,8 @@ public final class BossAttackSystem {
      */
     public AttackResult update(final int originX, final int originY,
             final int targetX, final int targetY) {
+
+
         if (!this.active)
             return null;
 
@@ -170,6 +192,7 @@ public final class BossAttackSystem {
         if (!this.started) {
             this.started = true;
             restartAttackCooldown();
+            restartSummonCooldown();
             markSpecialDueIfEnabled();
             return null;
         }
@@ -182,10 +205,15 @@ public final class BossAttackSystem {
             restartAttackCooldown();
         }
 
-        // 1. A special attack is being prepared: nothing else happens.
+        // 탄막 쿨타임과 무관하게 매 프레임 소환 타이머 체크
+        List<SummonRequest> summons = checkAndCreateSummons(originX, originY);
+
+        // 1. 특수 공격 준비 중
         if (this.pendingSpecial != null) {
             if (!this.windupCooldown.checkFinished())
-                return null;
+                return summons.isEmpty() ? null
+                        : new AttackResult("SUMMON", false, false,
+                        Collections.<BossBullet>emptyList(), summons);
             SpecialAttack special = this.pendingSpecial;
             this.pendingSpecial = null;
             List<BossBullet> bullets = special.execute(originX, originY,
@@ -197,17 +225,19 @@ public final class BossAttackSystem {
                 this.buffCooldown.reset();
             }
             restartAttackCooldown();
-            return new AttackResult(special.getName(), true, false, bullets);
+            return new AttackResult(special.getName(), true, false, bullets,
+                    summons);
         }
 
-        // 2. Wait for the attack interval, unless the first special attack
-        // of the phase is due.
+        // 2. 공격 쿨타임 대기 중이어도 소환이 발동되었으면 결과 반환
         if (!this.specialDueAtPhaseStart
-                && !this.attackCooldown.checkFinished())
-            return null;
+                && !this.attackCooldown.checkFinished()) {
+            return summons.isEmpty() ? null
+                    : new AttackResult("SUMMON", false, false,
+                    Collections.<BossBullet>emptyList(), summons);
+        }
 
-        // 3. Special attack, only in allowed phases. The first one starts
-        // as soon as the phase begins, later ones wait for the cooldown.
+        // 3. 특수 공격 발동
         BossAttackConfig.PhaseConfig phaseConfig = this.config
                 .getPhase(this.phase);
         SpecialAttack special = this.config.getSpecialAttack();
@@ -219,15 +249,51 @@ public final class BossAttackSystem {
                     Math.max(1, special.getWindupMilliseconds()));
             this.windupCooldown.reset();
             return new AttackResult(special.getName(), true, true,
-                    new ArrayList<BossBullet>());
+                    new ArrayList<BossBullet>(), summons);
         }
 
-        // 4. Normal attack, pattern chosen by the phase weights.
+        // 4. 일반 탄막 공격 (+ 동일 프레임에 소환이 겹쳤다면 함께 포함)
         AttackPattern pattern = phaseConfig.pick(this.random);
         List<BossBullet> bullets = pattern.fire(originX, originY, targetX,
                 targetY, this.config.getDamage());
         restartAttackCooldown();
-        return new AttackResult(pattern.getName(), false, false, bullets);
+        return new AttackResult(pattern.getName(), false, false, bullets,
+                summons);
+    }
+
+    private List<SummonRequest> checkAndCreateSummons(final int originX,
+                                                      final int originY) {
+        if (this.summonCooldown == null || !this.summonCooldown.checkFinished())
+            return Collections.emptyList();
+
+        BossAttackConfig.PhaseConfig phaseConfig = this.config
+                .getPhase(this.phase);
+        if (!phaseConfig.isSummonEnabled())
+            return Collections.emptyList();
+
+        this.summonCooldown.reset();
+        int count = phaseConfig.getSummonCount();
+        int spacing = 44; // 소환 적 가로 간격 (EnemyShip 폭 24px 기준)
+        List<SummonRequest> summons = new ArrayList<SummonRequest>(count);
+
+        for (int i = 0; i < count; i++) {
+            int offsetX = (i * 2 - (count - 1)) * (spacing / 2);
+            summons.add(new SummonRequest(originX + offsetX - 12, originY + 4,
+                    phaseConfig.getSummonEnemyType()));
+        }
+        return summons;
+    }
+
+    private void restartSummonCooldown() {
+        BossAttackConfig.PhaseConfig phaseConfig = this.config
+                .getPhase(this.phase);
+        if (phaseConfig.isSummonEnabled()) {
+            this.summonCooldown = Core.getCooldown(
+                    phaseConfig.getSummonIntervalMilliseconds());
+            this.summonCooldown.reset();
+        } else {
+            this.summonCooldown = null;
+        }
     }
 
     /** @return Current time between attacks, in milliseconds. */
@@ -251,6 +317,31 @@ public final class BossAttackSystem {
     private void restartAttackCooldown() {
         this.attackCooldown = Core.getCooldown(getCurrentIntervalMilliseconds());
         this.attackCooldown.reset();
+    }
+
+    public static final class SummonRequest {
+        private final int positionX;
+        private final int positionY;
+        private final EnemyType enemyType;
+
+        public SummonRequest(final int positionX, final int positionY,
+                             final EnemyType enemyType) {
+            this.positionX = positionX;
+            this.positionY = positionY;
+            this.enemyType = enemyType;
+        }
+
+        public int getPositionX() {
+            return this.positionX;
+        }
+
+        public int getPositionY() {
+            return this.positionY;
+        }
+
+        public EnemyType getEnemyType() {
+            return this.enemyType;
+        }
     }
 
     public int getPhase() {

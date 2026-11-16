@@ -28,7 +28,9 @@ public class Boss extends Entity {
         /** Slow boss. */
         BOSS_A(850, 1, 0.5, 0.25, 500),
         /** Fast boss, gets stronger earlier. */
-        BOSS_B(800, 3, 0.7, 0.4, 800);
+        BOSS_B(800, 3, 0.7, 0.4, 800),
+        /** VESPERA, summons minions **/
+        BOSS_C(800, 3, 0.7, 0.4, 1000);
 
         /** Maximum health of this kind of boss. */
         private final int maxHealth;
