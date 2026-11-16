@@ -950,6 +950,8 @@ public class GameScreen extends Screen {
 			// Assets are not initialized (e.g. screen-only tests): skip credits.
 		}
 
+		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
+
 		// Item HUD: grenades left, active buffs and their time left.
 		drawManager.drawGrenadeCount(this, this.ship.getGrenadeCount());
 		drawManager.drawBuffs(this, BuffHud.buildLines(

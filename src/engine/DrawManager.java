@@ -1,6 +1,7 @@
 package engine;
 
 import entity.ShipType;
+import boss.BossHudInfo;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -344,6 +345,44 @@ public final class DrawManager {
         int scoreX = screen.getWidth() - 60;
         drawIcon(Icon.SCORE, scoreX - Icon.SCORE.getWidth() * 2 - 6, 12, 2);
         backBufferGraphics.drawString(scoreString, scoreX, 25);
+    }
+
+    /** Draws boss health in the free row between the score and separator. */
+    public void drawBossHealthBar(final Screen screen, final BossHudInfo boss) {
+        if (boss == null || !boss.isVisible() || boss.getMaxHealth() <= 0
+                || boss.getCurrentHealth() <= 0) {
+            return;
+        }
+
+        Graphics hud = backBufferGraphics.create();
+        try {
+            hud.setFont(fontRegular.deriveFont(10f));
+            FontMetrics metrics = hud.getFontMetrics();
+            String name = boss.getBossType().name().replace('_', ' ');
+            int maximum = boss.getMaxHealth();
+            int current = Math.min(boss.getCurrentHealth(), maximum);
+            String health = current + " / " + maximum;
+            int right = screen.getWidth() - 20;
+            int barX = 20 + metrics.stringWidth(name) + 8;
+            int barWidth = right - metrics.stringWidth(maximum + " / " + maximum)
+                    - 8 - barX;
+            // Keep the full bar width fixed as the current HP loses digits.
+            int filledWidth = Math.max(1, (int) ((long) barWidth * current / maximum));
+
+            hud.setColor(Color.BLACK);
+            hud.fillRect(18, 29, screen.getWidth() - 36, 10);
+            hud.setColor(Color.WHITE);
+            hud.drawString(name, 20, 37);
+            hud.drawString(health, right - metrics.stringWidth(health), 37);
+            hud.setColor(Color.DARK_GRAY);
+            hud.fillRect(barX, 31, barWidth, 6);
+            hud.setColor(Color.MAGENTA);
+            hud.fillRect(barX, 31, filledWidth, 6);
+            hud.setColor(Color.GRAY);
+            hud.drawRect(barX - 1, 30, barWidth + 1, 7);
+        } finally {
+            hud.dispose();
+        }
     }
 
     /** K, M, B, T, Q suffixes for shortened credits. */
