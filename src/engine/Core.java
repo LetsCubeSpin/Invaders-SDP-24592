@@ -141,7 +141,7 @@ public final class Core {
 				// The selected ship decides how many lives the run starts with.
 				LOGGER.info("Selected ship: " + selectedShip.getName());
 
-					
+
 					gameState = new GameState(1, 0, selectedShip.getMaxLives(),
 							0, 0);
 
