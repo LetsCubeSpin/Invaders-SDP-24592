@@ -166,7 +166,6 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
     }
 }
 
-    }
 
     private void draw() {
         drawManager.initDrawing(this);
