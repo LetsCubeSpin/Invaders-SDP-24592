@@ -42,7 +42,6 @@ try {
     Test-LauncherFailure '7' 2 'javac failed (2).'
     $env:JDK_JAVAC_OPTIONS = $null
     Test-LauncherFailure '8' 1 'Stage must be between 1 and 7'
-    Write-Output 'PASS: incomplete selection, missing JDK, fractional stage, javac/java exit codes, cleanup in a path with spaces.'
 } finally {
     $env:JDK_JAVAC_OPTIONS = $oldCompilerOptions
     $env:TEMP = $oldTemp
@@ -51,3 +50,7 @@ try {
         Remove-Item -LiteralPath $testDirectory
     }
 }
+
+# Expected native failures must not leak into the GitHub Actions shell epilogue.
+Write-Output 'PASS: incomplete selection, missing JDK, fractional stage, javac/java exit codes, cleanup in a path with spaces.'
+exit 0
