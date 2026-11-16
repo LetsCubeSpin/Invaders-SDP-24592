@@ -35,7 +35,9 @@ try {
     $env:JDK_JAVAC_OPTIONS = '--invalid-story-debug-test-option'
     Test-LauncherFailure '3.5' 1 'Stage must be an integer.'
     Test-LauncherFailure '7' 2 'javac failed (2).'
-    Write-Output 'PASS: fractional stage, native exit code, cleanup in a path with spaces.'
+    $env:JDK_JAVAC_OPTIONS = $null
+    Test-LauncherFailure '8' 1 'Stage must be between 1 and 7'
+    Write-Output 'PASS: fractional stage, javac exit code, java exit code, cleanup in a path with spaces.'
 } finally {
     $env:JDK_JAVAC_OPTIONS = $oldCompilerOptions
     $env:TEMP = $oldTemp

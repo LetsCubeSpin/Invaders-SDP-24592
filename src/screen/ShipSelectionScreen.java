@@ -108,7 +108,7 @@ public class ShipSelectionScreen extends Screen {
         } else if (this.inputManager.isKeyDown(KeyEvent.VK_SPACE)
                 || this.inputManager.isKeyDown(KeyEvent.VK_ENTER)) {
             confirmSelection();
-        } else if (this.inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
+        } else if (this.inputManager.isBackDown()) {
             this.returnCode = RETURN_TO_HANGAR_MENU;
             this.isRunning = false;
             AudioManager.playSFX("audio/sfx/menu_back.wav");

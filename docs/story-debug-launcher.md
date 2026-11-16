@@ -25,7 +25,7 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 | Stage 1~3 | 선택 기체의 기본 탄종. Stage 3은 첫 선택에 따라 ARGUS 또는 NOX | 기체와 보스 적용. 모든 기체의 시작 탄종은 NORMAL |
 | Stage 4~7 | 루트 탄종 및 수류탄 지급 여부. Stage 7은 루트의 최종 보스 | 현재 등록된 보스와 웨이브 적용. 시작 탄종 NORMAL, 시작 수류탄 0 |
 
-기준 커밋 `0be8ba8`의 `StoryRoute`는 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. VESPERA, OBELISK, PIERCE는 이 기준의 구현에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
+통합 기준 main은 `0412ff2f423d6c16079d7b8ebeb7a26f59e63c33`이다. VESPERA(BOSS_C)의 소환 전투는 구현되어 일반 Campaign Stage 7에서 사용된다. 그러나 `StoryRoute`는 여전히 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. **BOSS_C 구현과 HYBRID 연결 완료는 별개다.** OBELISK와 PIERCE는 이 main에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다. 미병합 PR #9·#10·#13의 기능은 포함하지 않았다.
 
 ## 저장 격리와 연동 지점
 
@@ -34,7 +34,18 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 * `StoryDebugLauncher.createScreen`은 활성 기록 서비스가 있는 JVM을 거부한다. `RunSession`은 null이며, 보상 구독·정산, 기록 서비스 생성·종료 훅, 점수 화면, 엔딩 기록을 호출하지 않는다. 디버그 전투의 일시적인 점수와 클리어 이벤트는 게임 화면 안에서 정상 발생한다.
 * 일반 실행의 `-Dstory.route=TRUCE`는 `PlaceholderStoryScenes`가 질문에 답할 루트만 정한다. 디버그 선택 창도 이 경로를 재사용해 초기 루트를 읽는다. 기존 `-Dinvaders.debugKeys=true`는 전투 중 F2 방패 테스트 옵션이다.
 * **박경준 및 무기 담당자**가 변경할 최소 지점은 `GameScreen.forStoryStage`와 `GameScreen.initialize()`다. 팩토리에서 `progress.weaponForStage(stageNumber, shipType.getBulletType())`와 `progress.givesGrenadesOnStage(stageNumber)`를 보관하고, 스토리 기체 생성 직후에 탄종·시작 수류탄을 한 번만 적용한다. 수류탄 개수는 담당자의 게임 규칙이 필요하다. 장비 적용 후 기존 `StoryGameScreenTest.everyShipUsesTheNormalWeapon`을 새 게임 규칙으로 갱신하고 런처의 현재 장비 안내도 갱신한다. 보스·무기 담당자가 새 타입과 루트 데이터를 연결하면 런처는 같은 팩토리와 데이터를 사용한다.
-* 별도 전투 창에는 `Core.java` 변경이 필요 없다. 정식 메뉴 연동이 필요해지면 `Core.playStory`는 1단계에서 시작해 기록·보상을 준비한다는 점에 유의한다. 현재 `GameModeScreen`의 모드 선택은 Infinite/Campaign/Back이고 `Core`에는 Story용 분기 15가 따로 있다. 정식 화면에서 개발 도구를 호출하려면 담당자가 별도 JVM 실행 경계를 유지해야 한다. `feature/story_data`와 `feature/story_mode_play`의 확인된 커밋은 기준 main에 포함돼 있다.
+* 별도 전투 창에는 `Core.java` 변경이 필요 없다. 최신 main의 일반 `GameModeScreen`에는 Story 메뉴가 추가되었고, `Core`의 분기 15로 정상 Story를 시작한다. `Core.playStory`는 1단계에서 시작해 기록·보상을 준비하므로 개발자 즉시 진입에 재사용하지 않는다. 일반 Story 메뉴와 개발자 선택 창은 서로 다른 진입점이다. 메뉴의 우클릭/Esc 뒤로 가기와 BGM 연속 재생 변경은 main 그대로 사용한다.
+
+### 담당자 연동 계약
+
+| 담당 영역 | 입력과 출력 | 기대 동작 및 필요한 검증 |
+| --- | --- | --- |
+| 박경준: `GameScreen.forStoryStage` / `initialize` | 스테이지 번호, 선행 선택이 복원된 `StoryProgress`, `ShipType` → 실제 기체의 시작 장비 | `weaponForStage(stage, ship.getBulletType())` 및 `givesGrenadesOnStage(stage)`를 사용한다. Stage 1~3/4~7 경계, 4루트×7단계×3기체, 일반 Story/Debug 동등성을 검사한다. |
+| 박경준 및 무기 담당자: 수류탄/루트 무기 | 지급 플래그와 합의된 지급 개수 → `Ship.setBulletType` / `addGrenades` 결과 | 수류탄 지급 개수와 스테이지 간 이월·상한 규칙을 먼저 합의한다. 초기화 때 한 번만 적용하고 다음 웨이브에서 재지급하지 않는다. PIERCE를 임의 탄종으로 치환하지 않는다. |
+| 박경준·이성민: `StoryRoute` / 보스 연결 | HYBRID 최종 보스 데이터 → BOSS_C 실제 생성 | 일반 Campaign에서 검증한 BOSS_C를 Story에 연결한 뒤 HYBRID Stage 7 소환·처치·종료를 재검증한다. TRUCE의 OBELISK는 별도 구현·병합 후 검증한다. |
+| KAN-56 | 선택 검증, 선행 선택 복원, 격리 JVM → 공용 Story 팩토리 | 테스트·설명 갱신은 자체 처리한다. 담당자의 소스나 시작 장비를 디버그 전용 하드코딩으로 대체하지 않는다. |
+
+장비 지급 및 HYBRID 연결이 남아 있으므로 Jira 완료 조건 전체가 충족된 상태는 아니다. 일반 Story와 Debug가 같은 미완료 초기화를 사용한다는 사실을 장비 요구사항 충족으로 해석하지 않는다.
 
 ## 검증
 
@@ -44,6 +55,8 @@ Windows PowerShell에서 2차 프로젝트 루트로 이동한 뒤 실행한다.
 .\gradlew.bat test smokeTest spotlessCheck
 ```
 
-252개 조합에서 선택 경계, 보스, 기체·루트 탄종과 수류탄 조건을 확인한다. 격리 통합 테스트는 매번 새 JVM을 띄워 네 루트의 Stage 1·3·7에 실제 전투 화면을 생성하고, 기체와 난이도, 생성된 보스, 스테이지 데이터를 확인한다. 대표 최종 보스를 처치한 뒤 게임 루프가 클리어로 끝날 때까지 돌린다. 하이스코어·재화·기록 파일에 미리 넣어 둔 값과 파일 목록을 두 번의 실행 후 대조한다. 수동 장비 검증 시에는 위 표의 게임 구현 상태를 기준으로 해석한다.
+252개 설정 조합에서 선택 경계, 보스, 기체·루트 탄종과 수류탄 조건을 확인한다. 격리 통합 테스트는 새 JVM마다 **4루트×7단계×3난이도×3기체 = 252개 실제 전투 화면**을 초기화하고 기체·난이도·초기 생명·스테이지 데이터를 확인한다. 보스 없는 단계는 모든 웨이브를 비우고 실제 진행 메서드로 마지막 웨이브에서만 클리어되는지 확인한다. 대표 최종 보스를 처치한 뒤 실제 루프의 클리어와 실행 종료도 검증한다. 하이스코어·재화·기록 파일에 미리 넣어 둔 표식 값과 파일 목록은 두 차례 실행 후 대조한다.
 
-PowerShell 회귀 테스트는 소수 스테이지 입력 거부, 컴파일러 종료 코드 전달, 공백이 있는 경로에서 실패 후 임시 세션 정리를 검사한다. PowerShell 프로세스 자체가 강제 종료되면 임시 폴더가 남을 수 있다. 다음 실행에서는 새 폴더를 사용한다.
+별도 격리 테스트는 main의 일반 Campaign Stage 7을 통해 BOSS_C를 생성한다. 대기 시계만 만료시켜 페이즈별 A/B/C 소환 요청이 실제 `GameScreen`의 적으로 변환되는지, 보스 처치 시 소환 적 정리와 스테이지 종료가 이어지는지 검사한다. 이는 HYBRID가 BOSS_C로 연결되었다는 증거가 아니다. 위 장비 연동 전까지는 이 문서의 미완료 상태를 유지한 채 해석한다.
+
+PowerShell 회귀 테스트는 소수 스테이지 입력 거부, `javac` 종료 코드 2 전달, Java의 잘못된 스테이지 종료 코드 1 전달, 공백이 있는 경로에서 각 실패 후 임시 폴더 정리를 검사한다. Java 실패 시나리오에서는 실제 선택적 컴파일도 수행한다. PowerShell 프로세스 자체가 강제 종료되면 임시 폴더가 남을 수 있다. 다음 실행에서는 새 폴더를 사용한다.
