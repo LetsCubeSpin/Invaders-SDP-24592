@@ -607,10 +607,15 @@ public class GameScreen extends Screen {
 	}
 
 	private boolean hasLivingPlayer() {
+		return getLivingPlayerCount() > 0;
+	}
+
+	private int getLivingPlayerCount() {
+		int livingPlayers = 0;
 		for (PlayerSlot player : this.players)
 			if (player.isAlive())
-				return true;
-		return false;
+				livingPlayers++;
+		return livingPlayers;
 	}
 
 	/** Selects an active player uniformly for an enemy attack. */
@@ -628,15 +633,19 @@ public class GameScreen extends Screen {
 
 	/** Spends one team life only after every player's personal ship is down. */
 	private void resolveSharedPlayerDefeat() {
-		if (this.playerCount != 2 || hasLivingPlayer())
+		if (this.playerCount != 2)
 			return;
-		this.sharedLives = Math.max(0, this.sharedLives - 1);
-		if (this.sharedLives > 0) {
-			respawnPlayers();
-			if (this.sharedLives == 1 && !this.isLowHealthBGM) {
-				AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
-				this.isLowHealthBGM = true;
-			}
+
+		if (!hasLivingPlayer()) {
+			this.sharedLives = Math.max(0, this.sharedLives - 1);
+			if (this.sharedLives > 0)
+				respawnPlayers();
+		}
+
+		if (this.sharedLives == 1 && getLivingPlayerCount() == 1
+				&& !this.isLowHealthBGM) {
+			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			this.isLowHealthBGM = true;
 		}
 	}
 
@@ -704,7 +713,8 @@ public class GameScreen extends Screen {
 
 		// The last life is checked first, so the urgent track also plays on
 		// boss stages.
-		if (getLivesRemaining() == 1) {
+		if (getLivesRemaining() == 1
+				&& (this.playerCount == 1 || getLivingPlayerCount() == 1)) {
 			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
 			this.isLowHealthBGM = true;
 		} else if (bossTypeForStage() != null) {

@@ -178,30 +178,38 @@ public class InfiniteGameScreen extends Screen {
 
 	/** A shared life is spent only after all player ships have been eliminated. */
 	private void resolveSharedPlayerDefeat() {
-		if (this.playerCount != 2 || hasLivingPlayer())
+		if (this.playerCount != 2)
 			return;
 
-		this.lives = Math.max(0, this.lives - 1);
-		// Remaining team lives respawn both players; zero ends the run.
-		if (this.lives > 0) {
-			for (int index = 0; index < this.players.size(); index++) {
-				this.players.get(index).respawn(createPlayerShip(index),
-						new PlayerStatus(1, 1, false));
+		if (!hasLivingPlayer()) {
+			this.lives = Math.max(0, this.lives - 1);
+			// Remaining team lives respawn both players; zero ends the run.
+			if (this.lives > 0) {
+				for (int index = 0; index < this.players.size(); index++) {
+					this.players.get(index).respawn(createPlayerShip(index),
+							new PlayerStatus(1, 1, false));
+				}
+				syncPrimaryPlayer();
 			}
-			syncPrimaryPlayer();
-			// In 2P, the shared pool can reach one only after both ships are out.
-			if (this.lives == 1 && !this.lowLivesMusicStarted) {
-				AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
-				this.lowLivesMusicStarted = true;
-			}
+		}
+
+		if (this.lives == 1 && getLivingPlayerCount() == 1
+				&& !this.lowLivesMusicStarted) {
+			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			this.lowLivesMusicStarted = true;
 		}
 	}
 
 	private boolean hasLivingPlayer() {
+		return getLivingPlayerCount() > 0;
+	}
+
+	private int getLivingPlayerCount() {
+		int livingPlayers = 0;
 		for (PlayerSlot player : this.players)
 			if (player.isAlive())
-				return true;
-		return false;
+				livingPlayers++;
+		return livingPlayers;
 	}
 
 	public final int run() {
