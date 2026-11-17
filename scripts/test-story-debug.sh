@@ -29,6 +29,7 @@ logs=$work/logs
 mkdir -p "$project/scripts" "$project/src" "$project/res" "$project/test/engine" "$jdk/bin" "$sessions" "$logs"
 cp "$repo/scripts/run-story-debug.sh" "$project/scripts/"
 cp "$repo/test/engine/StoryDebugLauncher.java" "$project/test/engine/"
+cp "$repo/test/engine/StoryDebugController.java" "$project/test/engine/"
 printf 'keep project resources\n' > "$project/res/sentinel"
 resource_hash=$(cksum < "$project/res/sentinel")
 launcher=$project/scripts/run-story-debug.sh
@@ -53,7 +54,7 @@ printf '%s\n' "$session" > "$TEST_LOG_DIR/session"
 [ "$3" = "-Duser.home=$session" ] || exit 94
 [ "$4" = "-Dinvaders.storageDir=$session" ] || exit 95
 [ "$6" = -cp ] && [ "$7" = 'classes:resources' ] || exit 96
-[ "$8" = engine.StoryDebugLauncher ] || exit 97
+[ "$8" = engine.StoryDebugController ] || exit 97
 [ -d classes ] && [ -L resources ] && [ -f resources/sentinel ] || exit 98
 if [ "${MOCK_REPLACE_SESSION:-0}" = 1 ]; then
     mv "$session" "$session.saved"
@@ -84,7 +85,7 @@ printf 'TRUCE\n7\nHARD\nSPEEDSTER\n' > "$logs/expected"
 tail -n 4 "$logs/java.args" > "$logs/selection"
 cmp "$logs/expected" "$logs/selection" || die 'selection argument boundaries changed'
 grep -Fx 'src:test' "$logs/compiler.args" >/dev/null || die 'wrong Unix source path'
-grep -Fx 'test/engine/StoryDebugLauncher.java' "$logs/compiler.args" >/dev/null || die 'wrong shared entry point'
+grep -Fx 'test/engine/StoryDebugController.java' "$logs/compiler.args" >/dev/null || die 'wrong shared entry point'
 run_case 'partial selections' 2 --route TRUCE
 run_case 'missing option value' 2 --jdk-root
 run_case 'empty selection value' 2 --route ''

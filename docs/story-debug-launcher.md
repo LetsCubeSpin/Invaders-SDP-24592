@@ -7,7 +7,25 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\J
 pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17' -Route TRUCE -Stage 7 -Difficulty HARD -Ship SPEEDSTER
 ```
 
-첫 명령은 선택 창을 연다. Tab과 Shift+Tab으로 항목을 이동하고 방향키로 값을 고른다. 미리보기에서 현재 데이터의 보스, 웨이브 수, 스토리가 요구하는 장비를 확인한 뒤 **Start stage** 버튼에서 Space를 누른다. Cancel 또는 Esc로 취소한다. 네 인수를 모두 지정하면 같은 설정을 선택 창 없이 바로 재현할 수 있다. 실행 중에는 좌우 방향키로 이동하고 Space로 발사한다. G는 보유한 수류탄을 쓴다. 창을 닫거나 한 스테이지를 클리어하거나 패배하면 디버그 실행이 끝난다.
+첫 명령은 **반복 테스트 도구**의 선택 창을 연다. Tab과 Shift+Tab으로 항목을 이동하고 방향키로 값을 고른다. 미리보기에서 현재 데이터의 보스, 웨이브 수, 스토리가 요구하는 장비를 확인한 뒤 **Start stage** 버튼에서 Space를 누른다. 기본값은 HYBRID / 1 / NORMAL / STANDARD다. 전투에서는 좌우 방향키로 이동하고 Space로 발사한다. G는 보유한 수류탄을 쓰고 M은 음소거를 전환한다.
+
+전투가 끝나면 **Replay same settings / Change selection / Exit tool** 창이 나타난다. 같은 설정으로 바로 다시 실행하거나, 마지막 선택값이 유지된 선택 창에서 다른 루트·스테이지·난이도·기체를 고를 수 있다. 이전 전투의 생명·점수·아이템·설정은 다음 전투로 이월하지 않는다. 마지막 선택값은 관리 프로세스의 메모리에만 남으며 도구를 완전히 종료하면 초기화된다.
+
+| 동작 | 반복 테스트 모드의 결과 |
+| --- | --- |
+| 클리어 또는 패배 | 현재 전투와 임시 저장 폴더를 정리하고 다음 동작 선택 창 표시 |
+| 전투 창의 × | 해당 전투 JVM만 종료하고 다음 동작 선택 창 표시 |
+| Replay same settings | 같은 네 선택값으로 새 JVM·새 임시 저장 폴더에서 시작 |
+| Change selection | 마지막 네 선택값을 표시한 선택 창으로 돌아감 |
+| 선택 창의 Cancel / Esc / × | 새 전투를 실행하지 않고 도구 전체 종료 |
+| Exit tool 또는 다음 동작 창의 × / Esc | 도구 전체 종료 |
+| 전투 JVM 실패 또는 시작·정리 오류 | 오류를 표시하고 사용자가 재실행·설정 변경·종료를 선택. 자동 재시도하지 않음 |
+
+전투 중 Esc로 선택 창에 돌아오는 기능은 없다. 전투를 중단하려면 전투 창의 ×를 사용한다. 일반 게임으로 돌아가려면 도구를 종료하고 `engine.Core` 또는 `gradlew.bat run`을 별도로 실행한다.
+
+**네 선택 인수를 모두 지정한 두 번째 명령은 기존의 일회성 실행을 유지한다.** 선택 창과 재실행 창 없이 한 전투만 실행하고 종료 코드를 전달한다. 일부 인수만 지정할 수는 없다. 사람이 사용하는 파일은 `run-story-debug.*`이며 `test-story-debug.*`는 오류 처리와 격리를 검증하는 자동 테스트다.
+
+컴파일은 도구를 켤 때 한 번만 수행한다. `Compiling Story debug launcher...` 다음 `Starting Story debug launcher...`가 표시된다. 반복 중에는 컴파일 결과와 리소스만 재사용한다. 소스를 변경한 뒤 새 코드를 테스트하려면 도구를 종료하고 다시 켠다.
 
 `JDK compiler not found` 또는 `JDK runtime not found`가 나오면 `-JdkRoot`가 `bin`의 부모인 완전한 JDK 설치 폴더인지 확인한다. 이 검사는 임시 세션 생성 전에 수행된다. 스크립트는 실행 정책을 변경하지 않는다. `AllSigned` 환경에서 서명 오류가 발생하면 해당 환경의 승인된 스크립트 서명·실행 절차가 필요하다. Windows PowerShell 5.1은 구문 검사만 통과했으며, 현재 검증 환경의 서명 정책 때문에 실제 실행 호환성은 미확인이다.
 
@@ -27,14 +45,17 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\J
 | Stage 1~3 | 선택 기체의 기본 탄종. Stage 3은 첫 선택에 따라 ARGUS 또는 NOX | 기체와 보스 적용. 모든 기체의 시작 탄종은 NORMAL |
 | Stage 4~7 | 루트 탄종 및 수류탄 지급 여부. Stage 7은 루트의 최종 보스 | 현재 등록된 보스와 웨이브 적용. 시작 탄종 NORMAL, 시작 수류탄 0 |
 
-통합 기준 main은 `d8a57eafc5ff0f28f7fe141dfdf74fba1d3b526b`이다. VESPERA(BOSS_C)의 소환 전투는 구현되어 일반 Campaign Stage 7에서 사용된다. 그러나 `StoryRoute`는 여전히 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. **BOSS_C 구현과 HYBRID 연결 완료는 별개다.** OBELISK 전투와 PIERCE는 이 main에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
+이번 반복 실행 개선의 기준 main은 `d0895201e4e47efcbe75fa0d070b2864586e68c7`이다. VESPERA(BOSS_C)의 소환 전투는 구현되어 일반 Campaign Stage 7에서 사용된다. 그러나 `StoryRoute`는 여전히 HYBRID 최종 보스로 BOSS_A, TRUCE 최종 보스로 BOSS_B 및 탄종 MULTI를 반환한다. **BOSS_C 구현과 HYBRID 연결 완료는 별개다.** OBELISK 전투와 PIERCE는 이 main에 없다. 런처는 별도의 대체표를 두지 않는다. HOMECOMING의 수류탄 지급 플래그와 미리보기 탄종은 **데이터 기준**이다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
 
-기준 main에는 PR #9의 BOSS_D 처치 분류·최종 보스 보상과 엔딩 수집·저장·BGM·업적 API가 포함되어 있다. 엔딩 API의 본 게임 연결은 해당 담당자의 미완료 항목이다. 디버그 실행은 엔딩 API나 기록·보상 구독을 생성하지 않는다. 이 기준에서 미병합인 PR #10·#13의 변경은 포함하지 않는다.
+기준 main에는 PR #9의 BOSS_D 처치 분류·최종 보스 보상과 엔딩 수집·저장·BGM·업적 API가 포함되어 있다. 엔딩 API의 본 게임 연결은 해당 담당자의 미완료 항목이다. 디버그 실행은 엔딩 API나 기록·보상 구독을 생성하지 않는다. 반복 실행 도구는 기준 main의 코드를 재사용하며 다른 브랜치의 미병합 변경을 가져오지 않는다.
 
 ## 저장 격리와 연동 지점
 
 * 런처는 테스트 소스에만 있으며, 전용 스크립트가 필요한 Java 소스를 임시 폴더에 컴파일한다. Gradle 또는 다운로드 없이 실행할 수 있다. `engine.Core`의 일반 진입점과 배포 JAR에는 런처가 들어가지 않는다.
-* 한 번에 한 스테이지를 새 JVM에서 실행한다. 명시적 `-Dinvaders.storyDebug=true`와 실제 메모리 전용 preferences가 필요하다. Windows 레지스트리의 일반 난이도·키·오디오 설정을 사용하지 않는다. 작업 디렉터리, `user.home`, `invaders.storageDir`는 매번 고유한 임시 경로다. 스크립트는 종료 시 그 경로를 정리한다.
+* 무인수 실행에서는 `StoryDebugController`가 선택과 재실행만 관리하며 직접 전투를 실행하지 않는다. `StoryDebugSession`이 매번 별도 JVM의 기존 `StoryDebugLauncher`를 네 인수로 실행한다. 전투 로직은 기존 `GameScreen.forStoryStage`를 그대로 사용한다. 네 인수 실행은 관리 루프 없이 기존 런처에 위임한다.
+* 명시적 `-Dinvaders.storyDebug=true`와 실제 메모리 전용 preferences가 필요하다. Windows 레지스트리의 일반 난이도·키·오디오 설정을 사용하지 않는다. 반복 모드의 각 전투는 작업 디렉터리, `user.home`, `invaders.storageDir`, `java.io.tmpdir`가 같은 새 `stage-*` 폴더를 사용한다. 각 전투 종료 후 해당 폴더를 지우고, 도구 종료 시 스크립트가 컴파일 결과를 포함한 전체 임시 세션을 정리한다.
+* 관리 프로세스가 종료 신호를 받으면 shutdown hook이 실행 중인 자식 JVM을 중단하고 해당 폴더를 정리한다. 전투 시작 실패·0이 아닌 종료·대기 중 인터럽트에도 정리를 수행한다. 파일 삭제 실패는 오류로 표시한다. OS 강제 종료나 전원 차단처럼 종료 훅과 `finally`가 실행되지 않는 상황까지 정리를 보장하지는 않는다. 이 경우 임시 파일이 남을 수 있으며, 다음 실행은 새 경로를 사용한다.
+* 정상 전투 종료 후 전체 종료하면 코드 0이다. 전투 실패 직후 전체 종료하거나 설정 변경을 취소하면 해당 실패 코드를 유지한다. 사용자가 명시적으로 재시도해 성공한 후 종료하면 코드 0이며, 관리 루프의 대기가 인터럽트되면 코드 130이다.
 * `StoryDebugLauncher.createScreen`은 활성 기록 서비스가 있는 JVM을 거부한다. `RunSession`은 null이며, 보상 구독·정산, 기록 서비스 생성·종료 훅, 점수 화면, 엔딩 기록을 호출하지 않는다. 디버그 전투의 일시적인 점수와 클리어 이벤트는 게임 화면 안에서 정상 발생한다.
 * 일반 실행의 `-Dstory.route=TRUCE`는 `PlaceholderStoryScenes`가 질문에 답할 루트만 정한다. 디버그 선택 창도 이 경로를 재사용해 초기 루트를 읽는다. 기존 `-Dinvaders.debugKeys=true`는 전투 중 F2 방패 테스트 옵션이다.
 * **박경준 및 무기 담당자**가 변경할 최소 지점은 `GameScreen.forStoryStage`와 `GameScreen.initialize()`다. 팩토리에서 `progress.weaponForStage(stageNumber, shipType.getBulletType())`와 `progress.givesGrenadesOnStage(stageNumber)`를 보관하고, 스토리 기체 생성 직후에 탄종·시작 수류탄을 한 번만 적용한다. 수류탄 개수는 담당자의 게임 규칙이 필요하다. 장비 적용 후 기존 `StoryGameScreenTest.everyShipUsesTheNormalWeapon`을 새 게임 규칙으로 갱신하고 런처의 현재 장비 안내도 갱신한다. 보스·무기 담당자가 새 타입과 루트 데이터를 연결하면 런처는 같은 팩토리와 데이터를 사용한다.
@@ -61,7 +82,7 @@ sh ./scripts/run-story-debug.sh --route TRUCE --stage 7 --difficulty HARD --ship
 sh ./scripts/run-story-debug.sh --jdk-root '/path with spaces/to/jdk-17'
 ```
 
-첫 명령은 선택 창을 열고, 네 선택값을 모두 전달하면 해당 전투에 바로 진입한다. 선택 창과 직접 실행 모두 게임 창을 표시할 **GUI 데스크톱 세션**이 필요하다. SSH·컨테이너·헤드리스 CI에서 실제 전투 화면을 띄우는 용도로 사용하지 않는다. 셸 입력 검증은 부분 선택, 누락/중복/알 수 없는 옵션과 잘못된 값을 거부한다. 루트·난이도·기체의 영문 대소문자는 구분하지 않으며, 스테이지는 `1`~`7` 한 자리 정수로 지정한다.
+첫 명령은 Windows와 같은 반복 테스트 도구를 열고, 네 선택값을 모두 전달하면 일회성 전투에 바로 진입한다. 선택 창과 직접 실행 모두 게임 창을 표시할 **GUI 데스크톱 세션**이 필요하다. SSH·컨테이너·헤드리스 CI에서 실제 전투 화면을 띄우는 용도로 사용하지 않는다. 셸 입력 검증은 부분 선택, 누락/중복/알 수 없는 옵션과 잘못된 값을 거부한다. 루트·난이도·기체의 영문 대소문자는 구분하지 않으며, 스테이지는 `1`~`7` 한 자리 정수로 지정한다.
 
 JDK 탐색 순서는 `--jdk-root` → `JAVA_HOME` → PATH의 `javac`이다. 명시한 JDK 경로가 잘못되면 다른 설치로 조용히 대체하지 않고 오류를 낸다. PATH의 `javac` 심볼릭 링크를 해석한 뒤 같은 `bin` 디렉터리의 `java`를 사용한다. macOS에서는 예를 들어 `/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home`을 JDK 설치 경로로 지정할 수 있다. `javac -version`으로 17 이상인지 먼저 확인한다.
 
@@ -73,9 +94,12 @@ Unix에서도 매 실행을 새 JVM으로 시작하며, `invaders.storyDebug=tru
 
 ## 검증
 
+`StoryDebugControllerTest`는 재실행·설정 변경·마지막 선택 유지·취소·오류 후 명시적 재시도·인터럽트를 검증한다. 실제 자식 JVM에서 프로세스 ID, 작업/저장/임시 경로, 메모리 Preferences의 초기 상태를 확인하고 정상 종료·실패·관리 프로세스 종료 훅에서 자식 종료와 폴더 정리를 검사한다. GUI를 표시하지 않는 이 테스트와 사람이 선택 창·전투를 조작하는 검증은 구분한다.
+
 ```powershell
 pwsh -NoProfile -File .\scripts\test-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17'
 .\gradlew.bat test --tests engine.StoryDebugLauncherTest
+.\gradlew.bat test --tests engine.StoryDebugControllerTest
 .\gradlew.bat test smokeTest spotlessCheck
 ```
 

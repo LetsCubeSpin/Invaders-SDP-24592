@@ -42,7 +42,7 @@ public final class StoryDebugLauncher {
         requireDebugSession();
         StoryDebugSelection choice;
         if (args.length == 0) {
-            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(StoryDebugLauncher::choose);
+            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(() -> choose(defaultSelection()));
             SwingUtilities.invokeAndWait(dialog);
             choice = dialog.get();
             if (choice == null) return;
@@ -70,18 +70,24 @@ public final class StoryDebugLauncher {
                 false, width, height, 60, choice.ship(), null, CampaignUpgrades.none());
     }
 
-    private static StoryDebugSelection choose() {
+    static StoryDebugSelection defaultSelection() {
+        return new StoryDebugSelection(new PlaceholderStoryScenes().getRoute(), 1,
+                StoryDebugSelection.Difficulty.NORMAL, ShipType.STANDARD);
+    }
+
+    static StoryDebugSelection choose(StoryDebugSelection previous) {
         JPanel fields = new JPanel(new GridLayout(0, 2, 8, 6));
         JComboBox<StoryRoute> route = addField(fields, "Story route", StoryRoute.values());
-        route.setSelectedItem(new PlaceholderStoryScenes().getRoute());
+        route.setSelectedItem(previous.route());
         Integer[] stages = new Integer[StoryProgress.TOTAL_STAGES];
         for (int i = 0; i < stages.length; i++) stages[i] = i + 1;
         JComboBox<Integer> stage = addField(fields, "Stage", stages);
+        stage.setSelectedItem(previous.stage());
         JComboBox<StoryDebugSelection.Difficulty> difficulty = addField(fields, "Difficulty",
                 StoryDebugSelection.Difficulty.values());
-        difficulty.setSelectedItem(StoryDebugSelection.Difficulty.NORMAL);
+        difficulty.setSelectedItem(previous.difficulty());
         JComboBox<ShipType> ship = addField(fields, "Ship", ShipType.values());
-        ship.setSelectedItem(ShipType.STANDARD);
+        ship.setSelectedItem(previous.ship());
 
         Supplier<StoryDebugSelection> selection = () -> new StoryDebugSelection(
                 route.getItemAt(route.getSelectedIndex()), stage.getItemAt(stage.getSelectedIndex()),

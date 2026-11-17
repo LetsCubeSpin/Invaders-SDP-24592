@@ -5,7 +5,8 @@ set -eu
 usage() {
     printf '%s\n' 'Usage: sh scripts/run-story-debug.sh [--jdk-root JDK_HOME]' \
         '       [--route ROUTE --stage 1..7 --difficulty DIFFICULTY --ship SHIP]' \
-        'Omit all four selections to open the picker. Requires JDK 17+ and a desktop session.'
+        'Omit all four selections for repeat testing; supply all four for one stage only.' \
+        'Requires JDK 17+ and a desktop session.'
 }
 fail() { printf '%s\n' "$*" >&2; exit 2; }
 newline='
@@ -79,7 +80,7 @@ fi
 major=$(printf '%s\n' "$version" | sed -n 's/^javac \([0-9][0-9]*\).*/\1/p')
 case "$major" in ''|*[!0-9]*) fail 'Cannot determine the JDK version.' ;; esac
 [ "$major" -ge 17 ] || fail 'JDK 17 or later is required.'
-[ -f "$repo/test/engine/StoryDebugLauncher.java" ] && [ -d "$repo/res" ] || fail 'Incomplete project checkout.'
+[ -f "$repo/test/engine/StoryDebugController.java" ] && [ -d "$repo/res" ] || fail 'Incomplete project checkout.'
 
 temp_root=$(physical_dir "${TMPDIR:-/tmp}") || fail 'TMPDIR must name an existing writable directory.'
 session=$(mktemp -d "${temp_root%/}/invaders-story-debug.XXXXXXXXXX") || exit 1
@@ -112,16 +113,18 @@ mkdir "$session/classes"
 # Relative class/source paths also support ':' in the checkout or TMPDIR name.
 # rm removes this symlink, never the project's resource directory.
 ln -s "$repo/res" "$session/resources"
+printf '%s\n' 'Compiling Story debug launcher...'
 if (cd "$repo" && "$compiler" --release 17 -encoding UTF-8 -d "$session/classes" \
-        -sourcepath 'src:test' test/engine/StoryDebugLauncher.java); then :; else
+        -sourcepath 'src:test' test/engine/StoryDebugController.java); then :; else
     status=$?; printf '%s\n' "javac failed ($status)." >&2; exit "$status"
 fi
 set --
 if [ "$selections" -eq 4 ]; then set -- "$route" "$stage" "$difficulty" "$ship"; fi
+printf '%s\n' 'Starting Story debug launcher...'
 if (cd "$session" && "$java" '-Dinvaders.storyDebug=true' \
         '-Djava.util.prefs.PreferencesFactory=shop.PreviewPreferencesFactory' \
         "-Duser.home=$session" "-Dinvaders.storageDir=$session" \
-        -Dfile.encoding=UTF-8 -cp 'classes:resources' engine.StoryDebugLauncher "$@"); then
+        -Dfile.encoding=UTF-8 -cp 'classes:resources' engine.StoryDebugController "$@"); then
     exit 0
 else
     status=$?; printf '%s\n' "Story debug failed ($status)." >&2; exit "$status"

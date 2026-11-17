@@ -46,6 +46,32 @@ https://letscubespin.atlassian.net/jira/software/projects/KAN/boards/1?filter=&g
 
 To run the baseline in IntelliJ IDEA, mark `src` as **Sources Root** and `res` as **Resources Root**, then run `engine.Core`. The resource directory must be on the runtime classpath: the game loads `graphics`, `scores`, and `font.ttf` from its root. Installing the font in your operating system does not make it available to the game.
 
+### Story debug launcher (developer tool)
+
+Test a Story route and stage without playing through earlier stages. This is a separate developer tool, not an option in the normal game menu. No IDE or Gradle build is required.
+
+On **Windows**, install **PowerShell 7 (`pwsh`)** and **JDK 17 or later**, open a terminal in the repository root, and run:
+
+```powershell
+pwsh -NoProfile -File .\scripts\run-story-debug.ps1
+```
+
+The script uses `JAVA_HOME`, or `javac` on PATH. To select a JDK explicitly, add `-JdkRoot 'C:\Program Files\Java\jdk-17'`, replacing that example with your installation directory (the parent of `bin`). A desktop session is required.
+
+1. Select **Story route**, **Stage (1–7)**, **Difficulty**, and **Ship**, then click **Start stage**.
+2. After a clear, defeat, or battle-window close, choose **Replay same settings**, **Change selection**, or **Exit tool**. Changing the selection keeps your last values.
+3. **Cancel** or closing the selection/result dialog exits the tool. Closing a battle window ends only that battle and returns to the result dialog.
+
+The tool compiles once per launch. Every battle uses a new JVM, memory-only settings and a separate temporary save directory; normal game progress is not used. Last selections are kept only until the tool exits. Move with Left/Right, fire with Space, and use G for grenades when available. The preview distinguishes Story loadout data from the currently implemented starting equipment.
+
+Supplying **all four** selection options preserves one-stage execution, with no replay dialog:
+
+```powershell
+pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Difficulty HARD -Ship SPEEDSTER
+```
+
+On Linux/macOS, use `sh ./scripts/run-story-debug.sh` with JDK 17+ and a desktop session. The `test-story-debug.*` scripts are automated regression tests, not interactive launchers. See the [detailed Story debug guide](docs/story-debug-launcher.md) for controls, troubleshooting, isolation and current gameplay limitations.
+
 ## Attribution and Licensing
 
 This course project is based on [RobertoIA/Invaders](https://github.com/RobertoIA/Invaders). The upstream repository does not currently declare an open-source license. This repository therefore does not assert a new open-source license over the upstream code or third-party assets. Any permission or licensing terms confirmed by the relevant rights holders should be documented here before redistribution beyond the permissions provided through GitHub.
