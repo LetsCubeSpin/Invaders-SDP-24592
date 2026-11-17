@@ -143,6 +143,7 @@ public class GameScreen extends Screen {
 
     private ItemManager itemManager;
     private final Random itemDropRandom = new Random();
+	private final Random playerTargetRandom = new Random();
 	private final Random obstacleRandom = new Random();
 	/** Active hazards; a set permits future expansion beyond one obstacle. */
 	private Set<FallingObstacle> fallingObstacles;
@@ -612,6 +613,19 @@ public class GameScreen extends Screen {
 		return false;
 	}
 
+	/** Selects an active player uniformly for an enemy attack. */
+	private Ship chooseRandomLivingTargetShip() {
+		List<Ship> targets = new ArrayList<Ship>();
+		for (PlayerSlot player : this.players) {
+			Ship candidate = player.getShip();
+			if (player.isAlive() && !candidate.isDestroyed())
+				targets.add(candidate);
+		}
+		if (targets.isEmpty())
+			return null;
+		return targets.get(this.playerTargetRandom.nextInt(targets.size()));
+	}
+
 	/** Spends one team life only after every player's personal ship is down. */
 	private void resolveSharedPlayerDefeat() {
 		if (this.playerCount != 2 || hasLivingPlayer())
@@ -829,9 +843,12 @@ public class GameScreen extends Screen {
                 boss.update(1, this.width - 1);
                 List<BossAttackSystem.SummonRequest> summons =
                         new ArrayList<>();
-                this.bossManager.update(
-                        this.ship.getPositionX() + this.ship.getWidth() / 2,
-                        this.ship.getPositionY(), this.bossBullets, summons);
+				Ship target = chooseRandomLivingTargetShip();
+				if (target != null) {
+					this.bossManager.update(
+							target.getPositionX() + target.getWidth() / 2,
+							target.getPositionY(), this.bossBullets, summons);
+				}
 
                 for (BossAttackSystem.SummonRequest req : summons) {
                     EnemyShip minion = EnemyShip.createByType(
@@ -848,27 +865,35 @@ public class GameScreen extends Screen {
                 minion.update();
                 minion.move(0, 2);
 
-                if (!this.ship.isDestroyed() && minion.canShoot()) {
+                Ship target = chooseRandomLivingTargetShip();
+                if (target != null && minion.canShoot()) {
                     if (minion.getDefeatedType() == DefeatedEnemyType.B) {
                         // B: player 자리에 null을 넘겨 수직 일자 발사
                         this.enemyShipFormation.shootFrom(minion, this.bullets, null);
                     } else if (minion.getDefeatedType() == DefeatedEnemyType.C) {
-                        // C: player 자리에 this.ship을 넘겨 플레이어 조준 발사
-                        this.enemyShipFormation.shootFrom(minion, this.bullets, this.ship);
+                        this.enemyShipFormation.shootFrom(minion, this.bullets, target);
                     }
                 }
 
-                if (!this.ship.isDestroyed() && checkCollision(minion, this.ship)) {
+                boolean hitPlayer = false;
+                for (PlayerSlot player : this.players) {
+                    Ship playerShip = player.getShip();
+                    if (!player.isAlive() || playerShip.isDestroyed()
+                    		|| !checkCollision(minion, playerShip))
+                    	continue;
                     minion.destroy();
                     this.particleSystem.spawnEnemyExplosion(
-                            minion.getPositionX() + minion.getWidth() / 2,
-                            minion.getPositionY() + minion.getHeight() / 2);
-                    damagePlayer(1, PlayerHitSource.ENEMY_COLLISION,
-                            "Collided with summoned enemy");
+                    		minion.getPositionX() + minion.getWidth() / 2,
+                    		minion.getPositionY() + minion.getHeight() / 2);
+                    damagePlayer(player, 1, PlayerHitSource.ENEMY_COLLISION,
+                    		"Collided with player ship");
                     it.remove();
-                } else if (minion.isDestroyed() || minion.getPositionY() > this.height) {
-                    it.remove();
+                    hitPlayer = true;
+                    break;
                 }
+                if (!hitPlayer
+                    	&& (minion.isDestroyed() || minion.getPositionY() > this.height))
+                    it.remove();
             }
 
 			// Each living ship advances its own burst timer while sharing the bullet field.
@@ -881,7 +906,8 @@ public class GameScreen extends Screen {
 			}
 
             this.enemyShipFormation.update();
-			this.enemyShipFormation.shoot(this.bullets, this.ship);
+			this.enemyShipFormation.shoot(this.bullets,
+					chooseRandomLivingTargetShip());
         }
 
 		for (PlayerSlot player : this.players) {
