@@ -49,11 +49,28 @@ public class ItemManager {
         getBuffManager(ship).update(ship);
     }
 
-    public void checkCollisions(final Ship ship) {
-        checkCollisions(ship, getBuffManager(ship));
+    /**
+     * Collects every falling item touching the ship and applies its effect.
+     *
+     * @param ship
+     *            Player ship.
+     * @return Items collected in this call, in collection order.
+     */
+    public List<Item> checkCollisions(final Ship ship) {
+        return checkCollisions(ship, getBuffManager(ship));
     }
 
-    public void checkCollisions(final Ship ship, final BuffManager buffs) {
+    /**
+     * Collects items for a ship using its associated buff manager.
+     *
+     * @param ship
+     *            Player ship.
+     * @param buffs
+     *            Buff manager associated with the ship.
+     * @return Items collected in this call, in collection order.
+     */
+    public List<Item> checkCollisions(final Ship ship, final BuffManager buffs) {
+        List<Item> collected = new ArrayList<Item>();
         Iterator<Item> iterator = this.activeItems.iterator();
         while (iterator.hasNext()) {
             Item item = iterator.next();
@@ -62,8 +79,10 @@ public class ItemManager {
                 AudioManager.playSFX("audio/sfx/item_pickup.wav");
                 buffs.addBuff(item, ship);
                 iterator.remove();
+                collected.add(item);
             }
         }
+        return collected;
     }
 
     private boolean checkCollision(final Item item, final Ship ship) {

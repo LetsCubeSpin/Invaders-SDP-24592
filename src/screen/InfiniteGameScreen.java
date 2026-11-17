@@ -14,8 +14,12 @@ import records.RunSession;
 import records.Achievement;
 import records.RecordsService;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
+import event.PlayerHitEvent;
+import event.PlayerHitSource;
+import event.ShotFiredEvent;
 import java.util.Map;
 import java.util.IdentityHashMap;
 import java.util.UUID;
@@ -295,6 +299,7 @@ public class InfiniteGameScreen extends Screen {
 			if (inputManager.isKeyDown(player.getKey(ControlsConfig.FIRE))) {
 				int fired = playerShip.shoot(this.bullets);
 				this.bulletsShot += fired;
+				publishShotFired(fired);
 				// Play the shot sound only when a bullet was actually fired.
 				if (fired > 0)
 					AudioManager.playSFX("audio/sfx/player_shoot.wav");
@@ -304,6 +309,7 @@ public class InfiniteGameScreen extends Screen {
 			// the shared bullet set and team-wide shot counter.
 			int burstFired = playerShip.updateBurst(this.bullets);
 			this.bulletsShot += burstFired;
+			publishShotFired(burstFired);
 			if (burstFired > 0)
 				AudioManager.playSFX("audio/sfx/player_shoot.wav");
 		}
@@ -481,7 +487,8 @@ public class InfiniteGameScreen extends Screen {
 						&& checkCollision(bullet, target)) {
 					bulletIterator.remove();
 					BulletPool.recycle(Collections.singleton(bullet));
-					damagePlayer(player, "Hit by enemy bullet");
+					damagePlayer(player, PlayerHitSource.ENEMY_BULLET,
+							"Hit by enemy bullet");
 					break;
 				}
 			}
@@ -500,7 +507,8 @@ public class InfiniteGameScreen extends Screen {
 					this.particleSystem.spawnEnemyExplosion(
 							rammed.getPositionX() + rammed.getWidth() / 2,
 							rammed.getPositionY() + rammed.getHeight() / 2);
-					damagePlayer(player, "Hit on player ship");
+					damagePlayer(player, PlayerHitSource.ENEMY_COLLISION,
+							"Hit on player ship");
 					break;
 				}
 			}
@@ -511,7 +519,8 @@ public class InfiniteGameScreen extends Screen {
 	 * Applies damage to the selected ship. In 2P, the personal status marks
 	 * that ship out; the shared team pool is changed only when nobody remains.
 	 */
-	private void damagePlayer(final PlayerSlot player, final String reason) {
+	private void damagePlayer(final PlayerSlot player,
+			final PlayerHitSource source, final String reason) {
 		PlayerStatus status = player.getStatus();
 		Ship target = player.getShip();
 		if (!status.takeDamage(1))
@@ -539,6 +548,7 @@ public class InfiniteGameScreen extends Screen {
 		}
 
 		this.logger.info(reason + ", " + this.lives + " team lives remaining.");
+		publishPlayerHit(source);
 	}
 
 	private boolean checkCollision(final Entity a, final Entity b) {
@@ -576,6 +586,23 @@ public class InfiniteGameScreen extends Screen {
 		// The screen's life value is the solo pool or the 2P shared team pool.
 		return new GameState(1, this.score, this.lives, this.bulletsShot,
 				this.shipsDestroyed);
+	}
+
+	/** Sends the bullets fired this frame, if any, for accuracy statistics. */
+	private void publishShotFired(final int bulletCount) {
+		if (bulletCount <= 0 || this.runSession == null) return;
+		this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(GameScreen.SHOT_ID_KIND), bulletCount));
+	}
+
+	/**
+	 * Sends a hit that cost the player one life. As in Campaign, the ID is
+	 * given once, at the one place each hit is accepted.
+	 */
+	private void publishPlayerHit(final PlayerHitSource source) {
+		if (this.runSession == null) return;
+		this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(source.name()), source, 1, Math.max(0, this.lives)));
 	}
 
 	private void recordEnemyDefeat(final Entity enemy) {

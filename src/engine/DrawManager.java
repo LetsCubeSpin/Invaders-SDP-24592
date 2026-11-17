@@ -7,6 +7,9 @@ import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -15,6 +18,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 import screen.Screen;
+import screen.ShipCustomization;
 import hud.FloatingScoreHud;
 import currency.PermanentUpgrade;
 import currency.PlayerAssetsState;
@@ -1595,18 +1599,17 @@ public final class DrawManager {
     }
 
     public void drawAchievementList(final Screen screen, final RecordsService service, int y) {
+        // Two rows per achievement so every achievement fits above the status line.
         for (Achievement achievement : Achievement.values()) {
             Long unlocked = service.getUnlockTime(achievement);
             backBufferGraphics.setColor(unlocked == null ? Color.WHITE : Color.GREEN);
-            drawCenteredRegularString(screen, achievement.getName() + (unlocked == null ? " [Locked]" : " [Unlocked]"),
+            drawCenteredRegularString(screen, achievement.getName() + (unlocked == null ? " [Locked]"
+                    : " [" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                            .format(new Date(unlocked)) + "]"),
                     y);
             backBufferGraphics.setColor(Color.GRAY);
             drawCenteredRegularString(screen, achievement.getCondition(), y + fontRegularMetrics.getHeight());
-            if (unlocked != null)
-                drawCenteredRegularString(screen, "Unlocked: "
-                        + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(unlocked)),
-                        y + fontRegularMetrics.getHeight() * 2);
-            y += fontRegularMetrics.getHeight() * 3 + 4;
+            y += fontRegularMetrics.getHeight() * 2 + 8;
         }
     }
 
@@ -1948,6 +1951,64 @@ public final class DrawManager {
         }
 
         return -1;
+    }
+
+    /** Draws the Hangar preview and the custom color editing controls. */
+    public void drawHangarColorSelection(final Screen screen,
+            final Ship previewShip, final Rectangle colorBar,
+            final boolean editingCustomColor) {
+        backBufferGraphics.setColor(Color.WHITE);
+        drawCenteredBigString(screen, "Hangar", screen.getHeight() / 5);
+        drawEntity(previewShip, previewShip.getPositionX(), previewShip.getPositionY());
+
+        boolean custom = ShipCustomization.isCustomColor();
+        backBufferGraphics.setColor(Color.WHITE);
+        String label = "Color: " + ShipCustomization.getColorName();
+        if (custom) {
+            drawShipColorBar(colorBar, ShipCustomization.getCustomHue(), editingCustomColor);
+            label += String.format(" #%06X", previewShip.getColor().getRGB() & 0xFFFFFF);
+            drawCenteredRegularString(screen, editingCustomColor
+                    ? "Left/Right or drag: adjust color"
+                    : "Enter or drag: edit custom color", screen.getHeight() - 85);
+        }
+        drawCenteredRegularString(screen, label,
+                screen.getHeight() / 2 + (custom ? 75 : 45));
+        drawCenteredRegularString(screen, editingCustomColor
+                ? "Enter: done" : "Left/Right: choose color", screen.getHeight() - 60);
+        drawCenteredRegularString(screen, "Esc: return to menu", screen.getHeight() - 35);
+    }
+
+    /** Draws the full hue spectrum and a marker at the custom hue. */
+    private void drawShipColorBar(final Rectangle bounds, final float hue,
+            final boolean editing) {
+        Color[] colors = {Color.RED, Color.YELLOW, Color.GREEN,
+            Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED};
+        int width = bounds.width;
+        int height = bounds.height;
+        int x = bounds.x;
+        int y = bounds.y;
+        float[] stops = new float[colors.length];
+        for (int i = 0; i < stops.length; i++) {
+            stops[i] = (float) i / (stops.length - 1);
+        }
+
+        Graphics2D barGraphics = (Graphics2D) backBufferGraphics.create();
+        try {
+            barGraphics.setPaint(new LinearGradientPaint(x, y,
+                    x + width - 1, y, stops, colors));
+            barGraphics.fillRect(x, y, width, height);
+            barGraphics.setColor(editing ? Color.WHITE : Color.GRAY);
+            barGraphics.drawRect(x - 1, y - 1, width + 1, height + 1);
+
+            int selectedX = x + Math.round(hue * (width - 1));
+            barGraphics.setColor(Color.WHITE);
+            barGraphics.fillPolygon(
+                    new int[] {selectedX - 4, selectedX + 4, selectedX},
+                    new int[] {y - 9, y - 9, y - 4}, 3);
+            barGraphics.drawRect(selectedX - 3, y - 2, 6, height + 3);
+        } finally {
+            barGraphics.dispose();
+        }
     }
 
     public void drawHangarMenu(final Screen screen, final int selectedOption) {

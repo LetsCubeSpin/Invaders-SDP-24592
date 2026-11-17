@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,12 +18,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadFactory;
 
+import story.Ending;
+
 /** Coordinates run records, achievements, notifications, and local saving. */
 public final class RecordsService {
     private final ProfileStore store;
     private final ExecutorService writer;
     private final Map<String, RunRecord> records = new LinkedHashMap<String, RunRecord>();
     private final Map<String, Long> unlockTimes = new LinkedHashMap<String, Long>();
+    private final Set<Ending> seenEndings = EnumSet.noneOf(Ending.class);
     private final Deque<Achievement> notifications = new ArrayDeque<Achievement>();
     private final List<Achievement> currentRunUnlocks = new ArrayList<Achievement>();
     private final Set<String> seenDefeatEvents = new HashSet<String>();
@@ -48,6 +52,7 @@ public final class RecordsService {
             for (RunRecord record : snapshot.getRecords())
                 this.records.put(record.getRunId(), record);
             this.unlockTimes.putAll(snapshot.getUnlockTimes());
+            this.seenEndings.addAll(snapshot.getSeenEndings());
         } catch (IOException exception) {
             this.writesBlocked = true;
             this.saveError = "Profile load failed; existing files are protected: "
@@ -93,6 +98,48 @@ public final class RecordsService {
             unlock(Achievement.SIXTY_SECONDS, System.currentTimeMillis());
     }
 
+    /**
+     * Unlocks {@link Achievement#ALL_ENDINGS}. Meant to be called for
+     * {@code event.AllEndingsSeenEvent}, for example
+     * {@code publisher.subscribe(AllEndingsSeenEvent.class, e -> records.allEndingsSeen())}.
+     *
+     * <p>Not called in the game yet; ready to use once
+     * {@code story.EndingCollection} is connected (see that class).</p>
+     */
+    public synchronized void allEndingsSeen() {
+        if (!this.closed)
+            unlock(Achievement.ALL_ENDINGS, System.currentTimeMillis());
+    }
+
+    /**
+     * Saves that an ending was seen, so it is still seen after a restart.
+     * Meant to be called for {@code event.EndingReachedEvent}, for example
+     * {@code publisher.subscribe(EndingReachedEvent.class, e -> records.endingSeen(e.getEnding()))}.
+     *
+     * <p>Not called in the game yet; ready to use once
+     * {@code story.EndingCollection} is connected (see that class).</p>
+     *
+     * @param ending
+     *            Ending the player saw.
+     * @return Whether the ending was new and is being saved.
+     */
+    public synchronized boolean endingSeen(final Ending ending) {
+        if (ending == null)
+            throw new IllegalArgumentException("ending must not be null.");
+        if (this.closed || !this.seenEndings.add(ending))
+            return false;
+        enqueueSave();
+        return true;
+    }
+
+    /**
+     * @return Endings seen in this or an earlier session, in ending order;
+     *         pass them to {@code EndingCollection.restore} on startup.
+     */
+    public synchronized Set<Ending> getSeenEndings() {
+        return Collections.unmodifiableSet(EnumSet.copyOf(this.seenEndings));
+    }
+
     public synchronized boolean completeRun(final RunRecord record) {
         if (this.closed || record == null || this.records.containsKey(record.getRunId()))
             return false;
@@ -127,7 +174,7 @@ public final class RecordsService {
 
     private ProfileSnapshot snapshot() {
         return new ProfileSnapshot(new ArrayList<RunRecord>(this.records.values()),
-                this.unlockTimes);
+                this.unlockTimes, this.seenEndings);
     }
 
     public synchronized Achievement pollNotification() {

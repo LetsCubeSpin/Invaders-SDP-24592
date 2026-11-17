@@ -14,7 +14,12 @@ public final class PlayerStatusEvent implements GameplayEvent {
 
 	/** Kinds of player status events. */
 	public enum Type {
-		/** A hit got through and cost the player at least one life. */
+		/**
+		 * A hit got through and cost the player at least one life. Meant for
+		 * the HUD and sounds; records, achievements and statistics use
+		 * {@link event.PlayerHitEvent}, which the same hit also produces and
+		 * which carries IDs and the hit source. Subscribe to one, not both.
+		 */
 		DAMAGE_TAKEN("PlayerDamaged"),
 		/** A hit was absorbed by the shield, so no life was lost. */
 		DAMAGE_BLOCKED("PlayerDamageBlocked"),
