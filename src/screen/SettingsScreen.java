@@ -11,9 +11,8 @@ public class SettingsScreen extends Screen {
     private static final int SELECTION_TIME = 200;
     private static final int AUDIO_OPTION = 0;
     private static final int CONTROLS_OPTION = 1;
-    private static final int GAMEPLAY_OPTION = 2;
-    private static final int BACK_OPTION = 3;
-    private static final int OPTION_COUNT = 4;
+    private static final int BACK_OPTION = 2;
+    private static final int OPTION_COUNT = 3;
 
     private Cooldown selectionCooldown;
     private int selectedOption;
@@ -99,9 +98,6 @@ public class SettingsScreen extends Screen {
             break;
         case CONTROLS_OPTION:
             this.returnCode = 6;
-            break;
-        case GAMEPLAY_OPTION:
-            this.returnCode = 7;
             break;
         case BACK_OPTION:
         default:

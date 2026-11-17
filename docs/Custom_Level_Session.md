@@ -130,7 +130,7 @@ For an optional visual check using actual JSON, run `manual.CustomLevelFileDemo`
 from `test/manual/CustomLevelFileDemo.java`. With no arguments it reads
 `examples/levels/campaign-stage-01.json` relative to the working directory.
 Optional arguments are `source.json` and a new `destination.json`. It plays at
-normal difficulty using existing configured controls. Export happens only when
+Easy difficulty using existing configured controls. Export happens only when
 a destination argument is supplied; after play it exports the original and
 reimports it. The demo refuses an already-existing destination instead of asking
 for overwrite confirmation. It does not create a production menu entry.

@@ -2,7 +2,7 @@ package event;
 
 /**
  * Published once when a campaign stage is cleared.
- * Difficulty uses the GameplayConfig values: EASY = 0, NORMAL = 1, HARD = 2.
+ * Difficulty uses the GameplayConfig values: EASY = 0, the only difficulty.
  */
 
 public final class LevelCompletedEvent implements GameplayEvent {

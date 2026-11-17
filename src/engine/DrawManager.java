@@ -126,9 +126,7 @@ public final class DrawManager {
     private static FontMetrics fontBigMetrics;
 
     /** Options of the settings menu, in order. */
-    private static final String[] SETTINGS_MENU_OPTIONS = { "Audio", "Controls", "Gameplay", "Back" };
-    /** Options of the gameplay settings menu, in order. */
-    private static final String[] GAMEPLAY_SETTINGS_OPTIONS = { "Easy", "Normal", "Hard" };
+    private static final String[] SETTINGS_MENU_OPTIONS = { "Audio", "Controls", "Back" };
     /** Width of the column holding the audio settings. */
     private static final int AUDIO_COLUMN_WIDTH = 200;
     /** Space between an audio option name and its volume bar. */
@@ -871,7 +869,7 @@ public final class DrawManager {
 
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {
         String[] options = SETTINGS_MENU_OPTIONS;
-        Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.GAMEPLAY, Icon.BACK };
+        Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.BACK };
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, "Settings", screen.getHeight() / 5);
@@ -912,25 +910,6 @@ public final class DrawManager {
 
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen, "Up/Down: select  Space: change",
-                screen.getHeight() / 8 * 7);
-    }
-
-    public void drawGameplaySettings(final Screen screen, final int selectedOption) {
-        String[] options = GAMEPLAY_SETTINGS_OPTIONS;
-
-        backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Gameplay", screen.getHeight() / 5);
-
-        for (int i = 0; i < options.length; i++) {
-            backBufferGraphics.setColor(
-                    i == selectedOption ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, options[i],
-                    screen.getHeight() / 2
-                            + i * fontRegularMetrics.getHeight() * 2);
-        }
-
-        backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, "Up/Down: select  Space: confirm",
                 screen.getHeight() / 8 * 7);
     }
 
@@ -1467,21 +1446,6 @@ public final class DrawManager {
 
         return getCenteredOptionAt(screen,
                 getControlsSettingsLabels(selectedOption, waitingForKey),
-                screen.getHeight() / 2, fontRegularMetrics.getHeight() * 2,
-                mouseX, mouseY);
-    }
-
-    /**
-     * Returns the gameplay settings option under the mouse.
-     *
-     * @return Index of the hovered option, or -1 if none.
-     */
-    public int getGameplaySettingsOptionAt(final Screen screen,
-            final int mouseX, final int mouseY) {
-        if (fontRegularMetrics == null)
-            return -1;
-
-        return getCenteredOptionAt(screen, GAMEPLAY_SETTINGS_OPTIONS,
                 screen.getHeight() / 2, fontRegularMetrics.getHeight() * 2,
                 mouseX, mouseY);
     }

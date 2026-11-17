@@ -30,7 +30,6 @@ import campaign.CampaignStageData;
 import campaign.CampaignManager;
 import screen.SettingsScreen;
 import screen.ControlsSettingsScreen;
-import screen.GameplaySettingsScreen;
 import story.PlaceholderStoryScenes;
 import story.StoryProgress;
 import story.StoryScenes;
@@ -225,10 +224,6 @@ public final class Core {
 					break;
 				case 6:
 					currentScreen = new ControlsSettingsScreen(width, height, FPS);
-					returnCode = frame.setScreen(currentScreen);
-					break;
-				case 7:
-					currentScreen = new GameplaySettingsScreen(width, height, FPS);
 					returnCode = frame.setScreen(currentScreen);
 					break;
 				case 8:

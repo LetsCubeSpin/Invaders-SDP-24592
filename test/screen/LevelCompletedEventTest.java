@@ -30,20 +30,14 @@ import records.RunSession;
 /** Standalone checks for level completion event publication. */
 public final class LevelCompletedEventTest {
 	public static void main(final String[] args) throws Exception {
-		final int savedDifficulty = GameplayConfig.getDifficulty();
-		try {
-			clearPublishesOnce();
-			replayPublishesAgain();
-			onlyFinalWavePublishes();
-			failureDoesNotPublish();
-			finalBossStageNeedsBossDefeat();
-			eachDifficultyIsDeliveredUnchanged();
-			difficultyIsCapturedAtStart();
-			customLevelDoesNotPublish();
-			enemyDefeatPrecedesCompletion();
-		} finally {
-			GameplayConfig.setDifficulty(savedDifficulty);
-		}
+		clearPublishesOnce();
+		replayPublishesAgain();
+		onlyFinalWavePublishes();
+		failureDoesNotPublish();
+		finalBossStageNeedsBossDefeat();
+		easyDifficultyIsDelivered();
+		customLevelDoesNotPublish();
+		enemyDefeatPrecedesCompletion();
 		System.out.println("Level completed event checks passed.");
 	}
 
@@ -108,29 +102,13 @@ public final class LevelCompletedEventTest {
 				"The final campaign stage must be reported");
 	}
 
-	private static void eachDifficultyIsDeliveredUnchanged() throws Exception {
-		int[] difficulties = { GameplayConfig.EASY, GameplayConfig.NORMAL,
-				GameplayConfig.HARD };
-		for (int difficulty : difficulties) {
-			GameplayConfig.setDifficulty(difficulty);
-			GameScreen screen = newScreen(1, wave(1));
-			List<LevelCompletedEvent> events = listen(screen);
-			clearFormation(screen);
-			screen.advanceStageIfReady();
-			check(events.get(0).getDifficulty() == difficulty,
-					"Difficulty " + difficulty + " must be delivered unchanged");
-		}
-	}
-
-	private static void difficultyIsCapturedAtStart() throws Exception {
-		GameplayConfig.setDifficulty(GameplayConfig.HARD);
+	private static void easyDifficultyIsDelivered() throws Exception {
 		GameScreen screen = newScreen(1, wave(1));
 		List<LevelCompletedEvent> events = listen(screen);
-		GameplayConfig.setDifficulty(GameplayConfig.EASY);
 		clearFormation(screen);
 		screen.advanceStageIfReady();
-		check(events.get(0).getDifficulty() == GameplayConfig.HARD,
-				"A later preference change must not alter the reported difficulty");
+		check(events.get(0).getDifficulty() == GameplayConfig.EASY,
+				"Easy, the only difficulty, must be delivered unchanged");
 	}
 
 	private static void customLevelDoesNotPublish() throws Exception {
