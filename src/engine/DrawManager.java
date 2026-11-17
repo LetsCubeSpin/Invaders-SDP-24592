@@ -6,6 +6,9 @@ import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -14,6 +17,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 import screen.Screen;
+import screen.ShipCustomization;
 import hud.FloatingScoreHud;
 import records.Achievement;
 import records.RecordsService;
@@ -126,7 +130,7 @@ public final class DrawManager {
     private static FontMetrics fontBigMetrics;
 
     /** Options of the settings menu, in order. */
-    private static final String[] SETTINGS_MENU_OPTIONS = { "Audio", "Controls", "Back" };
+    private static final String[] SETTINGS_MENU_OPTIONS = { "Audio", "Controls", "Color", "Back" };
     /** Width of the column holding the audio settings. */
     private static final int AUDIO_COLUMN_WIDTH = 200;
     /** Space between an audio option name and its volume bar. */
@@ -869,7 +873,7 @@ public final class DrawManager {
 
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {
         String[] options = SETTINGS_MENU_OPTIONS;
-        Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.BACK };
+        Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.COLOR, Icon.BACK };
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, "Settings", screen.getHeight() / 5);
@@ -890,6 +894,64 @@ public final class DrawManager {
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen, "Up/Down: select  Space: confirm",
                 screen.getHeight() / 8 * 7);
+    }
+
+    /** Draws the ship preview and the custom color editing controls. */
+    public void drawShipColorSelection(final Screen screen,
+            final Ship previewShip, final Rectangle colorBar,
+            final boolean editingCustomColor) {
+        backBufferGraphics.setColor(Color.GREEN);
+        drawCenteredBigString(screen, "Ship Color", screen.getHeight() / 5);
+        drawEntity(previewShip, previewShip.getPositionX(), previewShip.getPositionY());
+
+        boolean custom = ShipCustomization.isCustomColor();
+        backBufferGraphics.setColor(Color.WHITE);
+        String label = "Color: " + ShipCustomization.getColorName();
+        if (custom) {
+            drawShipColorBar(colorBar, ShipCustomization.getCustomHue(), editingCustomColor);
+            label += String.format(" #%06X", previewShip.getColor().getRGB() & 0xFFFFFF);
+            drawCenteredRegularString(screen, editingCustomColor
+                    ? "Left/Right or drag: adjust color"
+                    : "Enter or drag: edit custom color", screen.getHeight() - 85);
+        }
+        drawCenteredRegularString(screen, label,
+                screen.getHeight() / 2 + (custom ? 75 : 45));
+        drawCenteredRegularString(screen, editingCustomColor
+                ? "Enter: done" : "Left/Right: choose color", screen.getHeight() - 60);
+        drawCenteredRegularString(screen, "Esc: back to settings", screen.getHeight() - 35);
+    }
+
+    /** Draws the full hue spectrum and a marker at the custom hue. */
+    private void drawShipColorBar(final Rectangle bounds, final float hue,
+            final boolean editing) {
+        Color[] colors = {Color.RED, Color.YELLOW, Color.GREEN,
+            Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED};
+        int width = bounds.width;
+        int height = bounds.height;
+        int x = bounds.x;
+        int y = bounds.y;
+        float[] stops = new float[colors.length];
+        for (int i = 0; i < stops.length; i++) {
+            stops[i] = (float) i / (stops.length - 1);
+        }
+
+        Graphics2D barGraphics = (Graphics2D) backBufferGraphics.create();
+        try {
+            barGraphics.setPaint(new LinearGradientPaint(x, y,
+                    x + width - 1, y, stops, colors));
+            barGraphics.fillRect(x, y, width, height);
+            barGraphics.setColor(editing ? Color.WHITE : Color.GRAY);
+            barGraphics.drawRect(x - 1, y - 1, width + 1, height + 1);
+
+            int selectedX = x + Math.round(hue * (width - 1));
+            barGraphics.setColor(Color.WHITE);
+            barGraphics.fillPolygon(
+                    new int[] {selectedX - 4, selectedX + 4, selectedX},
+                    new int[] {y - 9, y - 9, y - 4}, 3);
+            barGraphics.drawRect(selectedX - 3, y - 2, 6, height + 3);
+        } finally {
+            barGraphics.dispose();
+        }
     }
 
     public void drawControlsSettings(final Screen screen,

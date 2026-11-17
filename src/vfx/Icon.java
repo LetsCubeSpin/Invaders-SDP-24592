@@ -134,17 +134,19 @@ public enum Icon {
 			"WWW.....WWW",
 			".W.......W."),
 
-	/** Gameplay settings: a targeting reticle. */
-	GAMEPLAY("RW", new Color[] { GameColors.ICON_LIFE, GameColors.ICON_UI },
-			"..RRRRR..",
-			".R..R..R.",
-			"R...R...R",
-			"R.......R",
-			"RRR.W.RRR",
-			"R.......R",
-			"R...R...R",
-			".R..R..R.",
-			"..RRRRR.."),
+	/** Ship color settings: four swatches of different colors. */
+	COLOR("RBYG", new Color[] { GameColors.ICON_LIFE,
+			GameColors.POWERUP_SHIELD, GameColors.ICON_COIN,
+			GameColors.POWERUP_LIFE },
+			"RRRR.BBBB",
+			"RRRR.BBBB",
+			"RRRR.BBBB",
+			"RRRR.BBBB",
+			".........",
+			"YYYY.GGGG",
+			"YYYY.GGGG",
+			"YYYY.GGGG",
+			"YYYY.GGGG"),
 
 	/** Back: an arrow pointing left. */
 	BACK(GameColors.ICON_UI,

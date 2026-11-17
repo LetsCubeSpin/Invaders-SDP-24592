@@ -29,6 +29,7 @@ import screen.PlayerRecordsScreen;
 import campaign.CampaignStageData;
 import campaign.CampaignManager;
 import screen.SettingsScreen;
+import screen.ShipColorScreen;
 import screen.ControlsSettingsScreen;
 import story.PlaceholderStoryScenes;
 import story.StoryProgress;
@@ -224,6 +225,10 @@ public final class Core {
 					break;
 				case 6:
 					currentScreen = new ControlsSettingsScreen(width, height, FPS);
+					returnCode = frame.setScreen(currentScreen);
+					break;
+				case 7:
+					currentScreen = new ShipColorScreen(width, height, FPS);
 					returnCode = frame.setScreen(currentScreen);
 					break;
 				case 8:
