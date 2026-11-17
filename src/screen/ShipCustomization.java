@@ -24,16 +24,34 @@ public final class ShipCustomization {
     };
 
     private static int selectedColorIndex;
+    private static float customHue;
 
     private ShipCustomization() {
     }
 
     public static Color getColor() {
-        return COLORS[selectedColorIndex];
+        return isCustomColor() ? Color.getHSBColor(customHue, 1f, 1f)
+                : COLORS[selectedColorIndex];
     }
 
     public static String getColorName() {
-        return COLOR_NAMES[selectedColorIndex];
+        return isCustomColor() ? "Custom" : COLOR_NAMES[selectedColorIndex];
+    }
+
+    public static boolean isCustomColor() {
+        return selectedColorIndex == COLORS.length;
+    }
+
+    public static float getCustomHue() {
+        return customHue;
+    }
+
+    /** Sets the custom hue along the full spectrum, from 0 to 1. */
+    public static void setCustomHue(final float hue) {
+        if (!Float.isFinite(hue) || hue < 0f || hue > 1f) {
+            throw new IllegalArgumentException("Hue must be between 0 and 1.");
+        }
+        customHue = hue;
     }
 
     public static void changeColor(final int direction) {
@@ -41,7 +59,8 @@ public final class ShipCustomization {
             throw new IllegalArgumentException("Direction must be -1 or 1.");
         }
 
-        selectedColorIndex = (selectedColorIndex + direction + COLORS.length)
-                % COLORS.length;
+        int optionCount = COLORS.length + 1;
+        selectedColorIndex = (selectedColorIndex + direction + optionCount)
+                % optionCount;
     }
 }
