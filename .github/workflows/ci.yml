@@ -25,6 +25,13 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
+      - name: Story debug launcher (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\scripts\test-story-debug.ps1 -JdkRoot $env:JAVA_HOME
+      - name: Story debug launcher (Linux, headless)
+        if: runner.os == 'Linux'
+        run: sh ./scripts/test-story-debug.sh
       - name: Build and test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

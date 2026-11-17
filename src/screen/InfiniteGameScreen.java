@@ -14,8 +14,12 @@ import records.RunSession;
 import records.Achievement;
 import records.RecordsService;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
+import event.PlayerHitEvent;
+import event.PlayerHitSource;
+import event.ShotFiredEvent;
 import java.util.Map;
 import java.util.IdentityHashMap;
 import java.util.UUID;
@@ -28,6 +32,7 @@ import engine.GameState;
 import entity.Bullet;
 import entity.BulletPool;
 import entity.Entity;
+import entity.PlayerStatus;
 import entity.Ship;
 import entity.ZigzagEnemyShip;
 import engine.DifficultyAdjustWhilePlaying;
@@ -56,6 +61,8 @@ public class InfiniteGameScreen extends Screen {
 	}
 
 	private Ship ship;
+	private PlayerStatus playerStatus;
+	private List<PlayerSlot> players;
 	private List<ZigzagEnemyShip> enemies;
 	private Set<Bullet> bullets;
 	private Set<Bullet> enemyBullets;
@@ -68,7 +75,11 @@ public class InfiniteGameScreen extends Screen {
 	/** Total bullets shot by the player. */
 	private int bulletsShot;
 	private int shipsDestroyed;
+	/** Number of players selected for this run. */
+	private final int playerCount;
 	private boolean gameOver;
+	/** Prevents replaying the urgent track while the team remains on one shared life. */
+	private boolean lowLivesMusicStarted;
 	private RunSession runSession;
 	private boolean abandoned;
 	private RecordsService recordsService;
@@ -87,8 +98,17 @@ public class InfiniteGameScreen extends Screen {
 
 	public InfiniteGameScreen(final GameState gameState, final int width,
 			final int height, final int fps, final RunSession runSession) {
+		this(gameState, width, height, fps, runSession, 1);
+	}
+
+	public InfiniteGameScreen(final GameState gameState, final int width,
+			final int height, final int fps, final RunSession runSession,
+			final int playerCount) {
 		super(width, height, fps);
+		if (playerCount != 1 && playerCount != 2)
+			throw new IllegalArgumentException("Player count must be 1 or 2.");
 		this.runSession = runSession;
+		this.playerCount = playerCount;
 		this.recordsService = Core.getRecordsService();
 		this.recordsEvents.subscribe(EnemyDefeatedEvent.class,
 				new GameplayEventListener<EnemyDefeatedEvent>() {
@@ -99,8 +119,15 @@ public class InfiniteGameScreen extends Screen {
 		});
 
 		this.score = gameState.getScore();
-		this.lives = gameState.getLivesRemaining();
-		this.maxLives = this.lives;
+		// 2P runs share at most two lives; 1P keeps the existing run value.
+		this.lives = playerCount == 2
+				? Math.min(2, gameState.getLivesRemaining())
+				: gameState.getLivesRemaining();
+		this.maxLives = playerCount == 2 ? 2 : this.lives;
+		// In 2P, each status tracks one ship's life, not the team's life pool.
+		int personalLives = playerCount == 2 ? 1 : this.lives;
+		this.playerStatus = new PlayerStatus(personalLives,
+				Math.max(1, personalLives), false);
 		this.bulletsShot = gameState.getBulletsShot();
 		this.shipsDestroyed = gameState.getShipsDestroyed();
 	}
@@ -108,7 +135,7 @@ public class InfiniteGameScreen extends Screen {
 	public final void initialize() {
 		super.initialize();
 
-		this.ship = new Ship(this.width / 2, this.height - 30);
+		initializePlayerSlots();
 		this.enemies = new ArrayList<ZigzagEnemyShip>();
 		this.bullets = new HashSet<Bullet>();
 		this.enemyBullets = new HashSet<Bullet>();
@@ -122,6 +149,67 @@ public class InfiniteGameScreen extends Screen {
 		this.inputDelay.reset();
 
 		AudioManager.playBGM("audio/bgm/music_game.wav");
+	}
+
+	/** Creates one slot per selected player while preserving the original center spawn in 1P. */
+	private void initializePlayerSlots() {
+		this.players = new ArrayList<PlayerSlot>();
+		for (int index = 0; index < this.playerCount; index++) {
+			Ship playerShip = createPlayerShip(index);
+			PlayerStatus status = index == 0 ? this.playerStatus
+					: new PlayerStatus(1, 1, false);
+			this.players.add(new PlayerSlot(index, playerShip, status));
+		}
+		syncPrimaryPlayer();
+	}
+
+	private Ship createPlayerShip(final int index) {
+		int positionX = this.width / 2;
+		if (this.playerCount == 2)
+			positionX += index == 0 ? -20 : 20;
+		return new Ship(positionX, this.height - 30);
+	}
+
+	private void syncPrimaryPlayer() {
+		PlayerSlot primary = this.players.get(0);
+		this.ship = primary.getShip();
+		this.playerStatus = primary.getStatus();
+	}
+
+	/** A shared life is spent only after all player ships have been eliminated. */
+	private void resolveSharedPlayerDefeat() {
+		if (this.playerCount != 2)
+			return;
+
+		if (!hasLivingPlayer()) {
+			this.lives = Math.max(0, this.lives - 1);
+			// Remaining team lives respawn both players; zero ends the run.
+			if (this.lives > 0) {
+				for (int index = 0; index < this.players.size(); index++) {
+					this.players.get(index).respawn(createPlayerShip(index),
+							new PlayerStatus(1, 1, false));
+				}
+				syncPrimaryPlayer();
+			}
+		}
+
+		if (this.lives == 1 && getLivingPlayerCount() == 1
+				&& !this.lowLivesMusicStarted) {
+			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			this.lowLivesMusicStarted = true;
+		}
+	}
+
+	private boolean hasLivingPlayer() {
+		return getLivingPlayerCount() > 0;
+	}
+
+	private int getLivingPlayerCount() {
+		int livingPlayers = 0;
+		for (PlayerSlot player : this.players)
+			if (player.isAlive())
+				livingPlayers++;
+		return livingPlayers;
 	}
 
 	public final int run() {
@@ -146,8 +234,11 @@ public class InfiniteGameScreen extends Screen {
 		}
 
 
-		//update the current lives remaining to the DifficultyAdjustWhilePlaying class
+		// Difficulty adjustment follows the shared team pool in 2P mode.
 		DifficultyAdjustWhilePlaying.getInstance().update(this.lives);
+		// Personal statuses update independently; they never own the shared team lives.
+		for (PlayerSlot player : this.players)
+			player.getStatus().update();
 
 		if (this.inputDelay.checkFinished() && !this.gameOver) {
 			if (runSession != null) runSession.startActiveSegment(System.nanoTime());
@@ -169,8 +260,11 @@ public class InfiniteGameScreen extends Screen {
 			shootEnemies();
 		}
 
-		this.ship.update();
+		// Every ship keeps its own damage cooldown and visual state, including a ship that is out.
+		for (PlayerSlot player : this.players)
+			player.getShip().update();
 		manageCollisions();
+		resolveSharedPlayerDefeat();
 		cleanBullets();
 		this.particleSystem.update();
 		draw();
@@ -187,34 +281,43 @@ public class InfiniteGameScreen extends Screen {
 	}
 
 	void updatePlayerControls() {
-		if (this.ship.isDestroyed())
-			return;
+		// Read controls from each slot so P1 keeps its saved bindings and P2
+		// uses A/D/W without creating a separate input manager.
+		for (PlayerSlot player : this.players) {
+			Ship playerShip = player.getShip();
+			// An eliminated player cannot control a ship that is only showing
+			// its destruction animation.
+			if (!player.isAlive() || playerShip.isDestroyed())
+				continue;
 
-		boolean moveRight = inputManager.isKeyDown(
-				ControlsConfig.getKey(ControlsConfig.RIGHT));
-		boolean moveLeft = inputManager.isKeyDown(
-				ControlsConfig.getKey(ControlsConfig.LEFT));
-		boolean isRightBorder = this.ship.getPositionX()
-				+ this.ship.getWidth() + this.ship.getSpeed() > this.width - 1;
-		boolean isLeftBorder = this.ship.getPositionX()
-				- this.ship.getSpeed() < 1;
+			boolean moveRight = inputManager.isKeyDown(
+					player.getKey(ControlsConfig.RIGHT));
+			boolean moveLeft = inputManager.isKeyDown(
+					player.getKey(ControlsConfig.LEFT));
+			boolean isRightBorder = playerShip.getPositionX()
+					+ playerShip.getWidth() + playerShip.getSpeed()
+					> this.width - 1;
+			boolean isLeftBorder = playerShip.getPositionX()
+					- playerShip.getSpeed() < 1;
 
-		if (moveRight && !isRightBorder)
-			this.ship.moveRight();
-		if (moveLeft && !isLeftBorder)
-			this.ship.moveLeft();
-		if (inputManager.isKeyDown(ControlsConfig.getKey(ControlsConfig.FIRE))) {
-			int fired = this.ship.shoot(this.bullets);
-			this.bulletsShot += fired;
-			// Play the shot sound only when a bullet was actually fired.
-			if (fired > 0)
-				AudioManager.playSFX("audio/sfx/player_shoot.wav");
-		}
-		if (!this.ship.isDestroyed()) {
-			// Follow-up bullets of a rapid burst play the same shot sound,
-			// so a burst does not sound like a single shot.
-			int burstFired = this.ship.updateBurst(this.bullets);
+			if (moveRight && !isRightBorder)
+				playerShip.moveRight();
+			if (moveLeft && !isLeftBorder)
+				playerShip.moveLeft();
+			if (inputManager.isKeyDown(player.getKey(ControlsConfig.FIRE))) {
+				int fired = playerShip.shoot(this.bullets);
+				this.bulletsShot += fired;
+				publishShotFired(fired);
+				// Play the shot sound only when a bullet was actually fired.
+				if (fired > 0)
+					AudioManager.playSFX("audio/sfx/player_shoot.wav");
+			}
+
+			// Each ship owns its burst timer; its follow-up bullets still join
+			// the shared bullet set and team-wide shot counter.
+			int burstFired = playerShip.updateBurst(this.bullets);
 			this.bulletsShot += burstFired;
+			publishShotFired(burstFired);
 			if (burstFired > 0)
 				AudioManager.playSFX("audio/sfx/player_shoot.wav");
 		}
@@ -277,8 +380,13 @@ public class InfiniteGameScreen extends Screen {
 	private void draw() {
 		drawManager.initDrawing(this);
 
-		drawManager.drawEntity(this.ship, this.ship.getPositionX(),
-				this.ship.getPositionY());
+		for (PlayerSlot player : this.players) {
+			if (!player.isAlive())
+				continue;
+			Ship playerShip = player.getShip();
+			drawManager.drawEntity(playerShip, playerShip.getPositionX(),
+					playerShip.getPositionY());
+		}
 
 		for (ZigzagEnemyShip enemy : this.enemies)
 			drawManager.drawEntity(enemy, enemy.getPositionX(),
@@ -370,58 +478,80 @@ public class InfiniteGameScreen extends Screen {
 		this.bullets.removeAll(recyclable);
 		BulletPool.recycle(recyclable);
 
-		if (this.gameOver || this.ship.isDestroyed())
+		if (this.gameOver)
 			return;
 
 		Iterator<Bullet> bulletIterator = this.enemyBullets.iterator();
 		while (bulletIterator.hasNext()) {
 			Bullet bullet = bulletIterator.next();
-			if (checkCollision(bullet, this.ship)) {
-				bulletIterator.remove();
-				BulletPool.recycle(Collections.singleton(bullet));
-				this.ship.destroy();
-				this.ship.triggerDamageFeedback();
-				// Hit by an enemy bullet: same hit sound as Campaign mode.
-				AudioManager.playSFX("audio/sfx/player_hit.wav");
-				this.particleSystem.spawnPlayerExplosion(
-						this.ship.getPositionX() + this.ship.getWidth() / 2,
-						this.ship.getPositionY() + this.ship.getHeight() / 2);
-				this.lives--;
-				if (this.lives == 1) {
-					AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			for (PlayerSlot player : this.players) {
+				Ship target = player.getShip();
+				if (player.isAlive() && !target.isDestroyed()
+						&& checkCollision(bullet, target)) {
+					bulletIterator.remove();
+					BulletPool.recycle(Collections.singleton(bullet));
+					damagePlayer(player, PlayerHitSource.ENEMY_BULLET,
+							"Hit by enemy bullet");
+					break;
 				}
-				this.logger.info("Hit by enemy bullet, " + this.lives
-						+ " lives remaining.");
-				return;
 			}
 		}
 
 		Iterator<ZigzagEnemyShip> iterator = this.enemies.iterator();
 		while (iterator.hasNext()) {
 			ZigzagEnemyShip rammed = iterator.next();
-			if (checkCollision(rammed, this.ship)) {
-				iterator.remove();
-				// The crashing enemy explodes like an enemy that is shot down.
-				AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
-				this.particleSystem.spawnEnemyExplosion(
-						rammed.getPositionX() + rammed.getWidth() / 2,
-						rammed.getPositionY() + rammed.getHeight() / 2);
-				this.ship.destroy();
-				this.ship.triggerDamageFeedback();
-				// Crashed into an enemy: same hit sound as a bullet hit.
-				AudioManager.playSFX("audio/sfx/player_hit.wav");
-				this.particleSystem.spawnPlayerExplosion(
-						this.ship.getPositionX() + this.ship.getWidth() / 2,
-						this.ship.getPositionY() + this.ship.getHeight() / 2);
-				this.lives--;
-				if (this.lives == 1) {
-					AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			for (PlayerSlot player : this.players) {
+				Ship target = player.getShip();
+				if (player.isAlive() && !target.isDestroyed()
+						&& checkCollision(rammed, target)) {
+					iterator.remove();
+					// The crashing enemy explodes like an enemy that is shot down.
+					AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
+					this.particleSystem.spawnEnemyExplosion(
+							rammed.getPositionX() + rammed.getWidth() / 2,
+							rammed.getPositionY() + rammed.getHeight() / 2);
+					damagePlayer(player, PlayerHitSource.ENEMY_COLLISION,
+							"Hit on player ship");
+					break;
 				}
-				this.logger.info("Hit on player ship, " + this.lives
-						+ " lives remaining.");
-				break;
 			}
 		}
+	}
+
+	/**
+	 * Applies damage to the selected ship. In 2P, the personal status marks
+	 * that ship out; the shared team pool is changed only when nobody remains.
+	 */
+	private void damagePlayer(final PlayerSlot player,
+			final PlayerHitSource source, final String reason) {
+		PlayerStatus status = player.getStatus();
+		Ship target = player.getShip();
+		if (!status.takeDamage(1))
+			return;
+
+		target.destroy();
+		target.triggerDamageFeedback();
+		AudioManager.playSFX("audio/sfx/player_hit.wav");
+		this.particleSystem.spawnPlayerExplosion(
+				target.getPositionX() + target.getWidth() / 2,
+				target.getPositionY() + target.getHeight() / 2);
+
+		// In solo play the status is the life pool; in 2P it only marks this ship eliminated.
+		if (this.playerCount == 1)
+			this.lives = status.getLives();
+
+		// Urgent music starts when the solo player has one life, or when the 2P team
+		// has one shared life and this hit has eliminated the last active ship.
+		// In solo play this hit can leave one life; the 2P shared pool is checked
+		// after all ships are out, when resolveSharedPlayerDefeat spends a life.
+		if (this.playerCount == 1 && this.lives == 1
+				&& !this.lowLivesMusicStarted) {
+			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			this.lowLivesMusicStarted = true;
+		}
+
+		this.logger.info(reason + ", " + this.lives + " team lives remaining.");
+		publishPlayerHit(source);
 	}
 
 	private boolean checkCollision(final Entity a, final Entity b) {
@@ -441,9 +571,41 @@ public class InfiniteGameScreen extends Screen {
 
 	public boolean isAbandoned() { return this.abandoned; }
 
+	public final int getPlayerCount() {
+		return this.playerCount;
+	}
+
+	/** Returns the selected player's current ship for screen-level tests and integrations. */
+	public final Ship getPlayerShip(final int index) {
+		return this.players.get(index).getShip();
+	}
+
+	/** Returns the selected player's personal status, separate from shared team lives. */
+	public final PlayerStatus getPlayerStatus(final int index) {
+		return this.players.get(index).getStatus();
+	}
+
 	public final GameState getGameState() {
+		// The screen's life value is the solo pool or the 2P shared team pool.
 		return new GameState(1, this.score, this.lives, this.bulletsShot,
 				this.shipsDestroyed);
+	}
+
+	/** Sends the bullets fired this frame, if any, for accuracy statistics. */
+	private void publishShotFired(final int bulletCount) {
+		if (bulletCount <= 0 || this.runSession == null) return;
+		this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(GameScreen.SHOT_ID_KIND), bulletCount));
+	}
+
+	/**
+	 * Sends a hit that cost the player one life. As in Campaign, the ID is
+	 * given once, at the one place each hit is accepted.
+	 */
+	private void publishPlayerHit(final PlayerHitSource source) {
+		if (this.runSession == null) return;
+		this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(source.name()), source, 1, Math.max(0, this.lives)));
 	}
 
 	private void recordEnemyDefeat(final Entity enemy) {

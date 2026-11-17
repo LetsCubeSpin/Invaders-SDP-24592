@@ -59,6 +59,22 @@ public final class InfiniteGameScreenControlsTest {
         check(custom.getGameState().getBulletsShot() == 1,
                 "Custom fire key did not shoot");
 
+        InfiniteGameScreen twoPlayer = screen(2);
+        Ship firstShip = twoPlayer.getPlayerShip(0);
+        Ship secondShip = twoPlayer.getPlayerShip(1);
+        int secondPlayerX = secondShip.getPositionX();
+        press(twoPlayer, KeyEvent.VK_A);
+        check(secondShip.getPositionX() == secondPlayerX - secondShip.getSpeed(),
+                "Player 2 A key did not move left");
+        press(twoPlayer, KeyEvent.VK_D);
+        check(secondShip.getPositionX() == secondPlayerX,
+                "Player 2 D key did not move right");
+        press(twoPlayer, KeyEvent.VK_W);
+        check(twoPlayer.getGameState().getBulletsShot() == 1,
+                "Player 2 W key did not shoot");
+        check(firstShip.getPositionX() == twoPlayer.getWidth() / 2 - 20,
+                "Player 2 movement changed Player 1 position");
+
         customShip.setPositionX(1);
         press(custom, KeyEvent.VK_J);
         check(customShip.getPositionX() == 1, "Crossed left border");
@@ -91,8 +107,13 @@ public final class InfiniteGameScreenControlsTest {
     }
 
     private static InfiniteGameScreen screen() {
+        return screen(1);
+    }
+
+    private static InfiniteGameScreen screen(final int playerCount) {
         InfiniteGameScreen screen = new InfiniteGameScreen(
-                new GameState(1, 0, 3, 0, 0), 448, 520, 60);
+                new GameState(1, 0, 3, 0, 0), 448, 520, 60, null,
+                playerCount);
         screen.initialize();
         return screen;
     }

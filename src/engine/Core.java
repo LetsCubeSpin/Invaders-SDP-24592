@@ -113,6 +113,7 @@ public final class Core {
 
 		GameState gameState;
 		ShipType selectedShip = ShipType.STANDARD;
+		int playerCount = 1;
 
 		int returnCode = 1;
 		do {
@@ -135,30 +136,34 @@ public final class Core {
 				currentScreen = new GameModeScreen(width, height, FPS);
 				LOGGER.info("Starting game mode selection screen.");
 				returnCode = frame.setScreen(currentScreen);
+				playerCount = ((GameModeScreen) currentScreen).getPlayerCount();
 				LOGGER.info("Closing game mode selection screen.");
 				break;
 			case 2:
 				// The selected ship decides how many lives the run starts with.
 				LOGGER.info("Selected ship: " + selectedShip.getName());
 
-
-					gameState = new GameState(1, 0, selectedShip.getMaxLives(),
+					// Campaign lives belong to the run; in 2P, start at one and cap at two.
+					int campaignMaxLives = playerCount == 2 ? 2
+							: selectedShip.getMaxLives();
+					int startingLives = playerCount == 2 ? 1 : campaignMaxLives;
+					gameState = new GameState(1, 0, startingLives,
 							0, 0);
 
 					// Game & score.
 					RunSession runSession = new RunSession(UUID.randomUUID().toString());
 										recordsService.startRun(runSession.getRunId());
 					do {
-						// One extra live every few levels.
+						// Award one team life at the usual milestones, up to this mode's cap.
 						boolean bonusLife = gameState.getLevel()
 								% EXTRA_LIFE_FRECUENCY == 0
-								&& gameState.getLivesRemaining() < selectedShip.getMaxLives();
+								&& gameState.getLivesRemaining() < campaignMaxLives;
 
 						currentScreen = new GameScreen(gameState,
 								applyDifficulty(CampaignStageData
 										.getStageSettings(gameState.getLevel())),
 								bonusLife, width, height, FPS, selectedShip,
-								runSession);
+								runSession, playerCount);
 						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 								+ " game screen at " + FPS + " fps.");
 						frame.setScreen(currentScreen);
@@ -236,7 +241,7 @@ public final class Core {
 					RunSession infiniteSession = new RunSession(UUID.randomUUID().toString());
 					recordsService.startRun(infiniteSession.getRunId());
 					currentScreen = new InfiniteGameScreen(gameState, width, height,
-							FPS, infiniteSession);
+							FPS, infiniteSession, playerCount);
 					LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 							+ " infinite game screen at " + FPS + " fps.");
 					frame.setScreen(currentScreen);

@@ -51,9 +51,15 @@ import story.StoryStage;
 import story.StoryStageData;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
+import event.GameplayEventIds;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
+import event.ItemUsedEvent;
 import event.LevelCompletedEvent;
+import event.PlayerHitEvent;
+import event.PlayerHitSource;
+import event.ShotFiredEvent;
+import event.UsedItemType;
 import java.util.Map;
 import java.util.IdentityHashMap;
 import java.util.UUID;
@@ -61,6 +67,7 @@ import entity.Grenade;
 import entity.GrenadeFragment;
 import entity.item.BuffHud;
 import entity.item.ClusterGrenadeItem;
+import entity.item.Item;
 
 /**
  * Implements the game screen, where the action happens.
@@ -126,6 +133,7 @@ public class GameScreen extends Screen {
 
 	/** Time the defeated boss stays on screen as an explosion. */
 	private Cooldown bossExplosionCooldown;
+	private static final int TWO_PLAYER_MAX_LIVES = 2;
 	/** Boss of the level, its attacks, events and links to other systems.
 	 * The only source of truth for the boss. */
 	private BossManager bossManager;
@@ -134,6 +142,7 @@ public class GameScreen extends Screen {
 
     private ItemManager itemManager;
     private final Random itemDropRandom = new Random();
+	private final Random playerTargetRandom = new Random();
 	private final Random obstacleRandom = new Random();
 	/** Active hazards; a set permits future expansion beyond one obstacle. */
 	private Set<FallingObstacle> fallingObstacles;
@@ -146,7 +155,6 @@ public class GameScreen extends Screen {
     /** Fragments of exploded grenades. */
     private Set<GrenadeFragment> fragments;
     /** Prevents launching several grenades while holding G. */
-    private boolean grenadeKeyPressed = false;
     /** Number of Cluster Grenade items dropped in this level. */
     private int grenadeDropsThisLevel = 0;
 
@@ -172,6 +180,11 @@ public class GameScreen extends Screen {
     private EnemyShipFormation enemyShipFormation;
     /** Player's ship. */
     private Ship ship;
+    /** Number of players selected for this run. */
+    private final int playerCount;
+	private List<PlayerSlot> players;
+	private int sharedLives;
+	private int maxSharedLives;
     /** Bonus enemy ship that appears sometimes. */
 	private BonusEnemyManager bonusEnemyManager;
     /** Time from finishing the level to screen change. */
@@ -377,7 +390,27 @@ public class GameScreen extends Screen {
 					  final List<GameSettings> waves, final boolean bonusLife,
 					  final int width, final int height, final int fps,
 					  final ShipType shipType, final RunSession runSession) {
+        this(gameState, waves, bonusLife, width, height, fps, shipType, runSession, 1);
+    }
+
+    /* add player count */
+    public GameScreen(final GameState gameState, final GameSettings gameSettings,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession,
+            final int playerCount) {
+        this(gameState, Collections.singletonList(gameSettings), bonusLife,
+                width, height, fps, shipType, runSession, playerCount);
+    }
+
+    /** Campaign stage entry point with the selected player count. */
+    public GameScreen(final GameState gameState, final List<GameSettings> waves,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession,
+            final int playerCount) {
         super(width, height, fps);
+		if (playerCount != 1 && playerCount != 2)
+			throw new IllegalArgumentException("Player count must be 1 or 2.");
+		this.playerCount = playerCount;
 
 		this.runSession = runSession;
 		this.recordsService = Core.getRecordsService();
@@ -401,12 +434,18 @@ public class GameScreen extends Screen {
         this.level = gameState.getLevel();
         this.difficulty = GameplayConfig.getDifficulty();
         this.score = gameState.getScore();
-		this.playerStatus = new PlayerStatus(
-				Math.min(gameState.getLivesRemaining(),
-						this.shipType.getMaxLives()),
-				this.shipType.getMaxLives(),
+		int maxLives = this.playerCount == 2 ? 1
+				: this.shipType.getMaxLives();
+		int initialLives = this.playerCount == 2 ? 1
+				: Math.min(gameState.getLivesRemaining(), maxLives);
+		this.playerStatus = new PlayerStatus(initialLives, maxLives,
 				this.shipType.isShieldCapable());
-        if (this.bonusLife)
+		this.sharedLives = this.playerCount == 2
+				? Math.min(TWO_PLAYER_MAX_LIVES, gameState.getLivesRemaining()
+						+ (this.bonusLife ? 1 : 0))
+				: this.playerStatus.getLives();
+		this.maxSharedLives = this.playerCount == 2 ? TWO_PLAYER_MAX_LIVES : maxLives;
+        if (this.bonusLife && this.playerCount == 1)
 			this.playerStatus.gainLife();
         this.bulletsShot = gameState.getBulletsShot();
         this.shipsDestroyed = gameState.getShipsDestroyed();
@@ -480,6 +519,107 @@ public class GameScreen extends Screen {
 		return formation;
 	}
 
+	private void initializePlayerSlots() {
+		this.players = new ArrayList<PlayerSlot>();
+		for (int index = 0; index < this.playerCount; index++) {
+			Ship playerShip = createPlayerShip(index);
+			PlayerStatus status = index == 0 ? this.playerStatus
+					: new PlayerStatus(1, 1, this.shipType.isShieldCapable());
+			this.players.add(new PlayerSlot(index, playerShip, status));
+			this.itemManager.getBuffManager(playerShip);
+		}
+		syncPrimaryPlayer();
+	}
+
+	private Ship createPlayerShip(final int index) {
+		int positionX = this.width / 2;
+		if (this.playerCount == 2)
+			positionX += index == 0 ? -20 : 20;
+		Ship playerShip = new Ship(positionX, this.height - 30, this.shipType);
+		playerShip.setBaseColor(ShipCustomization.getColor());
+		if (this.storyStage != null)
+			playerShip.setBulletType(BulletType.NORMAL);
+		return playerShip;
+	}
+
+	private void registerPlayerStatusListeners(final PlayerStatus status) {
+		status.addListener(new LoggingPlayerStatusListener());
+		status.addListener(new PlayerStatusListener() {
+			public void onPlayerStatusEvent(final PlayerStatusEvent event) {
+				recordsEvents.publish(event);
+				handlePlayerStatusSound(event);
+			}
+		});
+	}
+
+	private void syncPrimaryPlayer() {
+		PlayerSlot primary = this.players.get(0);
+		this.ship = primary.getShip();
+		this.playerStatus = primary.getStatus();
+	}
+
+	private void respawnPlayers() {
+		for (int index = 0; index < this.players.size(); index++) {
+			PlayerSlot player = this.players.get(index);
+			this.itemManager.releaseShip(player.getShip());
+			Ship playerShip = createPlayerShip(index);
+			PlayerStatus status = new PlayerStatus(1, 1,
+					this.shipType.isShieldCapable());
+			player.respawn(playerShip, status);
+			this.itemManager.getBuffManager(playerShip);
+			registerPlayerStatusListeners(status);
+		}
+		syncPrimaryPlayer();
+	}
+
+	private int getLivesRemaining() {
+		return this.playerCount == 2 ? this.sharedLives
+				: this.playerStatus.getLives();
+	}
+
+	private boolean hasLivingPlayer() {
+		return getLivingPlayerCount() > 0;
+	}
+
+	private int getLivingPlayerCount() {
+		int livingPlayers = 0;
+		for (PlayerSlot player : this.players)
+			if (player.isAlive())
+				livingPlayers++;
+		return livingPlayers;
+	}
+
+	/** Selects an active player uniformly for an enemy attack. */
+	private Ship chooseRandomLivingTargetShip() {
+		List<Ship> targets = new ArrayList<Ship>();
+		for (PlayerSlot player : this.players) {
+			Ship candidate = player.getShip();
+			if (player.isAlive() && !candidate.isDestroyed())
+				targets.add(candidate);
+		}
+		if (targets.isEmpty())
+			return null;
+		return targets.get(this.playerTargetRandom.nextInt(targets.size()));
+	}
+
+	/** Spends one team life only after every player's personal ship is down. */
+	private void resolveSharedPlayerDefeat() {
+		if (this.playerCount != 2)
+			return;
+
+		if (!hasLivingPlayer()) {
+			this.sharedLives = Math.max(0, this.sharedLives - 1);
+			if (this.sharedLives > 0)
+				respawnPlayers();
+		}
+
+		if (this.sharedLives == 1 && getLivingPlayerCount() == 1
+				&& !this.isLowHealthBGM) {
+			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
+			this.isLowHealthBGM = true;
+		}
+	}
+
 	/**
 	 * Initializes basic screen properties, and adds necessary elements.
 	 */
@@ -488,19 +628,13 @@ public class GameScreen extends Screen {
 
 		enemyShipFormation = createFormation();
 
-		this.ship = new Ship(this.width / 2, this.height - 30,
-				this.shipType);
-		// The chosen colour has to go through setBaseColor: the ship resets
-		// its colour to the base one every frame once the damage flash is
-		// over, so a plain setColor is wiped back to the default green.
-		this.ship.setBaseColor(ShipCustomization.getColor());
         this.itemManager = new ItemManager(this.height);
+		initializePlayerSlots();
 
         this.shieldDroppedThisLevel = false;
 
         this.grenades = new HashSet<Grenade>();
         this.fragments = new HashSet<GrenadeFragment>();
-        this.grenadeKeyPressed = false;
         this.grenadeDropsThisLevel = 0;
 
 		this.bonusEnemyManager = new BonusEnemyManager();
@@ -514,6 +648,7 @@ public class GameScreen extends Screen {
 		this.bossBullets = new HashSet<BossBullet>();
         this.summonedEnemies = new ArrayList<EnemyShip>();
 		this.bossManager = new BossManager();
+		this.bossManager.connectGameplayEvents(this.recordsEvents, getActiveRunId());
 		// Logs boss events for debugging.
 		this.bossManager.getEventManager().addListener(
 				new LoggingBossEventListener());
@@ -527,17 +662,8 @@ public class GameScreen extends Screen {
 				handleBossEvent(event);
 			}
 		});
-		// Same for the player's own status events.
-		this.playerStatus.addListener(new LoggingPlayerStatusListener());
-		// Forward them onto the shared gameplay bus as well, so a system that
-		// already listens there, such as sound effects, does not have to know
-		// about PlayerStatus to receive them.
-		this.playerStatus.addListener(new PlayerStatusListener() {
-			public void onPlayerStatusEvent(final PlayerStatusEvent event) {
-				recordsEvents.publish(event);
-                handlePlayerStatusSound(event);
-			}
-		});
+		for (PlayerSlot player : this.players)
+			registerPlayerStatusListeners(player.getStatus());
 		// The boss appears only on boss stages.
 		Boss.BossType bossType = bossTypeForStage();
 		if (bossType != null)
@@ -558,7 +684,8 @@ public class GameScreen extends Screen {
 
 		// The last life is checked first, so the urgent track also plays on
 		// boss stages.
-		if (this.playerStatus.getLives() == 1) {
+		if (getLivesRemaining() == 1
+				&& (this.playerCount == 1 || getLivingPlayerCount() == 1)) {
 			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
 			this.isLowHealthBGM = true;
 		} else if (bossTypeForStage() != null) {
@@ -583,7 +710,7 @@ public class GameScreen extends Screen {
 
         // Life bonus is only awarded when the stage was cleared.
         if (this.stageCleared)
-			this.score += LIFE_SCORE * (this.playerStatus.getLives() - 1);
+			this.score += LIFE_SCORE * (getLivesRemaining() - 1);
         this.logger.info("Screen cleared with a score of " + this.score);
 
         return this.returnCode;
@@ -608,11 +735,13 @@ public class GameScreen extends Screen {
 
 		// Outside the input-delay check: a shield that runs out has to be
 		// announced even while the level is finishing.
-		this.playerStatus.update();
+		for (PlayerSlot player : this.players)
+			player.getStatus().update();
 		// Sends the current number of lives remaining to the DifficultyAdjustWhilePlaying class
-		DifficultyAdjustWhilePlaying.getInstance().update(this.playerStatus.getLives());
+		DifficultyAdjustWhilePlaying.getInstance().update(getLivesRemaining());
 		// Reconcile shields active outside the item-collision path.
-		clearSlowIfEnergyShieldActive();
+		for (PlayerSlot player : this.players)
+			clearSlowIfEnergyShieldActive(player);
 
         if (this.inputDelay.checkFinished() && !this.levelFinished) {
             if (this.runSession != null) this.runSession.startActiveSegment(System.nanoTime());
@@ -620,7 +749,7 @@ public class GameScreen extends Screen {
                 this.recordsService.activeDuration(this.runSession.getRunId(),
                         this.runSession.getActiveDurationMillis(System.nanoTime()));
 
-            if (!this.ship.isDestroyed()) {
+            if (this.playerStatus.isAlive() && !this.ship.isDestroyed()) {
                 boolean moveRight = inputManager.isKeyDown(
                         ControlsConfig.getKey(ControlsConfig.RIGHT));
                 boolean moveLeft = inputManager.isKeyDown(
@@ -645,20 +774,10 @@ public class GameScreen extends Screen {
 						ControlsConfig.getKey(ControlsConfig.FIRE))) {
 					int fired = this.ship.shoot(this.bullets);
 					this.bulletsShot += fired;
+					publishShotFired(fired);
 					if (fired > 0)
 						AudioManager.playSFX("audio/sfx/player_shoot.wav");
 				}
-
-                // Cluster Grenade launch with the G key. Ignored if G is
-                // also bound to movement or firing, so one press cannot do
-                // both and waste a grenade.
-                boolean grenadeKeyDown = !isGrenadeKeyBoundElsewhere()
-                        && inputManager.isKeyDown(KeyEvent.VK_G);
-                if (grenadeKeyDown && !this.grenadeKeyPressed) {
-                    if (this.ship.launchGrenade(this.grenades, GRENADE_DETONATION_Y))
-                        AudioManager.playSFX("audio/sfx/item_grenade_launch.wav");
-                }
-                this.grenadeKeyPressed = grenadeKeyDown;
 
 				// Temporary: the shield has no in-game source until B5 adds
 				// the buff item, so it cannot be verified by playing without
@@ -680,6 +799,24 @@ public class GameScreen extends Screen {
 				}
             }
 
+			// Track the physical key even while a ship is down. Requiring a
+			// release before the next throw prevents a held key from firing
+			// automatically when a shared-life respawn replaces the ship.
+			PlayerSlot primaryPlayer = this.players.get(0);
+			boolean grenadeKeyDown = inputManager.isKeyDown(
+					primaryPlayer.getKey(ControlsConfig.GRENADE));
+			if (this.playerStatus.isAlive() && !this.ship.isDestroyed()
+					&& grenadeKeyDown
+					&& !primaryPlayer.isGrenadeKeyPressed()
+					&& !isGrenadeKeyBoundElsewhere(primaryPlayer)
+					&& this.ship.launchGrenade(this.grenades,
+							GRENADE_DETONATION_Y)) {
+				AudioManager.playSFX("audio/sfx/item_grenade_launch.wav");
+				publishItemUsed(UsedItemType.CLUSTER_GRENADE);
+			}
+			primaryPlayer.setGrenadeKeyPressed(grenadeKeyDown);
+
+			updateSecondaryPlayerControls();
 			this.bonusEnemyManager.update(this.width);
 
             Boss boss = getBossOnScreen();
@@ -687,9 +824,12 @@ public class GameScreen extends Screen {
                 boss.update(1, this.width - 1);
                 List<BossAttackSystem.SummonRequest> summons =
                         new ArrayList<>();
-                this.bossManager.update(
-                        this.ship.getPositionX() + this.ship.getWidth() / 2,
-                        this.ship.getPositionY(), this.bossBullets, summons);
+				Ship target = chooseRandomLivingTargetShip();
+				if (target != null) {
+					this.bossManager.update(
+							target.getPositionX() + target.getWidth() / 2,
+							target.getPositionY(), this.bossBullets, summons);
+				}
 
                 for (BossAttackSystem.SummonRequest req : summons) {
                     EnemyShip minion = EnemyShip.createByType(
@@ -706,52 +846,75 @@ public class GameScreen extends Screen {
                 minion.update();
                 minion.move(0, 2);
 
-                if (!this.ship.isDestroyed() && minion.canShoot()) {
+                Ship target = chooseRandomLivingTargetShip();
+                if (target != null && minion.canShoot()) {
                     if (minion.getDefeatedType() == DefeatedEnemyType.B) {
                         // B: player 자리에 null을 넘겨 수직 일자 발사
                         this.enemyShipFormation.shootFrom(minion, this.bullets, null);
                     } else if (minion.getDefeatedType() == DefeatedEnemyType.C) {
-                        // C: player 자리에 this.ship을 넘겨 플레이어 조준 발사
-                        this.enemyShipFormation.shootFrom(minion, this.bullets, this.ship);
+                        this.enemyShipFormation.shootFrom(minion, this.bullets, target);
                     }
                 }
 
-                if (!this.ship.isDestroyed() && checkCollision(minion, this.ship)) {
+                boolean hitPlayer = false;
+                for (PlayerSlot player : this.players) {
+                    Ship playerShip = player.getShip();
+                    if (!player.isAlive() || playerShip.isDestroyed()
+                    		|| !checkCollision(minion, playerShip))
+                    	continue;
                     minion.destroy();
                     this.particleSystem.spawnEnemyExplosion(
-                            minion.getPositionX() + minion.getWidth() / 2,
-                            minion.getPositionY() + minion.getHeight() / 2);
-                    damagePlayer(1, "Collided with summoned enemy");
+                    		minion.getPositionX() + minion.getWidth() / 2,
+                    		minion.getPositionY() + minion.getHeight() / 2);
+                    damagePlayer(player, 1, PlayerHitSource.ENEMY_COLLISION,
+                    		"Collided with player ship");
                     it.remove();
-                } else if (minion.isDestroyed() || minion.getPositionY() > this.height) {
-                    it.remove();
+                    hitPlayer = true;
+                    break;
                 }
+                if (!hitPlayer
+                    	&& (minion.isDestroyed() || minion.getPositionY() > this.height))
+                    it.remove();
             }
 
-			if (!this.ship.isDestroyed())
-				this.bulletsShot += this.ship.updateBurst(this.bullets);
+			// Each living ship advances its own burst timer while sharing the bullet field.
+			for (PlayerSlot player : this.players) {
+				if (player.isAlive() && !player.getShip().isDestroyed()) {
+					int burstFired = player.getShip().updateBurst(this.bullets);
+					this.bulletsShot += burstFired;
+					publishShotFired(burstFired);
+				}
+			}
 
             this.enemyShipFormation.update();
-			this.enemyShipFormation.shoot(this.bullets, this.ship);
+			this.enemyShipFormation.shoot(this.bullets,
+					chooseRandomLivingTargetShip());
         }
 
-        this.ship.update();
+		for (PlayerSlot player : this.players) {
+			player.getShip().update();
+			if (this.inputDelay.checkFinished() && !this.levelFinished)
+				this.itemManager.updateBuffs(player.getShip());
+		}
 
         if (this.inputDelay.checkFinished() && !this.levelFinished) {
-            this.itemManager.update(this.ship);
-
-            if (!this.ship.isDestroyed()) {
-                this.itemManager.checkCollisions(this.ship);
-				// Clear immediately in the frame an Energy Shield is collected.
-				clearSlowIfEnergyShieldActive();
-            }
-
+			this.itemManager.updateItems();
+			for (PlayerSlot player : this.players) {
+				Ship playerShip = player.getShip();
+				if (player.isAlive() && !playerShip.isDestroyed()) {
+					List<Item> collected = this.itemManager.checkCollisions(
+							playerShip, this.itemManager.getBuffManager(playerShip));
+					publishItemsUsed(collected, playerShip);
+					clearSlowIfEnergyShieldActive(player);
+				}
+			}
             clampShipPosition();
         }
 
 		if (!updateFallingObstacles())
 			manageFallingObstacleCollisions();
         manageCollisions();
+		resolveSharedPlayerDefeat();
         manageGrenades();
 
         cleanBullets();
@@ -764,10 +927,64 @@ public class GameScreen extends Screen {
             this.isRunning = false;
     }
 
+    /**
+     * Reads Player 2's separate bindings without changing the existing Player 1
+     * input path. Both ships add shots and grenades to the same team world.
+     */
+    private void updateSecondaryPlayerControls() {
+        for (int index = 1; index < this.players.size(); index++) {
+            PlayerSlot player = this.players.get(index);
+            Ship playerShip = player.getShip();
+            boolean grenadeKeyDown = inputManager.isKeyDown(
+                    player.getKey(ControlsConfig.GRENADE));
+            if (!player.isAlive() || playerShip.isDestroyed()) {
+                // Remember keys held while this ship is down, so respawning
+                // does not turn a held key into a new press.
+                player.setGrenadeKeyPressed(grenadeKeyDown);
+                continue;
+            }
+
+            boolean moveLeft = inputManager.isKeyDown(
+                    player.getKey(ControlsConfig.LEFT));
+            boolean moveRight = inputManager.isKeyDown(
+                    player.getKey(ControlsConfig.RIGHT));
+            boolean isLeftBorder = playerShip.getPositionX()
+                    - playerShip.getSpeed() < 1;
+            boolean isRightBorder = playerShip.getPositionX()
+                    + playerShip.getWidth() + playerShip.getSpeed()
+                    > this.width - 1;
+
+            if (moveLeft && !isLeftBorder)
+                playerShip.moveLeft();
+            if (moveRight && !isRightBorder)
+                playerShip.moveRight();
+
+            // P2 fires into the shared bullet set, but the bullet counter and
+            // fire sound still follow the existing team-wide behavior.
+            if (inputManager.isKeyDown(player.getKey(ControlsConfig.FIRE))) {
+                int fired = playerShip.shoot(this.bullets);
+                this.bulletsShot += fired;
+                publishShotFired(fired);
+                if (fired > 0)
+                    AudioManager.playSFX("audio/sfx/player_shoot.wav");
+            }
+
+            boolean grenadeKeyIsUsable = !isGrenadeKeyBoundElsewhere(player);
+            if (grenadeKeyDown && grenadeKeyIsUsable
+                    && !player.isGrenadeKeyPressed()
+                    && playerShip.launchGrenade(this.grenades,
+                            GRENADE_DETONATION_Y)) {
+                AudioManager.playSFX("audio/sfx/item_grenade_launch.wav");
+                publishItemUsed(UsedItemType.CLUSTER_GRENADE);
+            }
+            player.setGrenadeKeyPressed(grenadeKeyDown);
+        }
+    }
+
     /** Progression shared by official and custom stages. */
     void advanceStageIfReady() {
         if (!this.levelFinished) {
-            if (!this.playerStatus.isAlive()) {
+            if (getLivesRemaining() <= 0 || !hasLivingPlayer()) {
                 this.levelFinished = true;
                 this.stageCleared = false;
                 AudioManager.playSFX("audio/sfx/game_over.wav");
@@ -854,12 +1071,15 @@ public class GameScreen extends Screen {
 			drawManager.drawEntity(obstacle, obstacle.getPositionX(),
 					obstacle.getPositionY());
 
-		drawManager.drawEntity(this.ship, this.ship.getPositionX(),
-				this.ship.getPositionY());
-
-        if (this.ship.isShieldActive() && !this.ship.isDestroyed()) {
-            drawManager.drawShield(this, this.ship);
-        }
+		for (PlayerSlot player : this.players) {
+			if (!player.isAlive())
+				continue;
+			Ship playerShip = player.getShip();
+			drawManager.drawEntity(playerShip, playerShip.getPositionX(),
+					playerShip.getPositionY());
+			if (playerShip.isShieldActive() && !playerShip.isDestroyed())
+				drawManager.drawShield(this, playerShip);
+		}
 
 		EnemyShip bonusShip = this.bonusEnemyManager.getShip();
 		if (bonusShip != null)
@@ -895,15 +1115,23 @@ public class GameScreen extends Screen {
 
 		// Interface.
 		drawManager.drawScore(this, this.score);
-		drawManager.drawLives(this, this.playerStatus.getLives(),
-				this.playerStatus.getMaxLives());
+		drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
 		drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
+
+		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
 
 		// Item HUD: grenades left, active buffs and their time left.
 		drawManager.drawGrenadeCount(this, this.ship.getGrenadeCount());
-		drawManager.drawBuffs(this, BuffHud.buildLines(
-				this.itemManager.getBuffManager().getActiveBuffsRemainingTime(),
-				System.currentTimeMillis()));
+		List<String> activeBuffLines = new ArrayList<String>();
+		for (int index = 0; index < this.players.size(); index++) {
+			Ship playerShip = this.players.get(index).getShip();
+			for (String line : BuffHud.buildLines(
+					this.itemManager.getBuffManager(playerShip)
+							.getActiveBuffsRemainingTime(),
+					System.currentTimeMillis()))
+				activeBuffLines.add("P" + (index + 1) + ": " + line);
+		}
+		drawManager.drawBuffs(this, activeBuffLines);
 
         drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
@@ -996,26 +1224,30 @@ public class GameScreen extends Screen {
         for (Iterator<FallingObstacle> iterator =
              this.fallingObstacles.iterator(); iterator.hasNext();) {
             FallingObstacle obstacle = iterator.next();
-            if (checkCollision(obstacle, this.ship)) {
-                // Remove first so a single obstacle can trigger only one collision.
-                iterator.remove();
-                this.fallingObstacleCooldown.reset();
-                if (!this.ship.isInvulnerable()) {
-                    if (this.ship.isShieldActive()) {
-                        AudioManager.playSFX("audio/sfx/item_shield_block.wav");
-                    } else {
-                        AudioManager.playSFX("audio/sfx/obstacle_hit.wav");
-                        this.playerStatus.applySlow(this.ship);
-                    }
-                }
-            }
+			for (PlayerSlot player : this.players) {
+				Ship playerShip = player.getShip();
+				if (!player.isAlive() || !checkCollision(obstacle, playerShip))
+					continue;
+				// One falling obstacle can affect only the first ship it reaches.
+				iterator.remove();
+				this.fallingObstacleCooldown.reset();
+				if (!playerShip.isInvulnerable()) {
+					if (playerShip.isShieldActive()) {
+						AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+					} else {
+						AudioManager.playSFX("audio/sfx/obstacle_hit.wav");
+						player.getStatus().applySlow(playerShip);
+					}
+				}
+				break;
+			}
         }
     }
 
     /** Clears an existing slow as soon as the Energy Shield item is active. */
-    private void clearSlowIfEnergyShieldActive() {
-        if (this.ship.isShieldActive())
-            this.playerStatus.clearSlowDebuff();
+    private void clearSlowIfEnergyShieldActive(final PlayerSlot player) {
+        if (player.getShip().isShieldActive())
+            player.getStatus().clearSlowDebuff();
     }
 
     /**
@@ -1027,10 +1259,15 @@ public class GameScreen extends Screen {
         Set<Bullet> recyclable = new HashSet<Bullet>();
         for (Bullet bullet : this.bullets) {
             if (bullet.isEnemyBullet()) {
-                if (checkCollision(bullet, this.ship) && !this.levelFinished) {
-                    recyclable.add(bullet);
-                    damagePlayer(1, "Hit on player ship");
-                }
+				for (PlayerSlot player : this.players) {
+					if (player.isAlive()
+							&& checkCollision(bullet, player.getShip())) {
+						recyclable.add(bullet);
+						damagePlayer(player, 1, PlayerHitSource.ENEMY_BULLET,
+								"Hit on player ship");
+						break;
+					}
+				}
             } else {
                 for (EnemyShip enemyShip : this.enemyShipFormation) {
                     if (!enemyShip.isDestroyed()
@@ -1118,11 +1355,16 @@ public class GameScreen extends Screen {
 
         Set<BossBullet> hitBossBullets = new HashSet<BossBullet>();
         for (BossBullet bossBullet : this.bossBullets) {
-            if (checkCollision(bossBullet, this.ship) && !this.levelFinished) {
-                hitBossBullets.add(bossBullet);
-                damagePlayer(bossBullet.getDamage(),
-                        "Hit on player ship by the boss");
-            }
+			for (PlayerSlot player : this.players) {
+				if (player.isAlive()
+						&& checkCollision(bossBullet, player.getShip())) {
+					hitBossBullets.add(bossBullet);
+					damagePlayer(player, bossBullet.getDamage(),
+							PlayerHitSource.BOSS_BULLET,
+							"Hit on player ship by the boss");
+					break;
+				}
+			}
         }
         this.bossBullets.removeAll(hitBossBullets);
     }
@@ -1146,42 +1388,63 @@ public class GameScreen extends Screen {
 	 */
 	// The damage path is accessible to tests in the screen package.
 	boolean damagePlayer(final int damage, final String logMessage) {
+		return damagePlayer(this.players.get(0), damage,
+				PlayerHitSource.UNKNOWN, logMessage);
+	}
+
+	/**
+	 * Same as {@link #damagePlayer(int, String)}, naming what hit the player
+	 * for the {@link PlayerHitEvent} sent when a life is lost.
+	 */
+	boolean damagePlayer(final int damage, final PlayerHitSource source,
+			final String logMessage) {
+		return damagePlayer(this.players.get(0), damage, source, logMessage);
+	}
+
+	private boolean damagePlayer(final PlayerSlot player, final int damage,
+			final PlayerHitSource source, final String logMessage) {
+		Ship playerShip = player.getShip();
+		PlayerStatus status = player.getStatus();
 		// Still inside the recovery period from an earlier hit. This outlasts
 		// the time the ship cannot move, so that the player is not killed by
 		// the shots that were aimed at them while they were held in place.
-		if (this.ship.isInvulnerable())
+		if (!status.isAlive() || playerShip.isInvulnerable())
 			return false;
-		if (this.ship.isShieldActive()) {
+		if (playerShip.isShieldActive()) {
 			this.logger.info("Shot absorbed by Energy Shield.");
 			AudioManager.playSFX("audio/sfx/item_shield_block.wav");
 			// The Energy Shield belongs to Ship, so PlayerStatus cannot see
 			// this hit by itself. Announce it anyway, or a listener would
 			// hear a blocked hit only when the timed shield was the one that
 			// blocked it.
-			this.playerStatus.announceDamageBlocked(damage);
+			status.announceDamageBlocked(damage);
 			return false;
 		}
 		// PlayerStatus owns the timed shield, so its answer decides whether
 		// the hit lands at all; the effects below must not run otherwise.
-        if (!this.playerStatus.takeDamage(damage)) {
-            if (this.playerStatus.isShieldActive())
+		int livesBefore = status.getLives();
+		if (!status.takeDamage(damage)) {
+			if (status.isShieldActive())
                 AudioManager.playSFX("audio/sfx/item_shield_block.wav");
             return false;
         }
 		AudioManager.playSFX("audio/sfx/player_hit.wav");
 
-		this.ship.destroy();
-		this.ship.triggerDamageFeedback();
+		playerShip.destroy();
+		playerShip.triggerDamageFeedback();
 		this.particleSystem.spawnPlayerExplosion(
-				this.ship.getPositionX() + this.ship.getWidth() / 2,
-				this.ship.getPositionY() + this.ship.getHeight() / 2);
-		this.itemManager.getBuffManager().resetAllBuffs(this.ship);
-		if (this.playerStatus.getLives() == 1 && !this.isLowHealthBGM) {
+				playerShip.getPositionX() + playerShip.getWidth() / 2,
+				playerShip.getPositionY() + playerShip.getHeight() / 2);
+		this.itemManager.releaseShip(playerShip);
+		if (this.playerCount == 1 && status.getLives() == 1
+				&& !this.isLowHealthBGM) {
 			AudioManager.playBGM("audio/bgm/music_game_urgent.wav");
 			this.isLowHealthBGM = true;
 		}
-		this.logger.info(logMessage + ", " + this.playerStatus.getLives()
+		this.logger.info(logMessage + ", " + getLivesRemaining()
 				+ " lives remaining.");
+		publishPlayerHit(source, livesBefore - status.getLives(),
+				status.getLives());
 		return true;
 	}
 
@@ -1408,6 +1671,18 @@ public class GameScreen extends Screen {
 		return this.playerStatus;
 	}
 
+	public final Ship getPlayerShip(final int index) {
+		return this.players.get(index).getShip();
+	}
+
+	public final PlayerStatus getPlayerStatus(final int index) {
+		return this.players.get(index).getStatus();
+	}
+
+	public final int getPlayerCount() {
+		return this.playerCount;
+	}
+
 	/**
      * Returns a GameState object representing the status of the game.
      *
@@ -1415,7 +1690,7 @@ public class GameScreen extends Screen {
      */
     public final GameState getGameState() {
 		return new GameState(this.level, this.score,
-				this.playerStatus.getLives(),
+				getLivesRemaining(),
 				this.bulletsShot, this.shipsDestroyed);
     }
 
@@ -1557,6 +1832,51 @@ public class GameScreen extends Screen {
 		}
 	}
 
+    /*
+     * Each of the events below has a single place that accepts the action
+     * (one volley, one hit past every protection, one launch or pickup), so
+     * the ID is given right there, once per action, grouped by its kind like
+     * the defeat IDs. Bullets are pooled and reused, so an ID cannot be kept
+     * per bullet the way defeat IDs are kept per enemy.
+     */
+
+    /** Kind that groups the shot IDs. */
+    static final String SHOT_ID_KIND = "SHOT";
+
+    /** Sends the bullets fired this frame, if any, for accuracy statistics. */
+    private void publishShotFired(final int bulletCount) {
+        if (bulletCount <= 0 || this.runSession == null) return;
+        this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(SHOT_ID_KIND), bulletCount));
+    }
+
+    /** Sends a hit that cost the player lives; shielded hits never get here. */
+    private void publishPlayerHit(final PlayerHitSource source,
+            final int livesLost, final int livesRemaining) {
+        if (livesLost <= 0 || this.runSession == null) return;
+        this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(source.name()), source, livesLost,
+                livesRemaining));
+    }
+
+    /** Sends one use of an item. */
+    private void publishItemUsed(final UsedItemType itemType) {
+        if (this.runSession == null) return;
+        this.recordsEvents.publish(new ItemUsedEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(itemType.name()), itemType));
+    }
+
+    /**
+     * Sends the items used by being collected. An Energy Shield is used the
+     * moment it is caught, but only by a ship that can hold it; a Cluster
+     * Grenade is only stocked here and counts as used when launched.
+     */
+    private void publishItemsUsed(final List<Item> collected, final Ship ship) {
+        for (Item item : collected)
+            if (item instanceof ShieldItem && ship.isShieldActive())
+                publishItemUsed(UsedItemType.ENERGY_SHIELD);
+    }
+
 	private void recordEnemyDefeat(final EnemyShip enemy) {
 		if ((this.summonedEnemies != null && this.summonedEnemies.contains(enemy))
 				|| this.runSession == null) {
@@ -1582,8 +1902,11 @@ public class GameScreen extends Screen {
 
     /** Keep the extra movement inside the existing playfield borders. */
     private void clampShipPosition() {
-		this.ship.setPositionX(clampShipPositionX(this.ship.getPositionX(),
-				this.ship.getWidth(), this.width));
+        for (PlayerSlot player : this.players) {
+            Ship playerShip = player.getShip();
+            playerShip.setPositionX(clampShipPositionX(playerShip.getPositionX(),
+                    playerShip.getWidth(), this.width));
+        }
 	}
 
 	/**
@@ -1606,14 +1929,19 @@ public class GameScreen extends Screen {
     }
 
     /**
-     * Checks whether the G key is also bound to movement or firing.
-     *
-     * @return True if G is used by another control.
+     * Prevents one physical key from both moving/firing a player and launching
+     * a grenade. The check spans both players because the keyboard is shared.
      */
-    private boolean isGrenadeKeyBoundElsewhere() {
-        return ControlsConfig.getKey(ControlsConfig.LEFT) == KeyEvent.VK_G
-                || ControlsConfig.getKey(ControlsConfig.RIGHT) == KeyEvent.VK_G
-                || ControlsConfig.getKey(ControlsConfig.FIRE) == KeyEvent.VK_G;
+    private boolean isGrenadeKeyBoundElsewhere(
+            final PlayerSlot grenadePlayer) {
+        int grenadeKey = grenadePlayer.getKey(ControlsConfig.GRENADE);
+        for (PlayerSlot player : this.players) {
+            if (player.getKey(ControlsConfig.LEFT) == grenadeKey
+                    || player.getKey(ControlsConfig.RIGHT) == grenadeKey
+                    || player.getKey(ControlsConfig.FIRE) == grenadeKey)
+                return true;
+        }
+        return false;
     }
 
     /**

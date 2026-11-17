@@ -122,9 +122,12 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
         return this.selected;
     }
 
+    public final int getPlayerCount() {
+        return this.is2P ? 2 : 1;
+    }
+
     /**
-     * @param menuStep
-     *            0 for the mode step, 1 for the player step.
+     * @param menuStep 0 for the mode step, 1 for the player step.
      * @return Number of choices on that step.
      */
     static int choiceCount(final int menuStep) {
@@ -132,8 +135,7 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
     }
 
     /**
-     * @param mode
-     *            Mode index: 0 Endless, 1 Campaign, 2 Story.
+     * @param mode Mode index: 0 Endless, 1 Campaign, 2 Story.
      * @return Code Core uses to start the mode.
      */
     static int returnCodeFor(final int mode) {
