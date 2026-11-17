@@ -239,6 +239,23 @@ class GameplayEventPublishingTest {
     }
 
     @Test
+    void infiniteTwoPlayerShotsAreBothPublished() {
+        InfiniteGameScreen game = new InfiniteGameScreen(
+                new GameState(1, 0, 3, 0, 0), 448, 520, 60,
+                new RunSession("endless-two-player-shots"), 2);
+        game.initialize();
+        Seen<ShotFiredEvent> shots = watch(game.getGameplayEvents(), ShotFiredEvent.class);
+
+        keys[ControlsConfig.getPlayerKey(0, ControlsConfig.FIRE)] = true;
+        keys[ControlsConfig.getPlayerKey(1, ControlsConfig.FIRE)] = true;
+        game.updatePlayerControls();
+
+        assertEquals(2, shots.size());
+        assertEquals(2, totalBullets(shots));
+        assertEquals(game.getGameState().getBulletsShot(), totalBullets(shots));
+    }
+
+    @Test
     void infiniteBulletHitIsPublished() throws Exception {
         InfiniteGameScreen game = infinite("endless-bullet");
         Seen<PlayerHitEvent> hits = watch(game.getGameplayEvents(), PlayerHitEvent.class);
@@ -256,6 +273,17 @@ class GameplayEventPublishingTest {
         assertSame(PlayerHitSource.ENEMY_BULLET, hits.get(0).getSource());
         assertEquals(1, hits.get(0).getDamage());
         assertEquals(2, hits.get(0).getLivesRemaining());
+    }
+
+    @Test
+    void infiniteMissedEnemyBulletDoesNotPublishAHit() throws Exception {
+        InfiniteGameScreen game = infinite("endless-miss");
+        Seen<PlayerHitEvent> hits = watch(game.getGameplayEvents(), PlayerHitEvent.class);
+        enemyBulletsOf(game).add(BulletPool.getBullet(0, 0, 4, Bullet.Owner.ENEMY));
+
+        call(game, "manageCollisions");
+
+        assertEquals(0, hits.size());
     }
 
     @Test

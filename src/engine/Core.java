@@ -148,6 +148,7 @@ public final class Core {
 
 		GameState gameState;
 		ShipType selectedShip = ShipType.STANDARD;
+		int playerCount = 1;
 
 		int returnCode = 1;
 		do {
@@ -170,6 +171,7 @@ public final class Core {
 				currentScreen = new GameModeScreen(width, height, FPS);
 				LOGGER.info("Starting game mode selection screen.");
 				returnCode = frame.setScreen(currentScreen);
+				playerCount = ((GameModeScreen) currentScreen).getPlayerCount();
 				LOGGER.info("Closing game mode selection screen.");
 				break;
 			case 2:
@@ -177,7 +179,11 @@ public final class Core {
 				LOGGER.info("Selected ship: " + selectedShip.getName());
 
 					CampaignUpgrades campaignUpgrades = CampaignUpgrades.from(playerAssets.snapshot());
-					gameState = new GameState(1, 0, campaignUpgrades.getMaxLives(selectedShip),
+					// Campaign lives belong to the run; in 2P, start at one and cap at two.
+					int campaignMaxLives = playerCount == 2 ? 2
+							: campaignUpgrades.getMaxLives(selectedShip);
+					int startingLives = playerCount == 2 ? 1 : campaignMaxLives;
+					gameState = new GameState(1, 0, startingLives,
 							0, 0);
 
 					// Game & score.
@@ -185,16 +191,16 @@ public final class Core {
 					campaignRewards.startRun(runSession.getRunId());
 					recordsService.startRun(runSession.getRunId());
 					do {
-						// One extra live every few levels.
+						// Award one team life at the usual milestones, up to this mode's cap.
 						boolean bonusLife = gameState.getLevel()
 								% EXTRA_LIFE_FRECUENCY == 0
-								&& gameState.getLivesRemaining() < campaignUpgrades.getMaxLives(selectedShip);
+								&& gameState.getLivesRemaining() < campaignMaxLives;
 
 						currentScreen = new GameScreen(gameState,
 								applyDifficulty(CampaignStageData
 										.getStageSettings(gameState.getLevel())),
 								bonusLife, width, height, FPS, selectedShip,
-								runSession, campaignUpgrades);
+								runSession, campaignUpgrades, playerCount);
 						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 								+ " game screen at " + FPS + " fps.");
 						runCampaignStage((GameScreen) currentScreen, campaignRewards,
@@ -305,7 +311,7 @@ public final class Core {
 					RunSession infiniteSession = new RunSession(UUID.randomUUID().toString());
 					recordsService.startRun(infiniteSession.getRunId());
 					currentScreen = new InfiniteGameScreen(gameState, width, height,
-							FPS, infiniteSession);
+							FPS, infiniteSession, playerCount);
 					LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 							+ " infinite game screen at " + FPS + " fps.");
 					runEndless((InfiniteGameScreen) currentScreen, endlessRewards,
