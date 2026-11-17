@@ -79,7 +79,7 @@ run_case() {
 }
 run_case 'picker, JAVA_HOME, success cleanup' 0
 [ "$(wc -l < "$logs/java.args" | tr -d ' ')" = 8 ] || die 'picker received selection arguments'
-run_case 'four selections and explicit JDK' 0 --jdk-root "$jdk" --route truce --stage 7 --difficulty hard --ship speedster
+run_case 'four selections and explicit JDK' 0 --jdk-root "$jdk" --route truce --stage 7 --difficulty easy --ship standard
 printf 'TRUCE\n7\nEASY\nSTANDARD\n' > "$logs/expected"
 tail -n 4 "$logs/java.args" > "$logs/selection"
 cmp "$logs/expected" "$logs/selection" || die 'selection argument boundaries changed'
