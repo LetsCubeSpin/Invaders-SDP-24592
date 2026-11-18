@@ -31,9 +31,12 @@ import campaign.CampaignManager;
 import screen.SettingsScreen;
 import screen.ShipColorScreen;
 import screen.ControlsSettingsScreen;
+import screen.StoryNarrationScreen;
+import story.DialogueStoryScenes;
 import story.PlaceholderStoryScenes;
 import story.StoryProgress;
 import story.StoryScenes;
+import story.StoryScript;
 
 /**
  * Implements core game logic.
@@ -267,13 +270,9 @@ public final class Core {
 					break;
 				case 15:
 					// Story mode & score.
-					currentScreen = new screen.PortraitPreviewScreen(width,
-							height, FPS);
-					returnCode = frame.setScreen(currentScreen);
-					if (returnCode != screen.PortraitPreviewScreen.BACK_TO_MENU) {
-						returnCode = playStory(selectedShip, width, height,
-								new PlaceholderStoryScenes());
-					}
+					returnCode = playStory(selectedShip, width, height,
+							new DialogueStoryScenes(Core::showStoryOpening,
+									new PlaceholderStoryScenes()));
 					break;
 			}
 
@@ -285,6 +284,13 @@ public final class Core {
 		fileHandler.flush();
 		fileHandler.close();
 		System.exit(0);
+	}
+
+	/** Shows the story opening narration and returns when the player is done. */
+	private static void showStoryOpening() {
+		currentScreen = new StoryNarrationScreen(frame.getWidth(),
+				frame.getHeight(), FPS, StoryScript.OPENING_NARRATION);
+		frame.setScreen(currentScreen);
 	}
 
 	/**

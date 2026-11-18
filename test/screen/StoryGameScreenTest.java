@@ -57,6 +57,34 @@ class StoryGameScreenTest {
     }
 
     @Test
+    void stageOneWaitsForThePilotLineAndThenStartsAtOnce() {
+        GameScreen screen = story(1, StoryRoute.HYBRID);
+        // story() has already initialized the screen, which sets the delay.
+        assertFalse(screen.inputDelay.checkFinished());
+        long now = System.currentTimeMillis();
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now);
+        // Space while typing shows the whole line but does not start yet.
+        screen.updateStoryIntro(true, now + 100);
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now + 150);
+        // Space once the line is complete starts the stage with no countdown.
+        screen.updateStoryIntro(true, now + 200);
+        assertFalse(screen.isStoryIntroHolding());
+    }
+
+    @Test
+    void stagesWithoutALineShowTheTitleThenStartAtOnce() {
+        GameScreen screen = story(2, StoryRoute.HYBRID);
+        long now = System.currentTimeMillis();
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now + 500);
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now + 2000);
+        assertFalse(screen.isStoryIntroHolding());
+    }
+
+    @Test
     void onlyStagesThreeAndSevenHaveABoss() throws Exception {
         for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
             Boss boss = boss(story(stage, StoryRoute.HYBRID));

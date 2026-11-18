@@ -910,20 +910,185 @@ public final class DrawManager {
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
     }
 
-    /** Draws the animated pilot portrait with its prompt. */
-    public void drawPortraitPreview(final Screen screen,
-            final double seconds) {
-        int frameW = 300;
-        int frameH = (int) Math.round(frameW * story.PilotPortraitTraced.SRC_H
-                / story.PilotPortraitTraced.SRC_W);
-        int frameX = (screen.getWidth() - frameW) / 2;
-        int frameY = 30;
-        story.PilotPortraitTraced.draw((Graphics2D) backBufferGraphics,
-                frameX, frameY, frameW, frameH, seconds);
+    /** Left edge and width of the pilot portrait slot in story dialogue. */
+    private static final int DIALOGUE_PORTRAIT_X = 5;
+    private static final int DIALOGUE_PORTRAIT_WIDTH = 132;
+    /** Height of the boxes, and their gap below the lower line. */
+    private static final int DIALOGUE_BOX_HEIGHT = 160;
+    private static final int DIALOGUE_BOX_GAP = 19;
+    /** Space kept free below the boxes. */
+    private static final int DIALOGUE_BOTTOM_MARGIN = 30;
+    /** Left edge of the dialogue text box, which ends at the right margin. */
+    private static final int DIALOGUE_TEXT_X = 151;
+    private static final int DIALOGUE_TEXT_PADDING = 10;
 
-        backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, "Space: continue  Esc: back",
-                screen.getHeight() - 30);
+    /**
+     * Splits a text into lines that fit the width. A line is a range of the
+     * text, so a typewriter can reveal the text without the words jumping
+     * from one line to the next.
+     *
+     * @param text
+     *            Text to wrap, a newline always starts a new line.
+     * @param maxWidth
+     *            Width of a line in pixels.
+     * @return Start (inclusive) and end (exclusive) of every line.
+     */
+    private List<int[]> wrapRanges(final String text, final int maxWidth) {
+        List<int[]> ranges = new java.util.ArrayList<int[]>();
+        int start = 0;
+        int length = text.length();
+        while (start <= length) {
+            int end = start;
+            int lastSpace = -1;
+            int next = -1;
+            while (end < length && text.charAt(end) != '\n') {
+                if (text.charAt(end) == ' ')
+                    lastSpace = end;
+                if (fontRegularMetrics.stringWidth(
+                        text.substring(start, end + 1)) > maxWidth
+                        && lastSpace > start) {
+                    end = lastSpace;
+                    next = lastSpace + 1;
+                    break;
+                }
+                end++;
+            }
+            if (next < 0)
+                next = end + 1;
+            ranges.add(new int[] { start, end });
+            start = next;
+        }
+        return ranges;
+    }
+
+    /**
+     * Draws the typed-out lines of a text.
+     *
+     * @param text
+     *            Full text.
+     * @param visibleChars
+     *            Number of characters of the text that are shown.
+     * @param x
+     *            Left edge of the lines.
+     * @param y
+     *            Baseline of the first line.
+     * @param maxWidth
+     *            Width available for a line.
+     */
+    private void drawTypedText(final String text, final int visibleChars,
+            final int x, final int y, final int maxWidth) {
+        backBufferGraphics.setFont(fontRegular);
+        int lineHeight = fontRegularMetrics.getHeight() + 4;
+        int row = 0;
+        for (int[] range : wrapRanges(text, maxWidth)) {
+            int shownEnd = Math.min(range[1], visibleChars);
+            if (shownEnd > range[0])
+                backBufferGraphics.drawString(
+                        text.substring(range[0], shownEnd), x,
+                        y + row * lineHeight);
+            row++;
+        }
+    }
+
+    /**
+     * Draws the story narration typed out on a plain screen.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param text
+     *            Full narration.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole text is shown, which shows the prompt.
+     * @param millis
+     *            Current time, for the blinking prompt.
+     */
+    public void drawStoryNarration(final Screen screen, final String text,
+            final int visibleChars, final boolean done, final long millis) {
+        int x = 30;
+        int width = screen.getWidth() - 2 * x;
+        backBufferGraphics.setColor(Color.GREEN);
+        drawTypedText(text, visibleChars, x, screen.getHeight() / 5, width);
+        drawPrompt(screen, done, millis, screen.getHeight() - 30);
+    }
+
+    /**
+     * Draws the portrait on the lower left and the typed line to its right,
+     * over the game screen.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param speaker
+     *            Name shown above the line.
+     * @param text
+     *            Full line.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole line is shown, which shows the prompt.
+     * @param millis
+     *            Current time, drives the portrait and the prompt.
+     */
+    public void drawStoryDialogue(final Screen screen, final String speaker,
+            final String text, final int visibleChars, final boolean done,
+            final long millis) {
+        // The lines sit at a fraction of the height, so the boxes start just
+        // below the lower one and stay inside the part of the window that
+        // is really visible.
+        int boxY = screen.getHeight() / 2 + screen.getHeight() / 12
+                + DIALOGUE_BOX_GAP;
+        int boxHeight = Math.min(DIALOGUE_BOX_HEIGHT,
+                screen.getHeight() - DIALOGUE_BOTTOM_MARGIN - boxY);
+        int textWidth = screen.getWidth() - DIALOGUE_TEXT_X
+                - DIALOGUE_PORTRAIT_X;
+        // Portrait slot.
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(DIALOGUE_PORTRAIT_X, boxY,
+                DIALOGUE_PORTRAIT_WIDTH, boxHeight);
+        int portraitWidth = (int) Math.round(boxHeight
+                * story.PilotPortraitTraced.SRC_W
+                / story.PilotPortraitTraced.SRC_H);
+        story.PilotPortraitTraced.draw((Graphics2D) backBufferGraphics,
+                DIALOGUE_PORTRAIT_X
+                        + (DIALOGUE_PORTRAIT_WIDTH - portraitWidth) / 2,
+                boxY, portraitWidth, boxHeight,
+                millis / 1000.0);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
+                DIALOGUE_PORTRAIT_WIDTH, boxHeight);
+
+        // Text box.
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(DIALOGUE_TEXT_X, boxY,
+                textWidth, boxHeight);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_TEXT_X, boxY,
+                textWidth, boxHeight);
+        backBufferGraphics.setFont(fontRegular);
+        int textX = DIALOGUE_TEXT_X + DIALOGUE_TEXT_PADDING;
+        backBufferGraphics.drawString(speaker, textX, boxY + 24);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawTypedText(text, visibleChars, textX, boxY + 54,
+                textWidth - 2 * DIALOGUE_TEXT_PADDING);
+
+        if (done && (millis / 500) % 2 == 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            String hint = "SPACE";
+            backBufferGraphics.drawString(hint, DIALOGUE_TEXT_X
+                    + textWidth - DIALOGUE_TEXT_PADDING
+                    - fontRegularMetrics.stringWidth(hint),
+                    boxY + boxHeight - 10);
+        }
+    }
+
+    /** Blinking "press space" prompt shown when the text is complete. */
+    private void drawPrompt(final Screen screen, final boolean show,
+            final long millis, final int y) {
+        if (show && (millis / 500) % 2 == 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            drawCenteredRegularString(screen, "Press SPACE", y);
+        }
     }
 
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {

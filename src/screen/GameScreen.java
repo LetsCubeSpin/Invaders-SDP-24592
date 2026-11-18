@@ -48,7 +48,9 @@ import records.RecordsService;
 import records.Achievement;
 import story.StoryProgress;
 import story.StoryStage;
+import story.StoryScript;
 import story.StoryStageData;
+import story.Typewriter;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
 import event.GameplayEventIds;
@@ -214,6 +216,23 @@ public class GameScreen extends Screen {
     private boolean bonusLife;
     /** Last countdown number that played a sound. */
     private int lastCountdown = -1;
+
+    /** Parts of a story stage start, which replaces the countdown. */
+    private enum StoryIntro { NONE, DIALOGUE, TITLE, GO }
+
+    /** How long the level title shows when a story stage has no line. */
+    private static final int STORY_TITLE_MILLIS = 1500;
+    /** How long "GO!" stays on screen while the stage already runs. */
+    private static final int STORY_GO_MILLIS = 900;
+    /** Typing speed of the pilot's line in characters per second. */
+    private static final double STORY_CHARS_PER_SECOND = 30;
+
+    private StoryIntro storyIntro = StoryIntro.NONE;
+    private Typewriter introTypewriter;
+    private long introStartMillis;
+    private long goStartMillis;
+    /** Starts true so a Space held from the previous screen is ignored. */
+    private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
     private Achievement visibleAchievement;
@@ -508,7 +527,101 @@ public class GameScreen extends Screen {
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
 				? progress.bossForStage(stageNumber) : null;
+		screen.startStoryIntro(stageNumber);
 		return screen;
+	}
+
+	/**
+	 * Replaces the countdown of a story stage. The stage waits while the pilot
+	 * says the stage's line, or for a moment on the level title when there is
+	 * no line, and then starts at once with "GO!".
+	 */
+	private void startStoryIntro(final int stage) {
+		String line = StoryScript.stageIntroLine(stage);
+		if (line != null) {
+			this.storyIntro = StoryIntro.DIALOGUE;
+			this.introTypewriter = new Typewriter(line,
+					STORY_CHARS_PER_SECOND);
+		} else {
+			this.storyIntro = StoryIntro.TITLE;
+		}
+	}
+
+	/**
+	 * Holds the stage, like the countdown does, until the story intro ends.
+	 * It runs after the screen's own input delay is set.
+	 */
+	private void holdForStoryIntro() {
+		if (!isStoryIntroHolding())
+			return;
+		this.inputDelay = Core.getCooldown(Integer.MAX_VALUE);
+		this.inputDelay.reset();
+		this.introStartMillis = System.currentTimeMillis();
+	}
+
+	/**
+	 * Advances the story stage start.
+	 *
+	 * @param spaceDown
+	 *            Whether Space is held down.
+	 * @param now
+	 *            Current time in milliseconds.
+	 */
+	void updateStoryIntro(final boolean spaceDown, final long now) {
+		if (this.storyIntro == StoryIntro.NONE)
+			return;
+		boolean spacePressed = spaceDown && !this.introSpaceWasDown;
+		this.introSpaceWasDown = spaceDown;
+		switch (this.storyIntro) {
+		case DIALOGUE:
+			this.introTypewriter.start(now);
+			if (spacePressed) {
+				if (this.introTypewriter.isDone(now))
+					beginStoryStage(now);
+				else
+					this.introTypewriter.finish();
+			}
+			break;
+		case TITLE:
+			if (now - this.introStartMillis >= STORY_TITLE_MILLIS)
+				beginStoryStage(now);
+			break;
+		case GO:
+			if (now - this.goStartMillis >= STORY_GO_MILLIS)
+				this.storyIntro = StoryIntro.NONE;
+			break;
+		default:
+			break;
+		}
+	}
+
+	/** Starts the stage right away and shows "GO!" for a moment. */
+	private void beginStoryStage(final long now) {
+		this.inputDelay = Core.getCooldown(0);
+		this.storyIntro = StoryIntro.GO;
+		this.goStartMillis = now;
+		AudioManager.playSFX("audio/sfx/countdown_go.wav");
+	}
+
+	/** @return Whether a story stage is still in its dialogue or title part. */
+	boolean isStoryIntroHolding() {
+		return this.storyIntro == StoryIntro.DIALOGUE
+				|| this.storyIntro == StoryIntro.TITLE;
+	}
+
+	private void drawStoryIntro() {
+		long now = System.currentTimeMillis();
+		drawManager.drawCountDown(this, this.level,
+				this.storyIntro == StoryIntro.GO ? 0 : 4, this.bonusLife);
+		drawManager.drawHorizontalLine(this, this.height / 2 - this.height
+				/ 12);
+		drawManager.drawHorizontalLine(this, this.height / 2 + this.height
+				/ 12);
+		if (this.storyIntro == StoryIntro.DIALOGUE)
+			drawManager.drawStoryDialogue(this, StoryScript.PILOT_NAME,
+					this.introTypewriter.getText(),
+					this.introTypewriter.visibleLength(now),
+					this.introTypewriter.isDone(now), now);
 	}
 
 	private EnemyShipFormation createFormation() {
@@ -677,6 +790,7 @@ public class GameScreen extends Screen {
         this.gameStartTime = System.currentTimeMillis();
         this.inputDelay = Core.getCooldown(INPUT_DELAY);
         this.inputDelay.reset();
+        holdForStoryIntro();
 
 		if (this.bonusLife) {
 			AudioManager.playSFX("audio/sfx/bonus_life.wav");
@@ -722,6 +836,8 @@ public class GameScreen extends Screen {
 	 */
 	protected final void update() {
 		super.update();
+		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
+				System.currentTimeMillis());
 		if (this.recordsService != null) {
 			long now = System.currentTimeMillis();
 			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
@@ -1135,8 +1251,10 @@ public class GameScreen extends Screen {
 
         drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
-        // Countdown to game start.
-        if (!this.inputDelay.checkFinished()) {
+        // Countdown to game start, or the story stage start instead.
+        if (this.storyIntro != StoryIntro.NONE) {
+            drawStoryIntro();
+        } else if (!this.inputDelay.checkFinished()) {
 			int countdown = (int) ((INPUT_DELAY
 					- (System.currentTimeMillis()
 					- this.gameStartTime)) / 1000);
