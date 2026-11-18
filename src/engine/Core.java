@@ -267,8 +267,13 @@ public final class Core {
 					break;
 				case 15:
 					// Story mode & score.
-					returnCode = playStory(selectedShip, width, height,
-							new PlaceholderStoryScenes());
+					currentScreen = new screen.PortraitPreviewScreen(width,
+							height, FPS);
+					returnCode = frame.setScreen(currentScreen);
+					if (returnCode != screen.PortraitPreviewScreen.BACK_TO_MENU) {
+						returnCode = playStory(selectedShip, width, height,
+								new PlaceholderStoryScenes());
+					}
 					break;
 			}
 

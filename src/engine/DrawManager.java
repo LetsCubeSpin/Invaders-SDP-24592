@@ -910,6 +910,22 @@ public final class DrawManager {
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
     }
 
+    /** Draws the animated pilot portrait with its prompt. */
+    public void drawPortraitPreview(final Screen screen,
+            final double seconds) {
+        int frameW = 300;
+        int frameH = (int) Math.round(frameW * story.PilotPortraitTraced.SRC_H
+                / story.PilotPortraitTraced.SRC_W);
+        int frameX = (screen.getWidth() - frameW) / 2;
+        int frameY = 30;
+        story.PilotPortraitTraced.draw((Graphics2D) backBufferGraphics,
+                frameX, frameY, frameW, frameH, seconds);
+
+        backBufferGraphics.setColor(Color.GRAY);
+        drawCenteredRegularString(screen, "Space: continue  Esc: back",
+                screen.getHeight() - 30);
+    }
+
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {
         String[] options = SETTINGS_MENU_OPTIONS;
         Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.COLOR, Icon.BACK };
