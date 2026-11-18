@@ -82,11 +82,10 @@ public final class PlayerDamagePathTest {
 	 */
 	private static void checkTimedShieldStopsDamageAndEffects()
 			throws Exception {
-		// Only a shield-capable ship may raise one, so this case has to be
-		// played with the Heavy Tank rather than the default ship.
+		// Only a shield-capable ship may raise one; the Standard ship is.
 		GameScreen game = newGame(ShipType.STANDARD);
 		PlayerStatus status = statusOf(game);
-		check(status.activateShield(), "The Heavy Tank raises a shield");
+		check(status.activateShield(), "The Standard ship raises a shield");
 
 		check(!game.damagePlayer(1, "test"),
 				"A hit is refused while the timed shield is up");
