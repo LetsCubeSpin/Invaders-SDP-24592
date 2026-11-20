@@ -285,6 +285,7 @@ class StoryDebugLauncherTest {
                 }
             }
         }
+        assertEquals(28, initializedStages);
         System.out.println("PASS: " + initializedStages + " actual Story initializations, all non-boss waves, isolated restart.");
         AudioManager.stopBGM();
     }
@@ -315,6 +316,7 @@ class StoryDebugLauncherTest {
                 }
             }
         }
+        assertEquals(28, comparisons);
         // Parity is distinct from satisfying weaponForStage/givesGrenadesOnStage; those integrations remain pending.
         System.out.println("PASS: " + comparisons + " Debug/normal Story starting-equipment comparisons.");
         AudioManager.stopBGM();
