@@ -16,7 +16,6 @@ import engine.DifficultyAdjustWhilePlaying;
 import entity.item.ItemManager;
 import entity.item.ShieldItem;
 import engine.Cooldown;
-import engine.CampaignUpgrades;
 import engine.Core;
 import engine.GameSettings;
 import engine.GameState;
@@ -161,7 +160,6 @@ public class GameScreen extends Screen {
 
 	/** Player ship type selected before the stage started. */
 	private ShipType shipType;
-	private final CampaignUpgrades campaignUpgrades;
     /** Current game difficulty settings. */
     private GameSettings gameSettings;
 	/** Settings of every wave in this stage, in play order. */
@@ -392,49 +390,26 @@ public class GameScreen extends Screen {
 					  final List<GameSettings> waves, final boolean bonusLife,
 					  final int width, final int height, final int fps,
 					  final ShipType shipType, final RunSession runSession) {
-        this(gameState, waves, bonusLife, width, height, fps, shipType, runSession,
-                CampaignUpgrades.none());
-    }
-
-    public GameScreen(final GameState gameState, final GameSettings gameSettings,
-            final boolean bonusLife, final int width, final int height, final int fps,
-            final ShipType shipType, final RunSession runSession,
-            final CampaignUpgrades campaignUpgrades) {
-        this(gameState, Collections.singletonList(gameSettings), bonusLife,
-                width, height, fps, shipType, runSession, campaignUpgrades);
+        this(gameState, waves, bonusLife, width, height, fps, shipType, runSession, 1);
     }
 
     /* add player count */
     public GameScreen(final GameState gameState, final GameSettings gameSettings,
             final boolean bonusLife, final int width, final int height, final int fps,
             final ShipType shipType, final RunSession runSession,
-            final CampaignUpgrades campaignUpgrades, final int playerCount) {
+            final int playerCount) {
         this(gameState, Collections.singletonList(gameSettings), bonusLife,
-                width, height, fps, shipType, runSession, campaignUpgrades,
-                playerCount);
+                width, height, fps, shipType, runSession, playerCount);
     }
-
-    /** Campaign-only entry point; legacy and custom-level constructors keep base stats. */
-    public GameScreen(final GameState gameState, final List<GameSettings> waves,
-            final boolean bonusLife, final int width, final int height, final int fps,
-            final ShipType shipType, final RunSession runSession,
-            final CampaignUpgrades campaignUpgrades) {
-		this(gameState, waves, bonusLife, width, height, fps, shipType,
-				runSession, campaignUpgrades, 1);
-	}
 
     /** Campaign stage entry point with the selected player count. */
     public GameScreen(final GameState gameState, final List<GameSettings> waves,
             final boolean bonusLife, final int width, final int height, final int fps,
             final ShipType shipType, final RunSession runSession,
-            final CampaignUpgrades campaignUpgrades, final int playerCount) {
+            final int playerCount) {
         super(width, height, fps);
-        if (campaignUpgrades == null) {
-            throw new IllegalArgumentException("Campaign upgrades cannot be null.");
-        }
 		if (playerCount != 1 && playerCount != 2)
 			throw new IllegalArgumentException("Player count must be 1 or 2.");
-        this.campaignUpgrades = campaignUpgrades;
 		this.playerCount = playerCount;
 
 		this.runSession = runSession;
@@ -460,7 +435,7 @@ public class GameScreen extends Screen {
         this.difficulty = GameplayConfig.getDifficulty();
         this.score = gameState.getScore();
 		int maxLives = this.playerCount == 2 ? 1
-				: this.campaignUpgrades.getMaxLives(this.shipType);
+				: this.shipType.getMaxLives();
 		int initialLives = this.playerCount == 2 ? 1
 				: Math.min(gameState.getLivesRemaining(), maxLives);
 		this.playerStatus = new PlayerStatus(initialLives, maxLives,
@@ -509,8 +484,6 @@ public class GameScreen extends Screen {
 	 *            Ship picked by the player.
 	 * @param runSession
 	 *            Records session of this run.
-	 * @param campaignUpgrades
-	 *            Permanent upgrades of the player.
 	 * @return Screen of the story stage.
 	 */
 	public static GameScreen forStoryStage(final GameState gameState,
@@ -518,8 +491,7 @@ public class GameScreen extends Screen {
 			final UnaryOperator<GameSettings> difficulty,
 			final boolean bonusLife, final int width, final int height,
 			final int fps, final ShipType shipType,
-			final RunSession runSession,
-			final CampaignUpgrades campaignUpgrades) {
+			final RunSession runSession) {
 		if (difficulty == null)
 			throw new IllegalArgumentException("difficulty must not be null.");
 		int stageNumber = gameState.getLevel();
@@ -531,7 +503,7 @@ public class GameScreen extends Screen {
 
 		GameScreen screen = new GameScreen(gameState,
 				Collections.nCopies(stage.getWaveCount(), settings), bonusLife,
-				width, height, fps, shipType, runSession, campaignUpgrades);
+				width, height, fps, shipType, runSession);
 		screen.customWaves = storyWaves;
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
@@ -564,7 +536,6 @@ public class GameScreen extends Screen {
 		if (this.playerCount == 2)
 			positionX += index == 0 ? -20 : 20;
 		Ship playerShip = new Ship(positionX, this.height - 30, this.shipType);
-		this.campaignUpgrades.initializeShip(playerShip);
 		playerShip.setBaseColor(ShipCustomization.getColor());
 		if (this.storyStage != null)
 			playerShip.setBulletType(BulletType.NORMAL);
@@ -1146,11 +1117,6 @@ public class GameScreen extends Screen {
 		drawManager.drawScore(this, this.score);
 		drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
 		drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
-		try { // Includes rewards awaiting settlement; read every frame.
-			drawManager.drawCredits(this, Core.getAssetHudSnapshot().getCredits());
-		} catch (IllegalStateException e) {
-			// Assets are not initialized (e.g. screen-only tests): skip credits.
-		}
 
 		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
 

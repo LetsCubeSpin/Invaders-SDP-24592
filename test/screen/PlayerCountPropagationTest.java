@@ -1,6 +1,5 @@
 package screen;
 
-import engine.CampaignUpgrades;
 import engine.GameSettings;
 import engine.GameState;
 import entity.ShipType;
@@ -19,16 +18,16 @@ class PlayerCountPropagationTest {
 
         GameScreen onePlayer = new GameScreen(state,
                 Collections.singletonList(settings), false, 448, 520, 60,
-                ShipType.STANDARD, null, CampaignUpgrades.none());
+                ShipType.STANDARD, null);
         GameScreen twoPlayers = new GameScreen(state,
                 Collections.singletonList(settings), false, 448, 520, 60,
-                ShipType.STANDARD, null, CampaignUpgrades.none(), 2);
+                ShipType.STANDARD, null, 2);
 
         assertEquals(1, onePlayer.getPlayerCount());
         assertEquals(2, twoPlayers.getPlayerCount());
         assertThrows(IllegalArgumentException.class, () -> new GameScreen(state,
                 Collections.singletonList(settings), false, 448, 520, 60,
-                ShipType.STANDARD, null, CampaignUpgrades.none(), 3));
+                ShipType.STANDARD, null, 3));
     }
 
     @Test

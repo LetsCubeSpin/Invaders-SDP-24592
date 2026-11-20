@@ -1,7 +1,6 @@
 package screen;
 
 import audio.AudioManager;
-import engine.CampaignUpgrades;
 import engine.GameSettings;
 import engine.GameState;
 import entity.Ship;
@@ -67,7 +66,7 @@ class GameScreenTargetSelectionTest {
         GameScreen game = new GameScreen(new GameState(3, 0, 3, 0, 0),
                 new GameSettings(3, 5, 1, 100000), false, 448, 520, 60,
                 ShipType.STANDARD, new RunSession("target-selection"),
-                CampaignUpgrades.none(), 2);
+                2);
         game.initialize();
         return game;
     }

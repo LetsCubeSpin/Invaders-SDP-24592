@@ -122,7 +122,7 @@ class CustomLevelGameScreenTest {
         records.RunSession session = new records.RunSession("restored-stage");
         GameScreen screen = new GameScreen(new GameState(3, 0, 3, 0, 0),
                 new engine.GameSettings(1, 1, 60, 2000), false,
-                448, 520, 60, ShipType.TANK, session);
+                448, 520, 60, ShipType.STANDARD, session);
         audio.AudioManager.setMuted(true);
         screen.initialize();
         for (EnemyShip enemy : formation(screen)) formation(screen).destroy(enemy);
@@ -130,8 +130,8 @@ class CustomLevelGameScreenTest {
 
         screen.advanceStageIfReady();
         assertFalse(screen.isStageCleared());
-        assertEquals(ShipType.TANK, ((Ship) get(screen, "ship")).getShipType());
-        assertEquals(ShipType.TANK.getMaxLives(),
+        assertEquals(ShipType.STANDARD, ((Ship) get(screen, "ship")).getShipType());
+        assertEquals(ShipType.STANDARD.getMaxLives(),
                 ((PlayerStatus) get(screen, "playerStatus")).getMaxLives());
 
         boss.BossManager manager = (boss.BossManager) get(screen, "bossManager");

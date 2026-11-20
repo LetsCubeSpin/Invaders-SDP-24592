@@ -40,8 +40,8 @@ if [ "$selections" -ne 0 ]; then
     ship=$(printf '%s' "$ship" | LC_ALL=C tr '[:lower:]' '[:upper:]')
     case "$route" in HYBRID|HUMAN_VICTORY|HOMECOMING|TRUCE) ;; *) fail 'Invalid route.' ;; esac
     case "$stage" in [1-7]) ;; *) fail 'Stage must be an integer from 1 to 7.' ;; esac
-    case "$difficulty" in EASY|NORMAL|HARD) ;; *) fail 'Invalid difficulty.' ;; esac
-    case "$ship" in STANDARD|SPEEDSTER|TANK) ;; *) fail 'Invalid ship.' ;; esac
+    case "$difficulty" in EASY) ;; *) fail 'Invalid difficulty.' ;; esac
+    case "$ship" in STANDARD) ;; *) fail 'Invalid ship.' ;; esac
 fi
 
 # Prefix relative paths before cd so a name beginning with '-' is never an option.

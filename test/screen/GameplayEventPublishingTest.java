@@ -92,7 +92,7 @@ class GameplayEventPublishingTest {
 
     @Test
     void campaignHitsNameTheirSourceAndShieldedHitsAreSkipped() throws Exception {
-        GameScreen game = campaign(1, ShipType.TANK, "hits");
+        GameScreen game = campaign(1, ShipType.STANDARD, "hits");
         Seen<PlayerHitEvent> hits = watch(game.getGameplayEvents(), PlayerHitEvent.class);
         Ship ship = (Ship) get(game, "ship");
 
@@ -152,7 +152,7 @@ class GameplayEventPublishingTest {
 
     @Test
     void campaignGrenadeLaunchAndShieldPickupAreItemUses() throws Exception {
-        GameScreen game = campaign(1, ShipType.TANK, "items");
+        GameScreen game = campaign(1, ShipType.STANDARD, "items");
         Seen<ItemUsedEvent> uses = watch(game.getGameplayEvents(), ItemUsedEvent.class);
         Ship ship = (Ship) get(game, "ship");
         set(game, "inputDelay", Core.getCooldown(0));
@@ -171,20 +171,6 @@ class GameplayEventPublishingTest {
 
         assertEquals(2, uses.size());
         assertSame(UsedItemType.ENERGY_SHIELD, uses.get(1).getItemType());
-    }
-
-    @Test
-    void aShieldCaughtByAShipThatCannotHoldItIsNotUsed() throws Exception {
-        GameScreen game = campaign(1, ShipType.STANDARD, "no-shield");
-        Seen<ItemUsedEvent> uses = watch(game.getGameplayEvents(), ItemUsedEvent.class);
-        Ship ship = (Ship) get(game, "ship");
-        set(game, "inputDelay", Core.getCooldown(0));
-
-        ItemManager items = (ItemManager) get(game, "itemManager");
-        items.spawnItem(new ShieldItem(ship.getPositionX(), ship.getPositionY()));
-        game.update();
-
-        assertEquals(0, uses.size());
     }
 
     @Test
@@ -335,7 +321,7 @@ class GameplayEventPublishingTest {
 
     @Test
     void campaignItemIdsAreGroupedByItem() throws Exception {
-        GameScreen game = campaign(1, ShipType.TANK, "item-ids");
+        GameScreen game = campaign(1, ShipType.STANDARD, "item-ids");
         Seen<ItemUsedEvent> uses = watch(game.getGameplayEvents(), ItemUsedEvent.class);
         Ship ship = (Ship) get(game, "ship");
         set(game, "inputDelay", Core.getCooldown(0));

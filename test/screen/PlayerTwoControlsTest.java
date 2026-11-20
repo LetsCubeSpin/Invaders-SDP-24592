@@ -1,6 +1,5 @@
 package screen;
 
-import engine.CampaignUpgrades;
 import engine.GameSettings;
 import engine.GameState;
 import entity.Grenade;
@@ -25,7 +24,7 @@ class PlayerTwoControlsTest {
         GameScreen game = new GameScreen(new GameState(1, 0, 3, 0, 0),
                 Collections.singletonList(new GameSettings(1, 1, 60, 2000)),
                 false, 448, 520, 60, ShipType.STANDARD, null,
-                CampaignUpgrades.none(), 2);
+                2);
         game.initialize();
 
         Ship secondPlayer = game.getPlayerShip(1);

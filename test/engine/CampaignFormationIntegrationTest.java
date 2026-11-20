@@ -44,9 +44,7 @@ class CampaignFormationIntegrationTest {
                 "Update the placement fixtures when the campaign stage count changes");
         // Keep these multipliers in sync with GameplayConfig without accessing preferences.
         return Stream.of(stages).flatMap(stage -> Stream.of(
-                placementCase(stage[0], stage[1], stage[2], stage[3], stage[4], "Easy", 1.25),
-                placementCase(stage[0], stage[1], stage[2], stage[3], stage[4], "Normal", 1.0),
-                placementCase(stage[0], stage[1], stage[2], stage[3], stage[4], "Hard", 0.8)));
+                placementCase(stage[0], stage[1], stage[2], stage[3], stage[4], "Easy", 1.25)));
     }
 
     private DynamicTest placementCase(int stage, int columns, int rows,

@@ -8,7 +8,7 @@ import engine.GameState;
 import entity.Ship;
 
 /**
- * Standalone checks that the colour chosen in the hangar reaches the ship a
+ * Standalone checks that the colour chosen in the settings reaches the ship a
  * campaign stage plays with, and survives a frame of updates.
  *
  * <p>The call that applied it was lost in a merge once already, and a plain
@@ -43,7 +43,7 @@ public final class ShipCustomizationAppliedTest {
 		Ship ship = shipOfAStage();
 
 		check(ship.getColor().equals(chosen), "The ship plays in the colour"
-				+ " chosen in the hangar (chose " + chosen + ", got "
+				+ " chosen in the settings (chose " + chosen + ", got "
 				+ ship.getColor() + ")");
 	}
 
@@ -62,7 +62,7 @@ public final class ShipCustomizationAppliedTest {
 	 * Picks a colour that is not the one a ship would show anyway, so that
 	 * the checks cannot pass on the default.
 	 *
-	 * @return The colour now selected in the hangar.
+	 * @return The colour now selected in the settings.
 	 */
 	private static Color selectColourOtherThanTheDefault() {
 		for (int step = 0; step < 16; step++) {
@@ -70,7 +70,7 @@ public final class ShipCustomizationAppliedTest {
 				return ShipCustomization.getColor();
 			ShipCustomization.changeColor(1);
 		}
-		throw new AssertionError("The hangar offers no colour other than "
+		throw new AssertionError("The settings offer no colour other than "
 				+ DEFAULT_COLOR);
 	}
 

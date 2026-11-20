@@ -8,8 +8,11 @@ import engine.Core;
 import engine.Cooldown;
 import entity.Ship;
 
-/** Lets the player customize the ship's color. */
-public class HangarScreen extends Screen {
+/** Lets the player customize the ship's color, from the Settings menu. */
+public class ShipColorScreen extends Screen {
+
+    /** Return code that opens the Settings menu. */
+    public static final int RETURN_TO_SETTINGS = 4;
 
     private static final int SELECTION_TIME = 200;
     private static final int COLOR_ADJUSTMENT_TIME = 25;
@@ -23,10 +26,10 @@ public class HangarScreen extends Screen {
     private boolean wasMousePressed = true;
     private boolean wasConfirmPressed = true;
 
-    public HangarScreen(final int width, final int height, final int fps) {
+    public ShipColorScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
 
-        this.returnCode = 1;
+        this.returnCode = RETURN_TO_SETTINGS;
         this.selectionCooldown = Core.getCooldown(SELECTION_TIME);
         this.selectionCooldown.reset();
         this.previewShip = new Ship(width / 2 - 13, height / 2 - 8);
@@ -50,7 +53,7 @@ public class HangarScreen extends Screen {
                 ? COLOR_ADJUSTMENT_TIME : SELECTION_TIME);
 
         if (acceptsInput && this.inputManager.isBackDown()) {
-            this.returnCode = 1;
+            this.returnCode = RETURN_TO_SETTINGS;
             this.isRunning = false;
             AudioManager.playSFX("audio/sfx/menu_back.wav");
         } else if (acceptsInput && ShipCustomization.isCustomColor()
@@ -116,7 +119,7 @@ public class HangarScreen extends Screen {
     private void draw() {
         this.drawManager.initDrawing(this);
         this.previewShip.setColor(ShipCustomization.getColor());
-        this.drawManager.drawHangarColorSelection(this, this.previewShip,
+        this.drawManager.drawShipColorSelection(this, this.previewShip,
                 getColorBarBounds(), this.editingCustomColor);
 
         this.drawManager.completeDrawing(this);

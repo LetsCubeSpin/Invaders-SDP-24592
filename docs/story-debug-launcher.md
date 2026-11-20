@@ -4,7 +4,7 @@ Windows의 **PowerShell 7 (`pwsh`)**에서 2차 프로젝트 루트로 이동한
 
 ```powershell
 pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17'
-pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17' -Route TRUCE -Stage 7 -Difficulty HARD -Ship SPEEDSTER
+pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\Java\jdk-17' -Route TRUCE -Stage 7 -Difficulty EASY -Ship STANDARD
 ```
 
 첫 명령은 선택 창을 연다. Tab과 Shift+Tab으로 항목을 이동하고 방향키로 값을 고른다. 미리보기에서 현재 데이터의 보스, 웨이브 수, 스토리가 요구하는 장비를 확인한 뒤 **Start stage** 버튼에서 Space를 누른다. Cancel 또는 Esc로 취소한다. 네 인수를 모두 지정하면 같은 설정을 선택 창 없이 바로 재현할 수 있다. 실행 중에는 좌우 방향키로 이동하고 Space로 발사한다. G는 보유한 수류탄을 쓴다. 창을 닫거나 한 스테이지를 클리어하거나 패배하면 디버그 실행이 끝난다.
@@ -15,8 +15,8 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -JdkRoot 'C:\Program Files\J
 | --- | --- |
 | 루트 | HYBRID (1.1.1), HUMAN_VICTORY (1.1.2), HOMECOMING (1.2.1), TRUCE (1.2.2) |
 | 스테이지 | 1~7. 3과 7은 해당 보스 및 본래 스토리 적 편성과 함께 시작 |
-| 난이도 | EASY, NORMAL, HARD |
-| 기체 | STANDARD, SPEEDSTER, TANK. 영구 업그레이드 없이 기체 기본 최대 생명으로 시작 |
+| 난이도 | EASY (현재 유일한 난이도) |
+| 기체 | STANDARD (현재 유일한 기체). 기체 기본 최대 생명으로 시작 |
 
 ## 시작 상태와 현재 장비 제한
 
@@ -57,7 +57,7 @@ POSIX `sh`와 JDK 17 이상으로 실행한다. Gradle이나 추가 라이브러
 
 ```sh
 sh ./scripts/run-story-debug.sh
-sh ./scripts/run-story-debug.sh --route TRUCE --stage 7 --difficulty HARD --ship SPEEDSTER
+sh ./scripts/run-story-debug.sh --route TRUCE --stage 7 --difficulty EASY --ship STANDARD
 sh ./scripts/run-story-debug.sh --jdk-root '/path with spaces/to/jdk-17'
 ```
 

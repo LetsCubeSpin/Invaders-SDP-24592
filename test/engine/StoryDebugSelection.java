@@ -12,7 +12,7 @@ import story.StoryStageData;
 /** One developer-selected stage. Each attempt reconstructs its own story progress. */
 record StoryDebugSelection(StoryRoute route, int stage, Difficulty difficulty, ShipType ship) {
     enum Difficulty {
-        EASY(GameplayConfig.EASY), NORMAL(GameplayConfig.NORMAL), HARD(GameplayConfig.HARD);
+        EASY(GameplayConfig.EASY);
 
         final int setting;
 

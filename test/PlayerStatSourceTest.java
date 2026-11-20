@@ -114,11 +114,10 @@ public final class PlayerStatSourceTest {
 	}
 
 	private static void checkShipTypesAndLives() throws Exception {
-		ShipType[] types = { ShipType.STANDARD, ShipType.SPEEDSTER,
-				ShipType.TANK };
-		int[] speeds = { 2, 4, 1 };
-		int[] intervals = { 750, 400, 1000 };
-		int[] maxLives = { 4, 3, 5 };
+		ShipType[] types = { ShipType.STANDARD };
+		int[] speeds = { 2 };
+		int[] intervals = { 750 };
+		int[] maxLives = { 4 };
 		for (int i = 0; i < types.length; i++) {
 			Ship ship = new Ship(100, 100, types[i]);
 			check(ship.getShipType() == types[i],
@@ -147,16 +146,18 @@ public final class PlayerStatSourceTest {
 
 	private static void checkBulletPatterns() throws Exception {
 		Set<Bullet> tankBullets = new HashSet<Bullet>();
-		Ship tank = new Ship(100, 100, ShipType.TANK);
-		check(tank.getShipType().getBulletType() == BulletType.MULTI,
+		Ship tank = new Ship(100, 100, ShipType.STANDARD);
+		tank.setBulletType(BulletType.MULTI);
+		check(tank.getCurrentBulletType() == BulletType.MULTI,
 				"Tank selects multi-shot ammunition");
 		int multiCount = tank.shoot(tankBullets);
 		check(multiCount == 3 && tankBullets.size() == 3,
 				"Multi-shot returns and creates three bullets");
 
 		Set<Bullet> rapidBullets = new HashSet<Bullet>();
-		Ship speedster = new Ship(100, 100, ShipType.SPEEDSTER);
-		check(speedster.getShipType().getBulletType() == BulletType.RAPID,
+		Ship speedster = new Ship(100, 100, ShipType.STANDARD);
+		speedster.setBulletType(BulletType.RAPID);
+		check(speedster.getCurrentBulletType() == BulletType.RAPID,
 				"Speedster selects rapid ammunition");
 		int rapidCount = speedster.shoot(rapidBullets);
 		check(rapidCount == 1 && rapidBullets.size() == rapidCount,

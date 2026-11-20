@@ -79,8 +79,8 @@ run_case() {
 }
 run_case 'picker, JAVA_HOME, success cleanup' 0
 [ "$(wc -l < "$logs/java.args" | tr -d ' ')" = 8 ] || die 'picker received selection arguments'
-run_case 'four selections and explicit JDK' 0 --jdk-root "$jdk" --route truce --stage 7 --difficulty hard --ship speedster
-printf 'TRUCE\n7\nHARD\nSPEEDSTER\n' > "$logs/expected"
+run_case 'four selections and explicit JDK' 0 --jdk-root "$jdk" --route truce --stage 7 --difficulty easy --ship standard
+printf 'TRUCE\n7\nEASY\nSTANDARD\n' > "$logs/expected"
 tail -n 4 "$logs/java.args" > "$logs/selection"
 cmp "$logs/expected" "$logs/selection" || die 'selection argument boundaries changed'
 grep -Fx 'src:test' "$logs/compiler.args" >/dev/null || die 'wrong Unix source path'
@@ -90,11 +90,11 @@ run_case 'missing option value' 2 --jdk-root
 run_case 'empty selection value' 2 --route ''
 run_case 'unknown flag' 2 --unsupported
 run_case 'duplicate selection' 2 --route TRUCE --route TRUCE
-run_case 'invalid route' 2 --route 'TRUCE; touch injected' --stage 7 --difficulty HARD --ship TANK
-run_case 'invalid difficulty' 2 --route TRUCE --stage 7 --difficulty IMPOSSIBLE --ship TANK
-run_case 'invalid ship' 2 --route TRUCE --stage 7 --difficulty HARD --ship UNKNOWN
+run_case 'invalid route' 2 --route 'TRUCE; touch injected' --stage 7 --difficulty EASY --ship STANDARD
+run_case 'invalid difficulty' 2 --route TRUCE --stage 7 --difficulty IMPOSSIBLE --ship STANDARD
+run_case 'invalid ship' 2 --route TRUCE --stage 7 --difficulty EASY --ship UNKNOWN
 for stage in 0 8 3.5 -1 '1; exit 0'; do
-    run_case "invalid stage $stage" 2 --route TRUCE --stage "$stage" --difficulty HARD --ship TANK
+    run_case "invalid stage $stage" 2 --route TRUCE --stage "$stage" --difficulty EASY --ship STANDARD
 done
 run_case 'missing JDK' 2 --jdk-root "$work/missing JDK"
 mkdir -p "$work/compiler only/bin"
@@ -132,9 +132,9 @@ JAVA_HOME=$original_java_home
 export JAVA_TOOL_OPTIONS='-Djava.awt.headless=true'
 unset JDK_JAVAC_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS
 launcher=$project/scripts/run-story-debug.sh
-run_case 'real JDK direct mode fails headlessly and cleans' 1 --route TRUCE --stage 7 --difficulty HARD --ship SPEEDSTER
+run_case 'real JDK direct mode fails headlessly and cleans' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD
 grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'runtime failed before the GUI boundary'
-grep -F 'Route TRUCE   |   Stage 7   |   HARD   |   SPEEDSTER' "$logs/output" >/dev/null || die 'shared Java selection did not run'
+grep -F 'Route TRUCE   |   Stage 7   |   EASY   |   STANDARD' "$logs/output" >/dev/null || die 'shared Java selection did not run'
 run_case 'real JDK picker fails headlessly and cleans' 1
 grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'picker did not reach the GUI boundary'
 launcher=$project/scripts/run-story-debug.sh

@@ -228,7 +228,7 @@ public final class FallingObstacleIntegrationTest {
 	}
 
 	private static void checkBothShieldsBlockSlow() throws Exception {
-		GameScreen timedShieldGame = newGame(ShipType.TANK);
+		GameScreen timedShieldGame = newGame(ShipType.STANDARD);
 		makeReady(timedShieldGame, "inputDelay");
 		PlayerStatus timedShieldStatus = timedShieldGame.getPlayerStatus();
 		int timedShieldLives = timedShieldStatus.getLives();
@@ -242,7 +242,7 @@ public final class FallingObstacleIntegrationTest {
 				&& timedShieldStatus.getLives() == timedShieldLives,
 				"PlayerStatus shield consumes the obstacle without a penalty");
 
-		GameScreen itemShieldGame = newGame(ShipType.TANK);
+		GameScreen itemShieldGame = newGame(ShipType.STANDARD);
 		makeReady(itemShieldGame, "inputDelay");
 		Ship shieldedShip = ship(itemShieldGame);
 		int itemShieldLives = itemShieldGame.getPlayerStatus().getLives();
@@ -259,7 +259,7 @@ public final class FallingObstacleIntegrationTest {
 
 	private static void checkEnergyShieldClearsActiveSlowExactlyOnce()
 			throws Exception {
-		GameScreen game = newGame(ShipType.TANK);
+		GameScreen game = newGame(ShipType.STANDARD);
 		makeReady(game, "inputDelay");
 		triggerObstacleSlow(game);
 		Ship ship = ship(game);
@@ -348,7 +348,7 @@ public final class FallingObstacleIntegrationTest {
 	/** The hazard must not cover opaque ship pixels or the shield outline. */
 	private static void checkObstacleRendersBehindShipAndShield()
 			throws Exception {
-		GameScreen game = newGame(ShipType.TANK);
+		GameScreen game = newGame(ShipType.STANDARD);
 		Ship ship = ship(game);
 		ship.setPositionX(150);
 		ship.setPositionY(220);
@@ -492,16 +492,6 @@ public final class FallingObstacleIntegrationTest {
 	private static void checkShipMovementTypes()
 			throws Exception {
 		checkOneMovement(ShipType.STANDARD, 1);
-		checkOneMovement(ShipType.SPEEDSTER, 2);
-		checkOneMovement(ShipType.TANK, 0);
-		GameScreen tankGame = newGame(ShipType.TANK);
-		triggerObstacleSlow(tankGame);
-		Ship tank = ship(tankGame);
-		int originalX = tank.getPositionX();
-		tank.moveRight();
-		tank.moveRight();
-		check(tank.getPositionX() == originalX + 1,
-				"TANK accumulates its fractional half-speed movement");
 	}
 
 	private static void checkOneMovement(final ShipType type,

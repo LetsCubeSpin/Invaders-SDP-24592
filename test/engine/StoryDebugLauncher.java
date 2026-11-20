@@ -63,11 +63,10 @@ public final class StoryDebugLauncher {
 
     static GameScreen createScreen(StoryDebugSelection choice, int width, int height) {
         requireDebugSession();
-        GameplayConfig.setDifficulty(choice.difficulty().setting);
         GameState state = new GameState(choice.stage(), 0, choice.ship().getMaxLives(), 0, 0);
         return GameScreen.forStoryStage(state, choice.progress(),
                 settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
-                false, width, height, 60, choice.ship(), null, CampaignUpgrades.none());
+                false, width, height, 60, choice.ship(), null);
     }
 
     private static StoryDebugSelection choose() {
@@ -79,7 +78,7 @@ public final class StoryDebugLauncher {
         JComboBox<Integer> stage = addField(fields, "Stage", stages);
         JComboBox<StoryDebugSelection.Difficulty> difficulty = addField(fields, "Difficulty",
                 StoryDebugSelection.Difficulty.values());
-        difficulty.setSelectedItem(StoryDebugSelection.Difficulty.NORMAL);
+        difficulty.setSelectedItem(StoryDebugSelection.Difficulty.EASY);
         JComboBox<ShipType> ship = addField(fields, "Ship", ShipType.values());
         ship.setSelectedItem(ShipType.STANDARD);
 

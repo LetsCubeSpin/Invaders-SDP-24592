@@ -33,9 +33,8 @@ public final class PlayerStatusExtraLifeTest {
 	}
 
 	private static void checkShipLifeLimits() throws Exception {
-		ShipType[] shipTypes = { ShipType.STANDARD, ShipType.SPEEDSTER,
-				ShipType.TANK };
-		int[] expectedMaxLives = { 4, 3, 5 };
+		ShipType[] shipTypes = { ShipType.STANDARD };
+		int[] expectedMaxLives = { 4 };
 		for (int i = 0; i < shipTypes.length; i++) {
 			GameScreen screen = createGameScreen(
 					new GameState(1, 0, 3, 0, 0), false, shipTypes[i]);
@@ -57,22 +56,6 @@ public final class PlayerStatusExtraLifeTest {
 				"STANDARD gains one life from 3/4 to 4/4");
 		check(!standard.gainLife() && standard.getLives() == 4,
 				"STANDARD cannot exceed 4/4");
-
-		PlayerStatus speedster = new PlayerStatus(1,
-				ShipType.SPEEDSTER.getMaxLives());
-		check(speedster.gainLife() && speedster.getLives() == 2,
-				"SPEEDSTER gains a life up to 2/3");
-		check(speedster.gainLife() && speedster.getLives() == 3,
-				"SPEEDSTER gains a life up to 3/3");
-		check(!speedster.gainLife() && speedster.getLives() == 3,
-				"SPEEDSTER cannot exceed 3/3");
-
-		PlayerStatus tank = new PlayerStatus(1, ShipType.TANK.getMaxLives());
-		for (int expectedLives = 2; expectedLives <= 5; expectedLives++)
-			check(tank.gainLife() && tank.getLives() == expectedLives,
-					"TANK gains lives up to 5/5");
-		check(!tank.gainLife() && tank.getLives() == 5,
-				"TANK cannot exceed 5/5");
 	}
 
 	private static void checkBonusLifeAndLevelPersistence() {
@@ -95,11 +78,6 @@ public final class PlayerStatusExtraLifeTest {
 				new GameState(3, 0, 4, 0, 0), true, ShipType.STANDARD);
 		check(fullLives.getGameState().getLivesRemaining() == 4,
 				"Bonus life at the maximum does not exceed the cap");
-
-		GameScreen speedsterBonus = createGameScreen(
-				new GameState(3, 0, 1, 0, 0), true, ShipType.SPEEDSTER);
-		check(speedsterBonus.getGameState().getLivesRemaining() == 2,
-				"Existing bonus respects SPEEDSTER maxLives");
 	}
 
 	private static void checkDamageAndNoRevival() {
