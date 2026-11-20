@@ -2,6 +2,7 @@ package engine;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +14,9 @@ import java.util.regex.Pattern;
 
 /** Owns one battle process and its temporary working, home, storage and temp directory. */
 final class StoryDebugSession implements AutoCloseable {
+    private static final int WINDOWS_DELETE_RETRIES = 20;
+    private static final int DELETE_RETRY_MILLIS = 50;
+
     private final Path directory;
     private final Thread shutdown;
     private Process process;
@@ -84,23 +88,40 @@ final class StoryDebugSession implements AutoCloseable {
                     catch (InterruptedException interruption) { interrupted = true; }
                 }
             }
-            // No FOLLOW_LINKS: a link inside the session must never delete its target.
-            Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
-                @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                    Files.delete(file);
-                    return FileVisitResult.CONTINUE;
+            for (int retries = 0; ; retries++) {
+                try {
+                    deleteStageDirectory();
+                    break;
+                } catch (FileSystemException failure) {
+                    // Windows reports a sharing violation as a plain FileSystemException
+                    // with localized text. Typed errors such as a missing path propagate.
+                    if (File.separatorChar != '\\' || failure.getClass() != FileSystemException.class
+                            || retries == WINDOWS_DELETE_RETRIES) throw failure;
+                    try { Thread.sleep(DELETE_RETRY_MILLIS); }
+                    catch (InterruptedException interruption) { interrupted = true; }
                 }
-                @Override public FileVisitResult postVisitDirectory(Path dir, IOException failure) throws IOException {
-                    if (failure != null) throw failure;
-                    Files.delete(dir);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+            }
             closed = true;
-        } finally {
+            // If cleanup failed, the registered hook can still retry at supervisor exit.
             try { Runtime.getRuntime().removeShutdownHook(shutdown); }
             catch (IllegalStateException shuttingDown) { /* This hook is already executing. */ }
+        } finally {
             if (interrupted) Thread.currentThread().interrupt();
         }
+    }
+
+    private void deleteStageDirectory() throws IOException {
+        // Start each attempt at this session's own root. Never follow links inside it.
+        Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
+            @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+            @Override public FileVisitResult postVisitDirectory(Path dir, IOException failure) throws IOException {
+                if (failure != null) throw failure;
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

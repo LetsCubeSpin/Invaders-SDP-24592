@@ -94,6 +94,14 @@ run_case 'duplicate selection' 2 --route TRUCE --route TRUCE
 run_case 'invalid route' 2 --route 'TRUCE; touch injected' --stage 7 --difficulty EASY --ship STANDARD
 run_case 'invalid difficulty' 2 --route TRUCE --stage 7 --difficulty IMPOSSIBLE --ship STANDARD
 run_case 'invalid ship' 2 --route TRUCE --stage 7 --difficulty EASY --ship UNKNOWN
+for difficulty in NORMAL HARD; do
+    run_case "retired difficulty $difficulty" 2 --route TRUCE --stage 7 --difficulty "$difficulty" --ship STANDARD
+    grep -Fx 'Difficulty must be EASY.' "$logs/output" >/dev/null || die 'missing supported difficulty'
+done
+for ship in SPEEDSTER TANK; do
+    run_case "retired ship $ship" 2 --route TRUCE --stage 7 --difficulty EASY --ship "$ship"
+    grep -Fx 'Ship must be STANDARD.' "$logs/output" >/dev/null || die 'missing supported ship'
+done
 for stage in 0 8 3.5 -1 '1; exit 0'; do
     run_case "invalid stage $stage" 2 --route TRUCE --stage "$stage" --difficulty EASY --ship STANDARD
 done

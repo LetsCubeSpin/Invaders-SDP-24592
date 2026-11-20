@@ -16,7 +16,9 @@ if ($fields.Count -gt 0) {
     if ($fields.Count -ne 4) { throw 'Specify all four: -Route -Stage -Difficulty -Ship, or omit all to open the picker.' }
     $stageNumber = 0
     if (-not [int]::TryParse($Stage, [ref]$stageNumber)) { throw 'Stage must be an integer.' }
-    $selection = @($Route, [string]$stageNumber, $Difficulty, $Ship)
+    if ($Difficulty.Trim() -ine 'EASY') { throw 'Difficulty must be EASY.' }
+    if ($Ship.Trim() -ine 'STANDARD') { throw 'Ship must be STANDARD.' }
+    $selection = @($Route, [string]$stageNumber, 'EASY', 'STANDARD')
 }
 
 $repo = Split-Path -Parent $PSScriptRoot

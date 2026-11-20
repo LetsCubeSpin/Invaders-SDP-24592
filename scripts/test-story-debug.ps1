@@ -8,14 +8,16 @@ $hostExe = (Get-Process -Id $PID).Path
 $oldTemp = $env:TEMP
 $oldTmp = $env:TMP
 $oldCompilerOptions = $env:JDK_JAVAC_OPTIONS
+$oldJavaOptions = $env:JAVA_TOOL_OPTIONS
 $testDirectory = Join-Path ([IO.Path]::GetTempPath()) ('story debug test ' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testDirectory | Out-Null
 
-function Test-LauncherFailure([string]$Stage, [int]$ExpectedCode, [string]$ExpectedMessage,
-        [string]$CompilerRoot = $JdkRoot, [switch]$OmitShip) {
+function Test-LauncherFailure([string]$Stage, [int]$ExpectedCode, [string[]]$ExpectedMessage,
+        [string]$CompilerRoot = $JdkRoot, [switch]$OmitShip,
+        [string]$Difficulty = 'EASY', [string]$Ship = 'STANDARD') {
     $arguments = @('-NoProfile', '-NonInteractive', '-File', $launcher, '-Route', 'TRUCE',
-        '-Stage', $Stage, '-Difficulty', 'EASY')
-    if (-not $OmitShip) { $arguments += @('-Ship', 'STANDARD') }
+        '-Stage', $Stage, '-Difficulty', $Difficulty)
+    if (-not $OmitShip) { $arguments += @('-Ship', $Ship) }
     if ($CompilerRoot) { $arguments += @('-JdkRoot', $CompilerRoot) }
     # Windows PowerShell wraps redirected native stderr in error records.
     $output = & {
@@ -23,8 +25,11 @@ function Test-LauncherFailure([string]$Stage, [int]$ExpectedCode, [string]$Expec
         & $hostExe @arguments 2>&1
     }
     $code = $LASTEXITCODE
-    if ($code -ne $ExpectedCode -or ($output | Out-String) -notmatch [regex]::Escape($ExpectedMessage)) {
-        throw "Stage $Stage returned $code (expected $ExpectedCode and '$ExpectedMessage'). Output: $output"
+    if ($code -ne $ExpectedCode) { throw "Expected exit $ExpectedCode, got $code. Output: $output" }
+    foreach ($message in $ExpectedMessage) {
+        if (($output | Out-String) -notmatch [regex]::Escape($message)) {
+            throw "Missing '$message' for stage $Stage, difficulty $Difficulty, ship $Ship. Output: $output"
+        }
     }
     if (Get-ChildItem -Force -LiteralPath $testDirectory -Filter 'invaders-story-debug-*') {
         throw "Launcher left its session in $testDirectory."
@@ -38,12 +43,21 @@ try {
     Test-LauncherFailure '7' 1 'JDK compiler not found.' -CompilerRoot (Join-Path $testDirectory 'missing JDK')
     # An invalid compiler option makes javac deterministically return 2 without opening a window.
     $env:JDK_JAVAC_OPTIONS = '--invalid-story-debug-test-option'
+    foreach ($difficulty in 'NORMAL', 'HARD') {
+        Test-LauncherFailure '7' 1 'Difficulty must be EASY.' -Difficulty $difficulty
+    }
+    foreach ($ship in 'SPEEDSTER', 'TANK') {
+        Test-LauncherFailure '7' 1 'Ship must be STANDARD.' -Ship $ship
+    }
     Test-LauncherFailure '3.5' 1 'Stage must be an integer.'
     Test-LauncherFailure '7' 2 'javac failed (2).'
     $env:JDK_JAVAC_OPTIONS = $null
     Test-LauncherFailure '8' 1 'Stage must be between 1 and 7'
+    $env:JAVA_TOOL_OPTIONS = '-Djava.awt.headless=true'
+    Test-LauncherFailure '7' 1 @('Route TRUCE   |   Stage 7   |   EASY   |   STANDARD', 'HeadlessException') -Difficulty 'easy' -Ship 'standard'
 } finally {
     $env:JDK_JAVAC_OPTIONS = $oldCompilerOptions
+    $env:JAVA_TOOL_OPTIONS = $oldJavaOptions
     $env:TEMP = $oldTemp
     $env:TMP = $oldTmp
     if (-not (Get-ChildItem -Force -LiteralPath $testDirectory)) {
@@ -52,5 +66,5 @@ try {
 }
 
 # Expected native failures must not leak into the GitHub Actions shell epilogue.
-Write-Output 'PASS: incomplete selection, missing JDK, fractional stage, javac/java exit codes, cleanup in a path with spaces.'
+Write-Output 'PASS: selection validation, EASY/STANDARD direct launch, missing JDK, javac/java exit codes, cleanup in a path with spaces.'
 exit 0

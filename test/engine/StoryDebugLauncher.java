@@ -82,15 +82,14 @@ public final class StoryDebugLauncher {
         for (int i = 0; i < stages.length; i++) stages[i] = i + 1;
         JComboBox<Integer> stage = addField(fields, "Stage", stages);
         stage.setSelectedItem(previous.stage());
-        JComboBox<StoryDebugSelection.Difficulty> difficulty = addField(fields, "Difficulty",
-                StoryDebugSelection.Difficulty.values());
-        difficulty.setSelectedItem(previous.difficulty());
-        JComboBox<ShipType> ship = addField(fields, "Ship", ShipType.values());
-        ship.setSelectedItem(previous.ship());
+        fields.add(new JLabel("Difficulty"));
+        fields.add(new JLabel(StoryDebugSelection.Difficulty.EASY.name()));
+        fields.add(new JLabel("Ship"));
+        fields.add(new JLabel(ShipType.STANDARD.name()));
 
         Supplier<StoryDebugSelection> selection = () -> new StoryDebugSelection(
                 route.getItemAt(route.getSelectedIndex()), stage.getItemAt(stage.getSelectedIndex()),
-                difficulty.getItemAt(difficulty.getSelectedIndex()), ship.getItemAt(ship.getSelectedIndex()));
+                StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
         JTextArea preview = new JTextArea();
         preview.setEditable(false);
         preview.setFocusable(false);
@@ -98,9 +97,8 @@ public final class StoryDebugLauncher {
         preview.setForeground(Color.GREEN);
         preview.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         preview.setBorder(javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        for (JComboBox<?> field : new JComboBox<?>[] {route, stage, difficulty, ship}) {
-            field.addActionListener(event -> preview.setText(selection.get().describe()));
-        }
+        route.addActionListener(event -> preview.setText(selection.get().describe()));
+        stage.addActionListener(event -> preview.setText(selection.get().describe()));
         preview.setText(selection.get().describe());
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.add(fields, BorderLayout.CENTER);

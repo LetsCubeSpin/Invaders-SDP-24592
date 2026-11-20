@@ -4,7 +4,7 @@ set -eu
 
 usage() {
     printf '%s\n' 'Usage: sh scripts/run-story-debug.sh [--jdk-root JDK_HOME]' \
-        '       [--route ROUTE --stage 1..7 --difficulty DIFFICULTY --ship SHIP]' \
+        '       [--route ROUTE --stage 1..7 --difficulty EASY --ship STANDARD]' \
         'Omit all four selections for repeat testing; supply all four for one stage only.' \
         'Requires JDK 17+ and a desktop session.'
 }
@@ -41,8 +41,8 @@ if [ "$selections" -ne 0 ]; then
     ship=$(printf '%s' "$ship" | LC_ALL=C tr '[:lower:]' '[:upper:]')
     case "$route" in HYBRID|HUMAN_VICTORY|HOMECOMING|TRUCE) ;; *) fail 'Invalid route.' ;; esac
     case "$stage" in [1-7]) ;; *) fail 'Stage must be an integer from 1 to 7.' ;; esac
-    case "$difficulty" in EASY) ;; *) fail 'Invalid difficulty.' ;; esac
-    case "$ship" in STANDARD) ;; *) fail 'Invalid ship.' ;; esac
+    [ "$difficulty" = EASY ] || fail 'Difficulty must be EASY.'
+    [ "$ship" = STANDARD ] || fail 'Ship must be STANDARD.'
 fi
 
 # Prefix relative paths before cd so a name beginning with '-' is never an option.

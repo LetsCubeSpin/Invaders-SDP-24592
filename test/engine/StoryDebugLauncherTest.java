@@ -82,6 +82,24 @@ class StoryDebugLauncherTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"NORMAL", "HARD"})
+    void rejectsRemovedDifficultiesWithSupportedValue(String difficulty) {
+        String[] fields = {"TRUCE", "7", difficulty, "STANDARD"};
+        var failure = assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(fields));
+        assertTrue(failure.getMessage().contains(difficulty));
+        assertTrue(failure.getMessage().contains("EASY"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SPEEDSTER", "TANK"})
+    void rejectsRemovedShipsWithSupportedValue(String ship) {
+        String[] fields = {"TRUCE", "7", "EASY", ship};
+        var failure = assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(fields));
+        assertTrue(failure.getMessage().contains(ship));
+        assertTrue(failure.getMessage().contains("STANDARD"));
+    }
+
     @Test
     void restartResetsPreferencesAndPreservesNormalFiles(@TempDir Path dir) throws Exception {
         // Linux's JDK can create .java/fonts/<version>/fcinfo-*.properties on first use.
@@ -219,6 +237,7 @@ class StoryDebugLauncherTest {
         assertEquals(GameplayConfig.EASY, GameplayConfig.getDifficulty());
         assertNull(Core.getRecordsService());
         AudioManager.setMuted(true);
+        int initializedStages = 0;
         for (StoryRoute route : StoryRoute.values()) {
             for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
                 for (var difficulty : StoryDebugSelection.Difficulty.values()) {
@@ -226,6 +245,7 @@ class StoryDebugLauncherTest {
                         var choice = new StoryDebugSelection(route, stage, difficulty, ship);
                         GameScreen screen = StoryDebugLauncher.createScreen(choice, 448, 520);
                         screen.initialize();
+                        initializedStages++;
                         assertNull(screen.getActiveRunId());
                         assertEquals(stage, screen.getGameState().getLevel());
                         assertEquals(ship, ((Ship) field(screen, "ship")).getShipType());
@@ -265,12 +285,13 @@ class StoryDebugLauncherTest {
                 }
             }
         }
-        System.out.println("PASS: 28 actual Story initializations, all non-boss waves, isolated restart.");
+        System.out.println("PASS: " + initializedStages + " actual Story initializations, all non-boss waves, isolated restart.");
         AudioManager.stopBGM();
     }
 
     private static void checkLoadoutParity() throws Exception {
         AudioManager.setMuted(true);
+        int comparisons = 0;
         for (StoryRoute route : StoryRoute.values()) {
             for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
                 for (ShipType type : ShipType.values()) {
@@ -290,11 +311,12 @@ class StoryDebugLauncherTest {
                     Ship expected = (Ship) field(normal, "ship");
                     assertEquals(expected.getCurrentBulletType(), actual.getCurrentBulletType(), choice.toString());
                     assertEquals(expected.getGrenadeCount(), actual.getGrenadeCount(), choice.toString());
+                    comparisons++;
                 }
             }
         }
         // Parity is distinct from satisfying weaponForStage/givesGrenadesOnStage; those integrations remain pending.
-        System.out.println("PASS: 84 Debug/normal Story starting-equipment comparisons.");
+        System.out.println("PASS: " + comparisons + " Debug/normal Story starting-equipment comparisons.");
         AudioManager.stopBGM();
     }
 

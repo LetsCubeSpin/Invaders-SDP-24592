@@ -20,9 +20,9 @@ import story.StoryRoute;
 @Timeout(45)
 class StoryDebugControllerTest {
     private static final StoryDebugSelection FIRST = new StoryDebugSelection(
-            StoryRoute.HYBRID, 1, StoryDebugSelection.Difficulty.NORMAL, ShipType.STANDARD);
+            StoryRoute.HYBRID, 1, StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
     private static final StoryDebugSelection SECOND = new StoryDebugSelection(
-            StoryRoute.TRUCE, 7, StoryDebugSelection.Difficulty.HARD, ShipType.SPEEDSTER);
+            StoryRoute.TRUCE, 7, StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
 
     private static final class View implements StoryDebugController.View {
         final List<StoryDebugSelection> previous = new ArrayList<>();
@@ -48,7 +48,7 @@ class StoryDebugControllerTest {
     }
 
     @Test
-    void repeatsAndChangesAllFieldsWhileKeepingTheLastSelection() throws Exception {
+    void replaysThenChangesRouteAndStageWhileKeepingTheLastSelection() throws Exception {
         View view = new View(List.of(FIRST, SECOND), StoryDebugController.Action.REPLAY,
                 StoryDebugController.Action.CHANGE, StoryDebugController.Action.EXIT);
         List<StoryDebugSelection> runs = new ArrayList<>();
@@ -112,7 +112,7 @@ class StoryDebugControllerTest {
     @Test
     void eachStageGetsFreshJvmPreferencesAndFilesAndCleansOnFailure(@TempDir Path dir) throws Exception {
         Path root = Files.createDirectory(dir.resolve("sessions with spaces 'quote; [x]"));
-        List<Path> normalFiles = List.of(dir.resolve("scores"), dir.resolve(FileManager.ASSETS_FILENAME),
+        List<Path> normalFiles = List.of(dir.resolve("scores"),
                 dir.resolve(".space-invaders/records-achievements.properties"));
         for (Path file : normalFiles) {
             Files.createDirectories(file.getParent());
@@ -123,13 +123,14 @@ class StoryDebugControllerTest {
         for (int i = 0; i < 3; i++) {
             Path evidence = dir.resolve("child-" + i + ".txt");
             int status = i == 1 ? 7 : 0;
+            StoryDebugSelection choice = i == 2 ? SECOND : FIRST;
             Path sessionPath;
             String workingPath;
             try (StoryDebugSession session = new StoryDebugSession(root)) {
                 sessionPath = session.directory();
                 workingPath = sessionPath.toRealPath().toString();
                 assertTrue(directories.add(sessionPath));
-                List<String> command = fixtureCommand(session, i == 2 ? SECOND : FIRST, evidence, "write", status);
+                List<String> command = fixtureCommand(session, choice, evidence, "write", status);
                 assertEquals(status, session.runCommand(command, ProcessBuilder.Redirect.to(dir.resolve("child.log").toFile())));
                 assertTrue(Files.exists(sessionPath.resolve("scores")));
             }
@@ -137,6 +138,7 @@ class StoryDebugControllerTest {
             List<String> observation = Files.readAllLines(evidence);
             assertTrue(pids.add(observation.get(0)), "Each run must use a new process");
             assertEquals(workingPath, observation.get(1));
+            assertEquals(choice.toString(), observation.get(2));
         }
         for (Path file : normalFiles) assertEquals("normal-sentinel", Files.readString(file));
         try (var paths = Files.list(root)) { assertEquals(0, paths.count()); }
@@ -218,7 +220,7 @@ class StoryDebugControllerTest {
 
     public static class Fixture {
         public static void main(String[] args) throws Exception {
-            StoryDebugSelection.parse(java.util.Arrays.copyOf(args, 4));
+            StoryDebugSelection choice = StoryDebugSelection.parse(java.util.Arrays.copyOf(args, 4));
             StoryDebugLauncher.requireDebugSession();
             Path cwd = Path.of("").toRealPath();
             for (String property : List.of("user.home", "invaders.storageDir", "java.io.tmpdir"))
@@ -228,7 +230,7 @@ class StoryDebugControllerTest {
             Files.writeString(cwd.resolve("scores"), "stage-only");
             Path evidence = Path.of(args[4]);
             Path pending = evidence.resolveSibling(evidence.getFileName() + ".tmp");
-            Files.writeString(pending, ProcessHandle.current().pid() + "\n" + cwd + "\n");
+            Files.writeString(pending, ProcessHandle.current().pid() + "\n" + cwd + "\n" + choice + "\n");
             Files.move(pending, evidence);
             if (args[5].equals("shutdown")) {
                 Path nestedEvidence = evidence.resolveSibling("nested-child.txt");
