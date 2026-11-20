@@ -9,8 +9,8 @@ class CoreDifficultyTest {
 
     @Test
     void preservesFormationPositionsAcrossDifficulties() {
-        // Easy, Normal, Hard multipliers from GameplayConfig.
-        double[] multipliers = {1.25, 1.0, 0.8};
+        // Easy multiplier from GameplayConfig, the only difficulty.
+        double[] multipliers = {1.25};
 
         for (double multiplier : multipliers) {
             for (int stage = 1; stage <= 7; stage++) {

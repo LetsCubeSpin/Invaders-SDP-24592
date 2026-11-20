@@ -14,8 +14,8 @@ New-Item -ItemType Directory -Path $testDirectory | Out-Null
 function Test-LauncherFailure([string]$Stage, [int]$ExpectedCode, [string]$ExpectedMessage,
         [string]$CompilerRoot = $JdkRoot, [switch]$OmitShip) {
     $arguments = @('-NoProfile', '-NonInteractive', '-File', $launcher, '-Route', 'TRUCE',
-        '-Stage', $Stage, '-Difficulty', 'HARD')
-    if (-not $OmitShip) { $arguments += @('-Ship', 'TANK') }
+        '-Stage', $Stage, '-Difficulty', 'EASY')
+    if (-not $OmitShip) { $arguments += @('-Ship', 'STANDARD') }
     if ($CompilerRoot) { $arguments += @('-JdkRoot', $CompilerRoot) }
     # Windows PowerShell wraps redirected native stderr in error records.
     $output = & {

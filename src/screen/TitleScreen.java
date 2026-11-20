@@ -133,10 +133,6 @@ public class TitleScreen extends Screen {
 
     private void nextMenuItem() {
         if (this.returnCode == 2)
-            this.returnCode = 10;
-        else if (this.returnCode == 10)
-            this.returnCode = 11;
-        else if (this.returnCode == 11)
             this.returnCode = 3;
         else if (this.returnCode == 3)
             this.returnCode = 9;
@@ -157,10 +153,6 @@ public class TitleScreen extends Screen {
             this.returnCode = 9;
         else if (this.returnCode == 9)
             this.returnCode = 3;
-        else if (this.returnCode == 3)
-            this.returnCode = 11;
-        else if (this.returnCode == 11)
-            this.returnCode = 10;
         else
             this.returnCode = 2;
     }

@@ -9,7 +9,6 @@ import campaign.CampaignStageData;
 import engine.Cooldown;
 import engine.Core;
 import engine.GameState;
-import engine.GameplayConfig;
 import engine.Score;
 import audio.AudioManager;
 import records.Achievement;
@@ -93,7 +92,7 @@ public class ScoreScreen extends Screen {
 
 		this.infiniteMode = infiniteMode;
         this.modeLabel = infiniteMode ? "infinite mode"
-                : "mode: " + difficultyName(GameplayConfig.getDifficulty());
+                : "mode: Easy";
 		this.level = gameState.getLevel();
 		this.stageFailed = gameState.getLivesRemaining() == 0;
         this.gameCleared = !this.infiniteMode && !this.stageFailed
@@ -231,14 +230,6 @@ public class ScoreScreen extends Screen {
 			logger.warning("Couldn't load high scores!");
 		}
 	}
-    /** Converts a GameplayConfig difficulty value to its display name. */
-    private static String difficultyName(final int difficulty) {
-        switch (difficulty) {
-            case GameplayConfig.EASY:  return "Easy";
-            case GameplayConfig.HARD:  return "Hard";
-            default:                   return "Normal";
-        }
-    }
 	/**
 	 * Draws the elements associated with the screen.
 	 */

@@ -297,22 +297,6 @@ documented below for completeness.
 - Changes: Renamed, converted to 16-bit / 44.1kHz WAV, volume lowered.
 
 
-## shop_purchase_failure.wav
-
-- Original: "Wrong Choice" by unadamlar
-- Source: https://freesound.org/people/unadamlar/sounds/476177/
-- License: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
-- Changes: None
-
-
-## shop_successful_purchase.wav
-
-- Original: "Game Reward" by IENBA
-- Source: https://freesound.org/people/IENBA/sounds/656643/
-- License: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
-- Changes: None
-
-
 ## boss_spawn.wav
 
 - Original: "sfx_alarm_loop2.wav" from "The Essential Retro Video Game Sound Effects Collection [512 sounds]" by SubspaceAudio

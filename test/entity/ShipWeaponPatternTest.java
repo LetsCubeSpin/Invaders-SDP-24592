@@ -10,7 +10,7 @@ class ShipWeaponPatternTest {
 
     @Test
     void normalAndRapidStartWithOneCenteredBulletAndRespectTheConfiguredInterval() {
-        for (ShipType type : new ShipType[] {ShipType.STANDARD, ShipType.SPEEDSTER}) {
+        for (ShipType type : new ShipType[] {ShipType.STANDARD}) {
             Ship ship = new Ship(100, 100, type);
             ship.setShootingInterval(60_000);
             Set<Bullet> bullets = new HashSet<>();
@@ -27,7 +27,9 @@ class ShipWeaponPatternTest {
 
     @Test
     void multiFiresThreeBulletsThatSpreadFromOneOrigin() {
-        Ship ship = new Ship(100, 100, ShipType.TANK);
+        Ship ship = new Ship(100, 100, ShipType.STANDARD);
+        ship.setBulletType(BulletType.MULTI);
+        ship.setShootingInterval(60_000);
         Set<Bullet> bullets = new HashSet<>();
         assertEquals(3, ship.shoot(bullets));
         Set<Integer> horizontalSteps = new HashSet<>();

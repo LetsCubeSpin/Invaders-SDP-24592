@@ -53,7 +53,7 @@ public final class PlayerDamagePathTest {
 	 */
 	private static void checkEnergyShieldStopsBossDamage() throws Exception {
 		// Only a shield-capable ship can hold the Energy Shield.
-		GameScreen game = newGame(ShipType.TANK);
+		GameScreen game = newGame(ShipType.STANDARD);
 		PlayerStatus status = statusOf(game);
 		shipOf(game).setShieldActive(true);
 
@@ -67,7 +67,7 @@ public final class PlayerDamagePathTest {
 
 	/** After the Energy Shield ends, boss hits use the normal damage path. */
 	private static void checkExpiredProtectionAllowsBossDamage() throws Exception {
-		GameScreen game = newGame(ShipType.TANK);
+		GameScreen game = newGame(ShipType.STANDARD);
 		Ship ship = shipOf(game);
 		ShieldItem shield = new ShieldItem(0, 0);
 		shield.applyEffect(ship);
@@ -82,11 +82,10 @@ public final class PlayerDamagePathTest {
 	 */
 	private static void checkTimedShieldStopsDamageAndEffects()
 			throws Exception {
-		// Only a shield-capable ship may raise one, so this case has to be
-		// played with the Heavy Tank rather than the default ship.
-		GameScreen game = newGame(ShipType.TANK);
+		// Only a shield-capable ship may raise one; the Standard ship is.
+		GameScreen game = newGame(ShipType.STANDARD);
 		PlayerStatus status = statusOf(game);
-		check(status.activateShield(), "The Heavy Tank raises a shield");
+		check(status.activateShield(), "The Standard ship raises a shield");
 
 		check(!game.damagePlayer(1, "test"),
 				"A hit is refused while the timed shield is up");

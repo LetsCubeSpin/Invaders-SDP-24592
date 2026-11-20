@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.UnaryOperator;
 
-import engine.CampaignUpgrades;
 import engine.GameSettings;
 import engine.GameState;
 import entity.Boss;
@@ -46,7 +45,7 @@ class StoryGameScreenTest {
             final ShipType ship, final UnaryOperator<GameSettings> difficulty) {
         GameScreen screen = GameScreen.forStoryStage(
                 new GameState(stage, 0, 3, 0, 0), progress(route), difficulty,
-                false, 448, 520, 60, ship, null, CampaignUpgrades.none());
+                false, 448, 520, 60, ship, null);
         audio.AudioManager.setMuted(true);
         screen.initialize();
         return screen;
@@ -153,11 +152,11 @@ class StoryGameScreenTest {
     void campaignKeepsTheShipWeapon() throws Exception {
         GameScreen screen = new GameScreen(new GameState(1, 0, 3, 0, 0),
                 new GameSettings(1, 1, 60, 2000), false, 448, 520, 60,
-                ShipType.TANK, null, CampaignUpgrades.none());
+                ShipType.STANDARD, null);
         audio.AudioManager.setMuted(true);
         screen.initialize();
         Ship ship = (Ship) read(screen, "ship");
-        assertEquals(ShipType.TANK.getBulletType(),
+        assertEquals(ShipType.STANDARD.getBulletType(),
                 ship.getCurrentBulletType());
     }
 

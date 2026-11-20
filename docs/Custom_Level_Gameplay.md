@@ -134,7 +134,7 @@ rm -rf "$build_dir"
 
 Run from the repository root in a graphical desktop session. On Windows use `;`
 as the runtime classpath separator. In an IDE, run `manual.CustomLevelDemo` with
-`src` and the demo compiled and `res` present on the classpath. The demo uses normal
+`src` and the demo compiled and `res` present on the classpath. The demo uses the Easy
 difficulty, existing configured controls, and a fresh session. Verify visible
 gaps/mixed enemies, two-hit enemies, wave order, and the final completion. It prints
 whether the stage cleared and whether the official unlock state stayed unchanged,

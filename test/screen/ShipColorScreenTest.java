@@ -15,9 +15,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-class HangarCustomColorTest {
+class ShipColorScreenTest {
     private final Canvas inputSource = new Canvas();
-    private HangarScreen screen;
+    private ShipColorScreen screen;
     private String previousSelection;
     private float previousHue;
     private boolean previousMute;
@@ -138,9 +138,9 @@ class HangarCustomColorTest {
         Color chosen = ShipCustomization.getColor();
         tap(KeyEvent.VK_ESCAPE);
         assertFalse(screen.isRunning);
-        assertEquals(1, screen.returnCode);
+        assertEquals(ShipColorScreen.RETURN_TO_SETTINGS, screen.returnCode);
         openScreen();
-        Field preview = HangarScreen.class.getDeclaredField("previewShip");
+        Field preview = ShipColorScreen.class.getDeclaredField("previewShip");
         preview.setAccessible(true);
         assertEquals(chosen, ((Ship) preview.get(screen)).getColor());
 
@@ -177,7 +177,7 @@ class HangarCustomColorTest {
     }
 
     private void openScreen() {
-        screen = new HangarScreen(448, 520, 60);
+        screen = new ShipColorScreen(448, 520, 60);
         screen.inputDelay = Core.getCooldown(0);
         screen.isRunning = true;
         screen.update();
@@ -192,7 +192,7 @@ class HangarCustomColorTest {
     }
 
     private void tap(int code) throws Exception {
-        Field field = HangarScreen.class.getDeclaredField("selectionCooldown");
+        Field field = ShipColorScreen.class.getDeclaredField("selectionCooldown");
         field.setAccessible(true);
         Object cooldown = field.get(screen);
         Field time = cooldown.getClass().getDeclaredField("time");

@@ -74,10 +74,10 @@ class StoryDebugLauncherTest {
     @Test
     void rejectsInvalidOrMissingFields() {
         for (String[] invalid : new String[][]{
-                {}, {"", "1", "EASY", "TANK"}, {"INVALID", "1", "EASY", "TANK"},
-                {"TRUCE", "0", "NORMAL", "TANK"}, {"TRUCE", "8", "NORMAL", "TANK"},
-                {"TRUCE", "3.5", "NORMAL", "TANK"}, {"TRUCE", "3", "EXTREME", "TANK"},
-                {"TRUCE", "3", "", "TANK"}, {"TRUCE", "3", "HARD", null}, {"TRUCE", "3", "HARD", "UNKNOWN"}}) {
+                {}, {"", "1", "EASY", "STANDARD"}, {"INVALID", "1", "EASY", "STANDARD"},
+                {"TRUCE", "0", "EASY", "STANDARD"}, {"TRUCE", "8", "EASY", "STANDARD"},
+                {"TRUCE", "3.5", "EASY", "STANDARD"}, {"TRUCE", "3", "EXTREME", "STANDARD"},
+                {"TRUCE", "3", "", "STANDARD"}, {"TRUCE", "3", "EASY", null}, {"TRUCE", "3", "EASY", "UNKNOWN"}}) {
             assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(invalid));
         }
     }
@@ -90,7 +90,7 @@ class StoryDebugLauncherTest {
         System.out.println("JDK-only filesystem baseline: " + snapshotFiles(dir).keySet());
         Path profile = dir.resolve(".space-invaders/records-achievements.properties");
         Files.createDirectories(profile.getParent());
-        List<Path> saves = List.of(dir.resolve("scores"), dir.resolve(FileManager.ASSETS_FILENAME), profile);
+        List<Path> saves = List.of(dir.resolve("scores"), profile);
         for (Path save : saves) Files.writeString(save, "sentinel-" + save.getFileName());
         Map<Path, byte[]> expected = snapshotFiles(dir);
         for (String scenario : List.of("disabled", "normalPreferences", "battle", "battle")) {
@@ -113,7 +113,7 @@ class StoryDebugLauncherTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"scores", FileManager.ASSETS_FILENAME,
+    @ValueSource(strings = {"scores",
             ".space-invaders/records-achievements.properties", ".java/fonts/test/fcinfo-existing.properties"})
     void isolationRejectsChangedAndDeletedFiles(String relativePath, @TempDir Path dir) throws Exception {
         Path saved = dir.resolve(relativePath);
@@ -216,7 +216,7 @@ class StoryDebugLauncherTest {
             assertThrows(IllegalStateException.class, () -> StoryDebugLauncher.main(new String[0]));
             return;
         }
-        assertEquals(GameplayConfig.NORMAL, GameplayConfig.getDifficulty());
+        assertEquals(GameplayConfig.EASY, GameplayConfig.getDifficulty());
         assertNull(Core.getRecordsService());
         AudioManager.setMuted(true);
         for (StoryRoute route : StoryRoute.values()) {
@@ -235,8 +235,6 @@ class StoryDebugLauncherTest {
                         assertSame(data, field(screen, "storyStage"));
                         double multiplier = switch (difficulty) {
                             case EASY -> 1.25;
-                            case NORMAL -> 1.0;
-                            case HARD -> 0.8;
                         };
                         GameSettings expected = Core.applyDifficulty(data.getSettings(), multiplier);
                         GameSettings actual = (GameSettings) field(screen, "gameSettings");
@@ -255,9 +253,7 @@ class StoryDebugLauncherTest {
                             }
                         } else {
                             assertEquals(choice.progress().bossForStage(stage), boss.getType());
-                            if (stage != 7 || route != StoryRoute.HOMECOMING
-                                    || difficulty != StoryDebugSelection.Difficulty.HARD
-                                    || ship != ShipType.TANK) continue;
+                            if (stage != 7 || route != StoryRoute.HOMECOMING) continue;
                             Method hit = GameScreen.class.getDeclaredMethod("damageBoss", int.class);
                             hit.setAccessible(true);
                             hit.invoke(screen, boss.getMaxHealth() * 10);
@@ -269,7 +265,7 @@ class StoryDebugLauncherTest {
                 }
             }
         }
-        System.out.println("PASS: 252 actual Story initializations, all non-boss waves, isolated restart.");
+        System.out.println("PASS: 28 actual Story initializations, all non-boss waves, isolated restart.");
         AudioManager.stopBGM();
     }
 
@@ -278,7 +274,7 @@ class StoryDebugLauncherTest {
         for (StoryRoute route : StoryRoute.values()) {
             for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
                 for (ShipType type : ShipType.values()) {
-                    var choice = new StoryDebugSelection(route, stage, StoryDebugSelection.Difficulty.NORMAL, type);
+                    var choice = new StoryDebugSelection(route, stage, StoryDebugSelection.Difficulty.EASY, type);
                     GameScreen debug = StoryDebugLauncher.createScreen(choice, 448, 520);
                     debug.initialize();
                     // Reproduce normal Story's answers independently of the debug selection helper.
@@ -288,7 +284,7 @@ class StoryDebugLauncherTest {
                     GameScreen normal = GameScreen.forStoryStage(
                             new GameState(stage, 0, type.getMaxLives(), 0, 0), progress,
                             settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
-                            false, 448, 520, 60, type, null, CampaignUpgrades.none());
+                            false, 448, 520, 60, type, null);
                     normal.initialize();
                     Ship actual = (Ship) field(debug, "ship");
                     Ship expected = (Ship) field(normal, "ship");

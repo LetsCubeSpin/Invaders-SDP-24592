@@ -63,16 +63,15 @@ public final class StoryDebugLauncher {
 
     static GameScreen createScreen(StoryDebugSelection choice, int width, int height) {
         requireDebugSession();
-        GameplayConfig.setDifficulty(choice.difficulty().setting);
         GameState state = new GameState(choice.stage(), 0, choice.ship().getMaxLives(), 0, 0);
         return GameScreen.forStoryStage(state, choice.progress(),
                 settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
-                false, width, height, 60, choice.ship(), null, CampaignUpgrades.none());
+                false, width, height, 60, choice.ship(), null);
     }
 
     static StoryDebugSelection defaultSelection() {
         return new StoryDebugSelection(new PlaceholderStoryScenes().getRoute(), 1,
-                StoryDebugSelection.Difficulty.NORMAL, ShipType.STANDARD);
+                StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
     }
 
     static StoryDebugSelection choose(StoryDebugSelection previous) {
