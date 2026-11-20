@@ -50,6 +50,7 @@ public final class BossDefeatedEvent implements IdentifiedGameplayEvent {
         return type == DefeatedEnemyType.BOSS_A
                 || type == DefeatedEnemyType.BOSS_B
                 || type == DefeatedEnemyType.BOSS_C
+				|| type == DefeatedEnemyType.BOSS_D
                 || type == DefeatedEnemyType.UNKNOWN;
     }
 

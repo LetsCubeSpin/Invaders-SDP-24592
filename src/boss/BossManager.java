@@ -231,6 +231,8 @@ public final class BossManager {
             return DefeatedEnemyType.BOSS_B;
         case BOSS_C:
             return DefeatedEnemyType.BOSS_C;
+		case BOSS_D:
+			return DefeatedEnemyType.BOSS_D;
         default:
             return DefeatedEnemyType.UNKNOWN;
         }
@@ -273,6 +275,7 @@ public final class BossManager {
         int originY = this.boss.getPositionY() + this.boss.getHeight();
         BossAttackSystem.AttackResult result = this.attackSystem.update(
                 originX, originY, targetX, targetY);
+		this.boss.setShieldActive(this.attackSystem.isShieldActive());
         if (result == null)
             return;
 

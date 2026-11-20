@@ -1087,9 +1087,25 @@ public class GameScreen extends Screen {
 					bonusShip.getPositionY());
 
 		Boss boss = getBossOnScreen();
-		if (boss != null)
+		if (boss != null) {
 			drawManager.drawEntity(boss, boss.getPositionX(),
 					boss.getPositionY());
+			if (boss.isShieldActive() && !boss.isDefeated())
+				drawManager.drawShield(this, boss);
+			BossAttackSystem attackSystem = this.bossManager
+					.getAttackSystem();
+			if (attackSystem != null && !boss.isDefeated()
+					&& (attackSystem.isLaserCharging()
+					|| attackSystem.isLaserFiring())) {
+				int beamWidth = attackSystem.isLaserFiring()
+						? attackSystem.getActiveBeamWidth()
+						: entity.item.OrbitalAnnihilator.BEAM_WIDTH;
+				drawManager.drawBossLaser(boss, beamWidth,
+						this.height,
+						attackSystem.isLaserFiring(),
+						attackSystem.getLaserChargeProgress());
+			}
+		}
 
 		for (BossBullet bossBullet : this.bossBullets)
 			drawManager.drawEntity(bossBullet, bossBullet.getPositionX(),
@@ -1367,6 +1383,36 @@ public class GameScreen extends Screen {
 			}
         }
         this.bossBullets.removeAll(hitBossBullets);
+
+		Boss activeBoss = getBossOnScreen();
+		BossAttackSystem bossAttackSystem = this.bossManager.getAttackSystem();
+		if (activeBoss != null && !activeBoss.isDefeated()
+				&& bossAttackSystem != null
+				&& bossAttackSystem.isLaserFiring()) {
+			int beamCenterX = activeBoss.getPositionX()
+					+ activeBoss.getWidth() / 2;
+			int beamHalfWidth = bossAttackSystem.getActiveBeamWidth() / 2;
+			int beamLeft = beamCenterX - beamHalfWidth;
+			int beamRight = beamCenterX + beamHalfWidth;
+			int beamTop = activeBoss.getPositionY()
+					+ activeBoss.getHeight();
+
+			for (PlayerSlot player : this.players) {
+				if (!player.isAlive())
+					continue;
+				Ship targetShip = player.getShip();
+				boolean overlapsX = targetShip.getPositionX() < beamRight
+						&& targetShip.getPositionX()
+						+ targetShip.getWidth() > beamLeft;
+				boolean belowBoss = targetShip.getPositionY()
+						+ targetShip.getHeight() > beamTop;
+				if (overlapsX && belowBoss) {
+					damagePlayer(player, 1,
+							PlayerHitSource.BOSS_BULLET,
+							"Hit on player ship by OBELISK laser");
+				}
+			}
+		}
     }
 
     /**
@@ -1490,6 +1536,10 @@ public class GameScreen extends Screen {
 		Boss boss = this.bossManager.getBoss();
 		if (boss == null || boss.isDefeated())
 			return;
+		if (boss.isShieldActive()) {
+			AudioManager.playSFX("audio/sfx/status_shield_on.wav");
+			return;
+		}
 		boss.takeDamage(storyBossDamage(damage));
 		this.bossManager.sync();
 		AudioManager.playSFX("audio/sfx/boss_hit.wav");
@@ -1827,6 +1877,8 @@ public class GameScreen extends Screen {
 			    return DefeatedEnemyType.BOSS_B;
             case BOSS_C:
                 return DefeatedEnemyType.BOSS_C;
+			case BOSS_D:
+				return DefeatedEnemyType.BOSS_D;
 		    default:
 			    return DefeatedEnemyType.UNKNOWN;
 		}

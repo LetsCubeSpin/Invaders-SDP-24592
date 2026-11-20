@@ -30,8 +30,9 @@ public class Boss extends Entity {
         /** Fast boss, gets stronger earlier. */
         BOSS_B(800, 3, 0.7, 0.4, 800),
         /** VESPERA, summons minions **/
-        BOSS_C(800, 3, 0.7, 0.4, 1000);
-
+        BOSS_C(800, 3, 0.7, 0.4, 1000),
+		/** OBELISK, periodic shield in phase 2 and laser beam in phase 3. */
+		BOSS_D(1000, 2, 0.7, 0.4, 1500);
         /** Maximum health of this kind of boss. */
         private final int maxHealth;
         /** Base horizontal speed in pixels per frame. */
@@ -94,6 +95,8 @@ public class Boss extends Entity {
     private State state;
     /** Current phase: 1, 2 or 3. */
     private int phase;
+	/** True while the boss energy shield is blocking player attacks. */
+	private boolean shieldActive;
 
     /**
      * Constructor, creates the boss and resets its health and state.
@@ -157,8 +160,8 @@ public class Boss extends Entity {
      *            Amount of health to remove.
      */
     public final void takeDamage(final int damage) {
-        if (this.state == State.DEFEATED)
-            return;
+		if (this.state == State.DEFEATED || this.shieldActive)
+			return;
 
         this.currentHealth -= damage;
         if (this.currentHealth < 0)
@@ -195,10 +198,19 @@ public class Boss extends Entity {
     /**
      * Marks the boss as defeated and stops its movement.
      */
-    private void defeat() {
-        this.state = State.DEFEATED;
-        this.spriteType = SpriteType.Explosion;
-    }
+	private void defeat() {
+		this.state = State.DEFEATED;
+		this.shieldActive = false;
+		this.spriteType = SpriteType.Explosion;
+	}
+
+	public final boolean isShieldActive() {
+		return this.shieldActive;
+	}
+
+	public final void setShieldActive(final boolean shieldActive) {
+		this.shieldActive = shieldActive && this.state != State.DEFEATED;
+	}
 
     public final BossType getType() {
         return this.type;
