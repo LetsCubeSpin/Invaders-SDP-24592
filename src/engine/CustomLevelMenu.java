@@ -11,7 +11,21 @@ import level.LevelDefinition;
 
 /** Session-local library. Each imported source keeps its original filename and definition. */
 public final class CustomLevelMenu {
-    public enum Action { IMPORT, PLAY, EXPORT, BACK }
+    public enum Action {
+        IMPORT("Import JSON"), PLAY("Play Level"), EXPORT("Export JSON"), BACK("Back");
+
+        private final String label;
+        Action(final String label) { this.label = label; }
+        public String getLabel() { return label; }
+        public boolean isEnabled(final int levelCount) {
+            return levelCount > 0 || this == IMPORT || this == BACK;
+        }
+    }
+
+    /** Explicit UI order, independent of the enum declaration order. */
+    public static final List<Action> MENU_ACTIONS = List.of(Action.IMPORT, Action.PLAY, Action.EXPORT, Action.BACK);
+    private static final java.util.logging.Logger LOGGER =
+            java.util.logging.Logger.getLogger(CustomLevelMenu.class.getName());
 
     public static final class Entry {
         private final Path source;
@@ -47,21 +61,23 @@ public final class CustomLevelMenu {
     }
 
     public void run() {
-        while (true) {
-            List<Entry> snapshot = Collections.unmodifiableList(new ArrayList<>(entries));
-            Action action = view.chooseAction(snapshot, selected);
-            if (action == Action.BACK) return;
-            if (action == Action.IMPORT) {
-                for (Path source : view.chooseImports()) importLevel(source);
-                continue;
-            }
-            if (entries.isEmpty()) continue;
-            int choice = view.chooseLevel(snapshot, selected, action);
-            if (choice < 0) continue;
-            if (choice >= entries.size()) throw new IllegalArgumentException("Unknown level selection");
-            selected = choice;
-            Entry entry = entries.get(choice);
+        while (!Thread.currentThread().isInterrupted()) {
             try {
+                List<Entry> snapshot = Collections.unmodifiableList(new ArrayList<>(entries));
+                Action action = view.chooseAction(snapshot, selected);
+                if (action == Action.BACK) return;
+                if (!action.isEnabled(entries.size())) continue;
+                if (action == Action.IMPORT) {
+                    for (Path source : view.chooseImports()) {
+                        if (!importLevel(source)) return;
+                    }
+                    continue;
+                }
+                int choice = view.chooseLevel(snapshot, selected, action);
+                if (choice < 0) continue;
+                if (choice >= entries.size()) throw new IllegalArgumentException("Unknown level selection");
+                selected = choice;
+                Entry entry = entries.get(choice);
                 if (action == Action.PLAY) view.showResult(entry.session.play());
                 else if (action == Action.EXPORT) {
                     Path folder = view.chooseExportDirectory(entry.getFilename());
@@ -71,12 +87,12 @@ public final class CustomLevelMenu {
                         entry.session.save(destination);
                 }
             } catch (IOException | IllegalArgumentException | IllegalStateException error) {
-                report(error);
+                if (!report(error.getMessage(), error)) return;
             }
         }
     }
 
-    private void importLevel(final Path source) {
+    private boolean importLevel(final Path source) {
         try {
             Path identity = source.toAbsolutePath().normalize();
             CustomLevelSession candidate = sessions.get();
@@ -85,17 +101,28 @@ public final class CustomLevelMenu {
                 if (entries.get(i).source.equals(identity)) {
                     entries.set(i, new Entry(identity, candidate));
                     selected = i;
-                    return;
+                    return true;
                 }
             }
             entries.add(new Entry(identity, candidate));
             selected = entries.size() - 1;
+            return true;
         } catch (IOException | IllegalArgumentException | IllegalStateException error) {
-            view.showError(source.getFileName() + ": " + error.getMessage());
+            return report(source.getFileName() + ": " + error.getMessage(), error);
         }
     }
 
-    private void report(final Exception error) {
-        view.showError(error.getMessage() == null ? "Unable to complete the action." : error.getMessage());
+    /** If even the error dialog fails, leave this tool and let Core reopen the mode menu. */
+    private boolean report(final String message, final Exception error) {
+        LOGGER.log(java.util.logging.Level.WARNING, "Custom-level action failed", error);
+        if (Thread.currentThread().isInterrupted()) return false;
+        try {
+            view.showError(message == null ? "Unable to complete the action." : message);
+            return true;
+        } catch (IllegalArgumentException | IllegalStateException dialogError) {
+            LOGGER.log(java.util.logging.Level.WARNING,
+                    "Unable to show the error dialog; returning to the mode menu", dialogError);
+            return false;
+        }
     }
 }

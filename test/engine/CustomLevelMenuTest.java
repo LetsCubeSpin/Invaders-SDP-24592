@@ -6,6 +6,8 @@ import java.nio.file.Path;
 import java.util.*;
 import level.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 import engine.CustomLevelMenu.Action;
@@ -174,6 +176,84 @@ class CustomLevelMenuTest {
         assertEquals(0, view.listVisits);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"chooseAction", "chooseImports", "chooseLevel",
+            "chooseExportDirectory", "confirmOverwrite", "showResult"})
+    void dialogFailuresAreReportedAndReturnToTheCustomMenu(String point) throws Exception {
+        StubView view = new StubView(Action.IMPORT, Action.IMPORT, Action.EXPORT, Action.PLAY, Action.BACK);
+        Path file = source("file.json", "Title");
+        view.batches.add(List.of(file));
+        view.batches.add(List.of(file));
+        view.output = Files.createDirectory(directory.resolve("exports"));
+        Files.writeString(view.output.resolve("file.json"), "keep existing");
+        view.failAt = point;
+        assertDoesNotThrow(() -> run(view));
+        assertEquals(1, view.errors);
+        assertEquals(1, view.entries.size());
+        assertEquals("keep existing", Files.readString(view.output.resolve("file.json")));
+    }
+
+    @Test
+    void failedErrorDialogExitsOnlyTheCustomMenuAndKeepsCompletedImports() throws Exception {
+        StubView view = new StubView(Action.IMPORT, Action.BACK);
+        Path broken = directory.resolve("broken.json");
+        Files.writeString(broken, "invalid");
+        view.batches.add(List.of(source("good.json", "Good"), broken,
+                source("not-yet-imported.json", "Later")));
+        view.errorDialogFails = true;
+        CustomLevelMenu menu = new CustomLevelMenu(this::session, view);
+        assertDoesNotThrow(menu::run);
+        assertEquals(1, view.actions.size(), "Return to Core rather than retrying a broken error dialog");
+        assertDoesNotThrow(menu::run);
+        assertEquals(1, view.entries.size());
+        assertEquals("good.json", view.entries.get(0).getFilename());
+    }
+
+    @Test
+    void failedImportChooserAndFailedErrorDialogDoNotEscapeToCore() {
+        StubView view = new StubView(Action.IMPORT, Action.BACK);
+        view.failAt = "chooseImports";
+        view.errorDialogFails = true;
+        assertDoesNotThrow(() -> run(view));
+        assertEquals(1, view.actions.size());
+    }
+
+    @Test
+    void interruptedDialogStopsWithoutOpeningAnotherDialogAndPreservesInterrupt() {
+        StubView view = new StubView(Action.IMPORT, Action.BACK);
+        view.failAt = "chooseImports";
+        view.interruptOnFailure = true;
+        try {
+            assertDoesNotThrow(() -> run(view));
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertEquals(0, view.errors);
+            assertEquals(1, view.actions.size());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    void exportSerializesTheImportedSnapshotNotOriginalFileBytes() throws Exception {
+        Path file = source("snapshot.json", "Imported title");
+        // External formatting differs from the writer's canonical output.
+        String externalJson = Files.readString(file).replace("\n", "").replace("  ", "");
+        Files.writeString(file, externalJson);
+        StubView view = new StubView(Action.IMPORT, Action.IMPORT, Action.EXPORT, Action.BACK);
+        view.batches.add(List.of(file));
+        view.batches.add(Collections.emptyList());
+        view.beforeSecondImport = () -> {
+            try { Files.writeString(file, "Changed on disk after Import"); }
+            catch (IOException e) { throw new RuntimeException(e); }
+        };
+        view.output = Files.createDirectory(directory.resolve("exports"));
+        run(view);
+        Path exported = view.output.resolve("snapshot.json");
+        assertNotEquals(externalJson, Files.readString(exported));
+        assertEquals("Imported title", new JsonLevelReader().read(exported).getName());
+        assertEquals("Changed on disk after Import", Files.readString(file));
+    }
+
     private static final class StubView implements CustomLevelMenu.View {
         private final ArrayDeque<Action> actions;
         private final List<List<Path>> batches = new ArrayList<>();
@@ -185,24 +265,41 @@ class CustomLevelMenuTest {
         private String exportName;
         private List<CustomLevelMenu.Entry> entries;
         private Runnable beforeSecondImport;
+        private String failAt;
+        private boolean errorDialogFails;
+        private boolean interruptOnFailure;
+
+        private void failOnce(String point) {
+            if (point.equals(failAt)) {
+                failAt = null;
+                if (interruptOnFailure) Thread.currentThread().interrupt();
+                throw new IllegalStateException("Simulated dialog failure: " + point);
+            }
+        }
 
         StubView(Action... actions) { this.actions = new ArrayDeque<>(Arrays.asList(actions)); }
         public Action chooseAction(List<CustomLevelMenu.Entry> entries, int selected) {
+            failOnce("chooseAction");
             this.entries = entries;
             this.selected = selected;
             return actions.removeFirst();
         }
         public List<Path> chooseImports() {
+            failOnce("chooseImports");
             if (batch == 1 && beforeSecondImport != null) beforeSecondImport.run();
             return batches.get(batch++);
         }
         public int chooseLevel(List<CustomLevelMenu.Entry> entries, int selected, Action action) {
+            failOnce("chooseLevel");
             listVisits++;
             return choices.isEmpty() ? 0 : choices.removeFirst();
         }
-        public Path chooseExportDirectory(String filename) { exportName = filename; return output; }
-        public boolean confirmOverwrite(Path path) { confirmations++; return overwrite; }
-        public void showError(String message) { errors++; }
-        public void showResult(GameState result) { results++; }
+        public Path chooseExportDirectory(String filename) { failOnce("chooseExportDirectory"); exportName = filename; return output; }
+        public boolean confirmOverwrite(Path path) { failOnce("confirmOverwrite"); confirmations++; return overwrite; }
+        public void showError(String message) {
+            errors++;
+            if (errorDialogFails) throw new IllegalStateException("Error dialog unavailable");
+        }
+        public void showResult(GameState result) { failOnce("showResult"); results++; }
     }
 }

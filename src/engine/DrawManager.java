@@ -1716,11 +1716,11 @@ public final class DrawManager {
         drawCenteredBigString(screen, "Custom Level", 90);
         backBufferGraphics.setColor(Color.WHITE);
         drawCenteredRegularString(screen, "Imported Levels: " + levelCount, 140);
-        String[] labels = { "Import JSON", "Play Level", "Export JSON", "Back" };
-        for (int i = 0; i < labels.length; i++) {
-            boolean enabled = levelCount > 0 || i == 0 || i == 3;
+        for (int i = 0; i < CustomLevelMenu.MENU_ACTIONS.size(); i++) {
+            CustomLevelMenu.Action action = CustomLevelMenu.MENU_ACTIONS.get(i);
+            boolean enabled = action.isEnabled(levelCount);
             backBufferGraphics.setColor(!enabled ? Color.GRAY : i == option ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, labels[i], 220 + i * 45);
+            drawCenteredRegularString(screen, action.getLabel(), 220 + i * 45);
         }
         backBufferGraphics.setColor(Color.WHITE);
         drawCenteredRegularString(screen, "Arrows / Space / Esc", screen.getHeight() - 45);

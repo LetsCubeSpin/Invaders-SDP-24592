@@ -3,6 +3,7 @@ package screen;
 import java.awt.event.KeyEvent;
 import engine.Core;
 import engine.Cooldown;
+import engine.CustomLevelMenu;
 import engine.CustomLevelMenu.Action;
 
 /** Custom-level hub; file dialogs and gameplay run only after this screen exits. */
@@ -18,12 +19,12 @@ public final class CustomLevelScreen extends Screen {
         cooldown.reset();
     }
 
-    public Action getAction() { return Action.values()[selected]; }
+    public Action getAction() { return CustomLevelMenu.MENU_ACTIONS.get(selected); }
 
     private void moveSelection(final int direction) {
         do {
-            selected = Math.floorMod(selected + direction, Action.values().length);
-        } while (levelCount == 0 && (selected == Action.PLAY.ordinal() || selected == Action.EXPORT.ordinal()));
+            selected = Math.floorMod(selected + direction, CustomLevelMenu.MENU_ACTIONS.size());
+        } while (!getAction().isEnabled(levelCount));
     }
 
     @Override
@@ -34,7 +35,7 @@ public final class CustomLevelScreen extends Screen {
         drawManager.completeDrawing(this);
         if (!inputDelay.checkFinished() || !cooldown.checkFinished()) return;
         if (inputManager.isBackDown()) {
-            selected = Action.BACK.ordinal();
+            selected = CustomLevelMenu.MENU_ACTIONS.indexOf(Action.BACK);
             isRunning = false;
         } else if (inputManager.isKeyDown(KeyEvent.VK_UP) || inputManager.isKeyDown(KeyEvent.VK_W)) {
             moveSelection(-1);
@@ -43,7 +44,7 @@ public final class CustomLevelScreen extends Screen {
             moveSelection(1);
             cooldown.reset();
         } else if ((inputManager.isKeyDown(KeyEvent.VK_SPACE) || inputManager.isKeyDown(KeyEvent.VK_ENTER))
-                && (levelCount > 0 || selected == 0 || selected == 3)) {
+                && getAction().isEnabled(levelCount)) {
             isRunning = false;
         }
     }
