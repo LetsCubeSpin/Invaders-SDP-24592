@@ -4,6 +4,7 @@ import currency.PermanentUpgrade;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
 import entity.ShipType;
+import engine.LanguageManager;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,15 +16,18 @@ public final class ShopProducts {
         List<ShopProduct> products = new ArrayList<ShopProduct>();
         for (PermanentUpgrade upgrade : PermanentUpgrade.values()) {
             for (int level = 1; level <= upgrade.getMaxLevel(); level++) {
+                int bonus = upgrade.getBonus(level);
+                String key = descriptionKey(upgrade);
                 products.add(new ShopProduct(upgrade.getProductId(level),
                         upgrade.getName() + " " + level + "/" + upgrade.getMaxLevel(),
                         Category.UPGRADE, upgrade.getPrice(level),
-                        description(upgrade, level), upgrade.getRequiredUnlockId(level)));
+                        key, new Object[] { bonus }, upgrade.getRequiredUnlockId(level)));
             }
         }
         for (ShipType ship : ShipType.values()) {
             boolean available = ship != ShipType.SPEEDSTER;
-            products.add(ShopProduct.ship(ship, available, available ? 0 : 200));
+            String key = available ? "shop.ship.selectHangar" : "shop.ship.unlockHangar";
+            products.add(ShopProduct.shipWithKey(ship, available, available ? 0 : 200, key));
         }
         return Collections.unmodifiableList(products);
     }
@@ -41,21 +45,22 @@ public final class ShopProducts {
             int next = Math.min(owned + 1, upgrade.getMaxLevel());
             if (!product.getId().equals(upgrade.getProductId(next))) continue;
             if (owned == upgrade.getMaxLevel()) {
-                product = new ShopProduct(product.getId(), upgrade.getName() + " MAX",
-                        product.getCategory(), product.getPrice(), product.getDescription(),
-                        product.getRequiredUnlockId());
+                String name = upgrade.getName() + " " + LanguageManager.get("upgrade.max");
+                visible.add(new ShopProduct(product.getId(), name,
+                        product.getCategory(), product.getPrice(),
+                        product.getDescription(), product.getRequiredUnlockId()));
+            } else {
+                visible.add(product);
             }
-            visible.add(product);
         }
         return Collections.unmodifiableList(visible);
     }
 
-    private static String description(PermanentUpgrade upgrade, int level) {
-        int bonus = upgrade.getBonus(level);
+    private static String descriptionKey(PermanentUpgrade upgrade) {
         switch (upgrade) {
-        case HULL: return "+" + bonus + " max lives. Campaign.";
-        case ENGINE: return "+" + bonus + " move speed. Campaign.";
-        case RELOADER: return "Shot interval -" + bonus + "%. Campaign.";
+        case HULL: return "upgrade.hull.description";
+        case ENGINE: return "upgrade.engine.description";
+        case RELOADER: return "upgrade.reloader.description";
         default: throw new IllegalArgumentException("Unknown upgrade.");
         }
     }

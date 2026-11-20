@@ -92,8 +92,8 @@ public class ScoreScreen extends Screen {
         this.runUnlocks = new ArrayList<Achievement>(unlocks);
 
 		this.infiniteMode = infiniteMode;
-        this.modeLabel = infiniteMode ? "infinite mode"
-                : "mode: " + difficultyName(GameplayConfig.getDifficulty());
+        this.modeLabel = infiniteMode ? engine.LanguageManager.get("score.infiniteMode")
+                : String.format(engine.LanguageManager.get("score.mode"), difficultyName(GameplayConfig.getDifficulty()));
 		this.level = gameState.getLevel();
 		this.stageFailed = gameState.getLivesRemaining() == 0;
         this.gameCleared = !this.infiniteMode && !this.stageFailed
@@ -234,9 +234,9 @@ public class ScoreScreen extends Screen {
     /** Converts a GameplayConfig difficulty value to its display name. */
     private static String difficultyName(final int difficulty) {
         switch (difficulty) {
-            case GameplayConfig.EASY:  return "Easy";
-            case GameplayConfig.HARD:  return "Hard";
-            default:                   return "Normal";
+            case GameplayConfig.EASY:  return engine.LanguageManager.get("gameplay.easy");
+            case GameplayConfig.HARD:  return engine.LanguageManager.get("gameplay.hard");
+            default:                   return engine.LanguageManager.get("gameplay.normal");
         }
     }
 	/**

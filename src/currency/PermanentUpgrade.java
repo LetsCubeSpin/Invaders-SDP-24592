@@ -1,24 +1,24 @@
 package currency;
 
+import engine.LanguageManager;
+
 /** Tier IDs and provisional balance values for permanent Campaign upgrades. */
 public enum PermanentUpgrade {
-    HULL("upgrade.hull", "Hull", new int[] {1, 2, 3}),
-    ENGINE("upgrade.engine", "Engine", new int[] {1, 2, 3}),
-    RELOADER("upgrade.reloader", "Reloader", new int[] {10, 20, 30});
+    HULL("upgrade.hull", new int[] {1, 2, 3}),
+    ENGINE("upgrade.engine", new int[] {1, 2, 3}),
+    RELOADER("upgrade.reloader", new int[] {10, 20, 30});
 
     private static final int[] PRICES = {100, 250, 500};
     private final String id;
-    private final String name;
     private final int[] bonuses;
 
-    PermanentUpgrade(String id, String name, int[] bonuses) {
+    PermanentUpgrade(String id, int[] bonuses) {
         this.id = id;
-        this.name = name;
         this.bonuses = bonuses;
     }
 
     public String getName() {
-        return name;
+        return LanguageManager.get(id + ".name");
     }
 
     public int getMaxLevel() {

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.swing.JOptionPane;
+import engine.LanguageManager;
 
 import screen.ShopScreen;
 import screen.HangarScreen;
@@ -484,16 +485,19 @@ public final class Core {
 		SettlementResult result = retryRewards(campaignRewards, endlessRewards);
 		while (result != SettlementResult.SUCCESS) {
 			String message = result == SettlementResult.SETTLEMENT_FAILED
-					? "Your balance is full. Earned Credits remain pending in this session.\n"
-							+ "Spend Credits in the Shop to make room."
-					: "Your Credits are available in this session, but progress could not be saved.";
-			if (exiting) message += "\nExiting now will lose unsaved progress or pending Credits.";
+					? LanguageManager.get("core.balanceFull")
+					: LanguageManager.get("core.saveFailed");
+			if (exiting) message += LanguageManager.get("core.exitWarning");
 			String[] options = exiting
-					? new String[] { "Retry", "Return to menu", "Exit without saving" }
-					: new String[] { "Retry", "Continue" };
+					? new String[] { LanguageManager.get("core.retry"),
+							LanguageManager.get("core.returnToMenu"),
+							LanguageManager.get("core.exitWithoutSaving") }
+					: new String[] { LanguageManager.get("core.retry"),
+							LanguageManager.get("core.continue") };
 			int choice = JOptionPane.showOptionDialog(frame, message,
-					"Unable to save rewards", JOptionPane.DEFAULT_OPTION,
-					JOptionPane.WARNING_MESSAGE, null, options, "Retry");
+					LanguageManager.get("core.saveRewardsError"), JOptionPane.DEFAULT_OPTION,
+					JOptionPane.WARNING_MESSAGE, null, options,
+					LanguageManager.get("core.retry"));
 			if (choice != 0) return !exiting || choice == 2;
 			result = retryRewards(campaignRewards, endlessRewards);
 		}
@@ -531,11 +535,12 @@ public final class Core {
 				LOGGER.warning("Player assets access denied: " + exception);
 			}
 			int choice = JOptionPane.showOptionDialog(frame,
-					"Your saved progress could not be loaded.\n"
-							+ "Your save has not been changed. Retry or quit?",
-					"Unable to load progress", JOptionPane.DEFAULT_OPTION,
+					LanguageManager.get("core.loadErrorMessage"),
+					LanguageManager.get("core.loadError"), JOptionPane.DEFAULT_OPTION,
 					JOptionPane.WARNING_MESSAGE, null,
-					new String[] { "Retry", "Quit" }, "Retry");
+					new String[] { LanguageManager.get("core.retry"),
+							LanguageManager.get("core.quit") },
+					LanguageManager.get("core.retry"));
 			if (choice != 0) {
 				return false;
 			}

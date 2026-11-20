@@ -417,7 +417,7 @@ public class InfiniteGameScreen extends Screen {
 			int countdown = (int) ((INPUT_DELAY
 					- (System.currentTimeMillis() - this.gameStartTime)) / 1000);
 			playCountdownSound(countdown);
-			drawManager.drawCountDown(this, "Infinite Mode", countdown);
+			drawManager.drawCountDown(this, engine.LanguageManager.get("score.infiniteMode"), countdown);
 			drawManager.drawHorizontalLine(this,
 					this.height / 2 - this.height / 12);
 			drawManager.drawHorizontalLine(this,

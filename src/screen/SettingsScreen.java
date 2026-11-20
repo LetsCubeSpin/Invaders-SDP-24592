@@ -5,6 +5,7 @@ import java.awt.event.KeyEvent;
 import audio.AudioManager;
 import engine.Cooldown;
 import engine.Core;
+import engine.LanguageManager;
 
 public class SettingsScreen extends Screen {
 
@@ -12,8 +13,9 @@ public class SettingsScreen extends Screen {
     private static final int AUDIO_OPTION = 0;
     private static final int CONTROLS_OPTION = 1;
     private static final int GAMEPLAY_OPTION = 2;
-    private static final int BACK_OPTION = 3;
-    private static final int OPTION_COUNT = 4;
+    private static final int LANGUAGE_OPTION = 3;
+    private static final int BACK_OPTION = 4;
+    private static final int OPTION_COUNT = 5;
 
     private Cooldown selectionCooldown;
     private int selectedOption;
@@ -21,6 +23,8 @@ public class SettingsScreen extends Screen {
     private int lastHoveredOption = -1;
     /** Starts true so a click held from the previous screen is ignored. */
     private boolean wasMousePressed = true;
+    /** Tracks previous Space key state for edge detection. */
+    private boolean wasSpacePressed = true;
 
     public SettingsScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
@@ -66,8 +70,13 @@ public class SettingsScreen extends Screen {
 
         if (!this.selectionCooldown.checkFinished()
                 || !this.inputDelay.checkFinished()) {
+            this.wasSpacePressed = inputManager.isKeyDown(KeyEvent.VK_SPACE);
             return;
         }
+
+        boolean spacePressed = inputManager.isKeyDown(KeyEvent.VK_SPACE);
+        boolean newSpacePress = spacePressed && !this.wasSpacePressed;
+        this.wasSpacePressed = spacePressed;
 
         if (inputManager.isKeyDown(KeyEvent.VK_UP) || inputManager.isKeyDown(KeyEvent.VK_W)) {
             this.selectedOption =
@@ -80,9 +89,11 @@ public class SettingsScreen extends Screen {
                     (this.selectedOption + 1) % OPTION_COUNT;
             this.selectionCooldown.reset();
             AudioManager.playSFX("audio/sfx/menu_move.wav");
-        } else if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
+        } else if (newSpacePress) {
             confirmSelectedOption();
-        } else if (inputManager.isBackDown()) {
+            this.selectionCooldown.reset();
+        }
+        if (inputManager.isBackDown()) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 1;
             this.isRunning = false;
@@ -103,6 +114,11 @@ public class SettingsScreen extends Screen {
         case GAMEPLAY_OPTION:
             this.returnCode = 7;
             break;
+        case LANGUAGE_OPTION:
+            LanguageManager.cycleLanguage();
+            AudioManager.playSFX("audio/sfx/menu_select.wav");
+            // Stay on the settings screen after changing language
+            return;
         case BACK_OPTION:
         default:
             this.returnCode = 1;

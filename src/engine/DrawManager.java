@@ -40,7 +40,6 @@ import entity.Bullet;
 import vfx.Icon;
 import vfx.RankBadge;
 import vfx.ShipSprites;
-import screen.GameModeScreen;
 
 /**
  * Manages screen drawing.
@@ -136,10 +135,30 @@ public final class DrawManager {
     /** Big sized font properties. */
     private static FontMetrics fontBigMetrics;
 
-    /** Options of the settings menu, in order. */
-    private static final String[] SETTINGS_MENU_OPTIONS = { "Audio", "Controls", "Gameplay", "Back" };
-    /** Options of the gameplay settings menu, in order. */
-    private static final String[] GAMEPLAY_SETTINGS_OPTIONS = { "Easy", "Normal", "Hard" };
+    /** Keys of the settings menu options, in order. */
+    private static final String[] SETTINGS_MENU_KEYS = {
+        "settings.audio", "settings.controls", "settings.gameplay", "settings.language", "settings.back"
+    };
+    /** Keys of the gameplay settings menu, in order. */
+    private static final String[] GAMEPLAY_SETTINGS_KEYS = {
+        "gameplay.easy", "gameplay.normal", "gameplay.hard"
+    };
+
+    /** Resolves settings menu keys to the current language. */
+    private String[] getSettingsMenuOptions() {
+        String[] opts = new String[SETTINGS_MENU_KEYS.length];
+        for (int i = 0; i < SETTINGS_MENU_KEYS.length; i++)
+            opts[i] = LanguageManager.get(SETTINGS_MENU_KEYS[i]);
+        return opts;
+    }
+
+    /** Resolves gameplay settings keys to the current language. */
+    private String[] getGameplaySettingsOptions() {
+        String[] opts = new String[GAMEPLAY_SETTINGS_KEYS.length];
+        for (int i = 0; i < GAMEPLAY_SETTINGS_KEYS.length; i++)
+            opts[i] = LanguageManager.get(GAMEPLAY_SETTINGS_KEYS[i]);
+        return opts;
+    }
     /** Width of the column holding the audio settings. */
     private static final int AUDIO_COLUMN_WIDTH = 200;
     /** Space between an audio option name and its volume bar. */
@@ -209,8 +228,8 @@ public final class DrawManager {
             logger.info("Finished loading the sprites.");
 
             // Font loading.
-            fontRegular = fileManager.loadFont(14f);
-            fontBig = fileManager.loadFont(24f);
+            fontRegular = fileManager.loadFont(20f);
+            fontBig = fileManager.loadFont(30f);
             logger.info("Finished loading the fonts.");
 
         } catch (IOException e) {
@@ -536,7 +555,7 @@ public final class DrawManager {
         drawIcon(Icon.PAUSE, screen.getWidth() / 2 - Icon.PAUSE.getWidth()
                 * scale / 2, screen.getHeight() / 2 - 50, scale);
         backBufferGraphics.setColor(GameColors.TEXT);
-        drawCenteredBigString(screen, "Paused", screen.getHeight() / 2 + 20);
+        drawCenteredBigString(screen, LanguageManager.get("pause.paused"), screen.getHeight() / 2 + 20);
     }
 
     /**
@@ -607,7 +626,7 @@ public final class DrawManager {
         backBufferGraphics.setFont(fontRegular);
         backBufferGraphics.setColor(Color.WHITE);
 
-        String levelString = "LEVEL " + level + "/" + totalLevels;
+        String levelString = LanguageManager.get("hud.level", level, totalLevels);
         int textWidth = backBufferGraphics.getFontMetrics().stringWidth(levelString);
         int levelX = (screen.getWidth() - textWidth) / 2;
 
@@ -667,8 +686,8 @@ public final class DrawManager {
      *               Screen to draw on.
      */
     public void drawTitle(final Screen screen) {
-        String titleString = "Invaders";
-        String instructionsString = "select with w+s / arrows, confirm with space";
+        String titleString = LanguageManager.get("title.gameName");
+        String instructionsString = LanguageManager.get("title.instructions");
 
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen, instructionsString,
@@ -709,11 +728,11 @@ public final class DrawManager {
     public void drawResults(final Screen screen, final int score,
             final int livesRemaining, final int shipsDestroyed,
             final float accuracy, final boolean isNewRecord) {
-        String scoreString = String.format("score %04d", score);
-        String livesRemainingString = "lives remaining " + livesRemaining;
-        String shipsDestroyedString = "enemies destroyed " + shipsDestroyed;
+        String scoreString = String.format(LanguageManager.get("score.score"), score);
+        String livesRemainingString = String.format(LanguageManager.get("score.livesRemaining"), livesRemaining);
+        String shipsDestroyedString = String.format(LanguageManager.get("score.enemiesDestroyed"), shipsDestroyed);
         String accuracyString = String
-                .format("accuracy %.2f%%", accuracy * 100);
+                .format(LanguageManager.get("score.accuracy"), String.format("%.2f", accuracy * 100));
 
         int resultsY;
 
@@ -758,8 +777,8 @@ public final class DrawManager {
      */
     public void drawGameOver(final Screen screen, final boolean acceptsInput,
             final boolean isNewRecord, final boolean gameCleared) {
-        String gameOverString = gameCleared ? "Game Clear" : "Game Over";
-        String continueOrExitString = "Press Space to play again, Escape to exit";
+        String gameOverString = gameCleared ? LanguageManager.get("gameOver.gameClear") : LanguageManager.get("gameOver.gameOver");
+        String continueOrExitString = LanguageManager.get("gameOver.playAgain");
 
         int gameOverY;
 
@@ -790,8 +809,13 @@ public final class DrawManager {
      * @param isNewRecord
      *                    If the score is a new high score (changes the layout).
      */
+
+
     public void drawStageFailed(final Screen screen, final int stage,
             final boolean isNewRecord) {
+
+
+
         int stageFailedY;
 
         if (isNewRecord)
@@ -805,8 +829,9 @@ public final class DrawManager {
 
         drawCenteredRegularString(
                 screen,
-                "Stage " + stage + " Failed",
+                String.format(LanguageManager.get("gameOver.stageFailed"), stage),
                 stageFailedY);
+
     }
 
     /** Draws the game mode as one more row of the results list. */
@@ -825,8 +850,8 @@ public final class DrawManager {
      *               Screen to draw on.
      */
     public void drawHighScoreMenu(final Screen screen) {
-        String highScoreString = "High Scores";
-        String instructionsString = "Press Space or Esc to return";
+        String highScoreString = LanguageManager.get("highScores.title");
+        String instructionsString = LanguageManager.get("highScores.return");
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, highScoreString, screen.getHeight() / 8);
@@ -912,9 +937,9 @@ public final class DrawManager {
      */
     public void drawCountDown(final Screen screen, final int level,
             final int number, final boolean bonusLife) {
-        String title = "Level " + level;
+        String title = String.format(LanguageManager.get("countdown.level"), level);
         if (bonusLife)
-            title += " - Bonus life!";
+            title += LanguageManager.get("countdown.bonusLife");
 
         drawCountDown(screen, title, number);
     }
@@ -947,7 +972,7 @@ public final class DrawManager {
             drawCenteredBigString(screen, Integer.toString(number),
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
         else
-            drawCenteredBigString(screen, "GO!",
+            drawCenteredBigString(screen, LanguageManager.get("countdown.go"),
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
     }
 
@@ -959,35 +984,35 @@ public final class DrawManager {
         int width = screen.getWidth();
         int height = screen.getHeight();
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Shop", 34);
+        drawCenteredBigString(screen, LanguageManager.get("shop.title"), 34);
         backBufferGraphics.setColor(Color.WHITE);
-        String credits = "Credits: " + assets.getBalance();
+        String credits = String.format(LanguageManager.get("shop.credits"), assets.getBalance());
         drawCenteredRegularString(screen, credits, 61);
         drawIcon(Icon.COIN, width / 2 - fontRegularMetrics.stringWidth(credits) / 2
                 - Icon.COIN.getWidth() * 2 - 6, 47, 2);
 
         int cardSize = Math.max(76, Math.min(120, Math.min((width - 80) / 3, (height - 248) / 2)));
-        drawShopShelf(screen, upgrades, assets, "Upgrades", "No upgrades available",
+        drawShopShelf(screen, upgrades, assets, LanguageManager.get("shop.upgrades"), LanguageManager.get("shop.noUpgrades"),
                 96, cardSize, upgradeIndex, section == 0);
-        drawShopShelf(screen, unlocks, assets, "Unlocks", "No unlocks available",
+        drawShopShelf(screen, unlocks, assets, LanguageManager.get("shop.unlocks"), LanguageManager.get("shop.noUnlocks"),
                 132 + cardSize, cardSize, unlockIndex, section == 1);
 
         int actionsY = height - 96;
-        drawShopText("Back (Esc)", 31, actionsY, 12,
+        drawShopText(LanguageManager.get("shop.back"), 31, actionsY, 12,
                 section == 2 && actionIndex == 0 ? Color.GREEN : Color.WHITE, 120);
         if (saveStatus == SaveStatus.FAILED) {
-            drawShopText("Retry save (R)", width / 2, actionsY, 12,
+            drawShopText(LanguageManager.get("shop.retrySave"), width / 2, actionsY, 12,
                     section == 2 && actionIndex == 1 ? Color.GREEN : Color.WHITE, width / 2 - 24);
         }
         backBufferGraphics.setColor(purchaseSucceeded ? Color.GREEN : Color.ORANGE);
         drawShopCentered(screen, feedback, height - 70);
-        String saveMessage = saveStatus == SaveStatus.FAILED ? "Save failed. Progress kept this session."
-                : saveStatus == SaveStatus.SAVED ? "Progress saved." : "";
+        String saveMessage = saveStatus == SaveStatus.FAILED ? LanguageManager.get("shop.saveFailed")
+                : saveStatus == SaveStatus.SAVED ? LanguageManager.get("shop.saved") : "";
         backBufferGraphics.setColor(saveStatus == SaveStatus.FAILED ? Color.ORANGE : Color.GRAY);
         drawShopCentered(screen, saveMessage, height - 52);
         backBufferGraphics.setColor(Color.GRAY);
-        drawShopCentered(screen, "Up/Down: section   Left/Right: product", height - 37);
-        drawShopCentered(screen, "WASD also works   Space/Enter: confirm", height - 21);
+        drawShopCentered(screen, LanguageManager.get("shop.nav1"), height - 37);
+        drawShopCentered(screen, LanguageManager.get("shop.nav2"), height - 21);
     }
 
     private void drawShopShelf(Screen screen, List<ShopProduct> products, PlayerAssetsState assets,
@@ -1028,7 +1053,7 @@ public final class DrawManager {
         backBufferGraphics.drawRect(x, y, size, size);
         boolean owned = assets.getUnlockedContentIds().contains(product.getId());
         boolean available = product.isAvailableByDefault();
-        String badge = available ? "Available" : owned ? "Owned" : "";
+        String badge = available ? LanguageManager.get("shop.available") : owned ? LanguageManager.get("shop.owned") : "";
         drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
         drawShopProductIcon(product, x + size / 2, y + 18);
@@ -1037,7 +1062,7 @@ public final class DrawManager {
         drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);
         backBufferGraphics.setColor(Color.DARK_GRAY);
         backBufferGraphics.drawLine(x + 9, y + size - 25, x + size - 9, y + size - 25);
-        String price = available || owned ? "Unlocked" : product.getPrice() + " C";
+        String price = available || owned ? LanguageManager.get("shop.unlocked") : product.getPrice() + " C";
         drawShopText(price, x + 9, y + size - 9, 11, available || owned ? Color.GRAY : Color.WHITE, size - 18);
     }
 
@@ -1135,13 +1160,14 @@ public final class DrawManager {
     }
 
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {
-        String[] options = SETTINGS_MENU_OPTIONS;
-        Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.GAMEPLAY, Icon.BACK };
+        String[] options = getSettingsMenuOptions();
+        Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.GAMEPLAY, Icon.LANGUAGE, Icon.BACK };
+        String title = LanguageManager.get("settings.title");
 
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Settings", screen.getHeight() / 5);
+        drawCenteredBigString(screen, title, screen.getHeight() / 5);
         drawIcon(Icon.SETTINGS, screen.getWidth() / 2
-                - fontBigMetrics.stringWidth("Settings") / 2
+                - fontBigMetrics.stringWidth(title) / 2
                 - Icon.SETTINGS.getWidth() * 3 - 10,
                 screen.getHeight() / 5 - 22, 3, Color.GREEN);
 
@@ -1150,12 +1176,14 @@ public final class DrawManager {
             int labelY = screen.getHeight() / 2
                     + i * fontRegularMetrics.getHeight() * 2;
             backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, options[i], labelY);
-            drawMenuIcon(screen, icons[i], options[i], labelY, selected);
+            // Show current language name next to the Language option
+            String label = (i == 3) ? options[i] + ": " + LanguageManager.getCurrentLanguageName() : options[i];
+            drawCenteredRegularString(screen, label, labelY);
+            drawMenuIcon(screen, icons[i], label, labelY, selected);
         }
 
         backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, "Up/Down: select  Space: confirm",
+        drawCenteredRegularString(screen, LanguageManager.get("settings.nav"),
                 screen.getHeight() / 8 * 7);
     }
 
@@ -1165,7 +1193,7 @@ public final class DrawManager {
                 waitingForKey);
 
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Controls", screen.getHeight() / 5);
+        drawCenteredBigString(screen, LanguageManager.get("controls.title"), screen.getHeight() / 5);
 
         for (int i = 0; i < labels.length; i++) {
             backBufferGraphics.setColor(
@@ -1176,15 +1204,15 @@ public final class DrawManager {
         }
 
         backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, "Up/Down: select  Space: change",
+        drawCenteredRegularString(screen, LanguageManager.get("controls.nav"),
                 screen.getHeight() / 8 * 7);
     }
 
     public void drawGameplaySettings(final Screen screen, final int selectedOption) {
-        String[] options = GAMEPLAY_SETTINGS_OPTIONS;
+        String[] options = getGameplaySettingsOptions();
 
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Gameplay", screen.getHeight() / 5);
+        drawCenteredBigString(screen, LanguageManager.get("gameplay.title"), screen.getHeight() / 5);
 
         for (int i = 0; i < options.length; i++) {
             backBufferGraphics.setColor(
@@ -1195,7 +1223,7 @@ public final class DrawManager {
         }
 
         backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, "Up/Down: select  Space: confirm",
+        drawCenteredRegularString(screen, LanguageManager.get("gameplay.nav"),
                 screen.getHeight() / 8 * 7);
     }
 
@@ -1215,15 +1243,19 @@ public final class DrawManager {
      */
     public void drawAudioSettings(final Screen screen, final int option,
             final int bgmVolume, final int sfxVolume, final boolean muted) {
-        String titleString = "Audio Settings";
-        String selectString = "Up/Down: select";
-        String adjustString = "Left/Right: adjust  M: mute";
-        String returnString = "Press Esc to return";
+        String titleString = LanguageManager.get("audio.title");
+        String selectString = LanguageManager.get("audio.select");
+        String adjustString = LanguageManager.get("audio.adjust");
+        String returnString = LanguageManager.get("audio.return");
         // In the order of the options: BGM volume, SFX volume, mute.
-        String[] optionStrings = { "BGM Volume", "SFX Volume", "Mute" };
+        String[] optionStrings = {
+            LanguageManager.get("audio.bgmVolume"),
+            LanguageManager.get("audio.sfxVolume"),
+            LanguageManager.get("audio.mute")
+        };
         // Values shown on the right side of each option.
         String[] valueStrings = { Integer.toString(bgmVolume),
-                Integer.toString(sfxVolume), muted ? "ON" : "OFF" };
+                Integer.toString(sfxVolume), muted ? LanguageManager.get("audio.on") : LanguageManager.get("audio.off") };
         // Volumes shown as bars. Only the volume options have a bar.
         int[] barVolumes = { bgmVolume, sfxVolume };
 
@@ -1427,7 +1459,7 @@ public final class DrawManager {
         }
         backBufferGraphics.setFont(fontRegular);
         backBufferGraphics.setColor(Color.ORANGE);
-        backBufferGraphics.drawString("GRENADE [G] x" + grenades, 10, 55);
+        backBufferGraphics.drawString(String.format(LanguageManager.get("hud.grenade"), grenades), 10, 55);
     }
 
     /**
@@ -1532,8 +1564,8 @@ public final class DrawManager {
 
     private void drawNameInputAt(final Screen screen, final char[] name,
             final int nameCharSelected, final int y, final int spacing) {
-        String newRecordString = "New Record!";
-        String introduceNameString = "Introduce name:";
+        String newRecordString = LanguageManager.get("gameOver.newRecord");
+        String introduceNameString = LanguageManager.get("nameInput.title");
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, newRecordString, y);
@@ -1569,8 +1601,9 @@ public final class DrawManager {
     public void drawAchievementNotice(final Screen screen,
             final Achievement achievement) {
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredRegularString(screen, "Achievement unlocked: "
-                + achievement.getName(), screen.getHeight() / 7);
+        drawCenteredRegularString(screen, String.format(
+                LanguageManager.get("records.achievementUnlocked"),
+                achievement.getName()), screen.getHeight() / 7);
         backBufferGraphics.setColor(Color.WHITE);
         drawCenteredRegularString(screen, achievement.getCondition(),
                 screen.getHeight() / 7 + fontRegularMetrics.getHeight());
@@ -1602,17 +1635,22 @@ public final class DrawManager {
         int y = getAchievementResultsTitleY(screen, isNewRecord, failedStage,
                 achievements.size());
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, gameCleared ? "Game Cleared!" : "Game Over", y);
+        drawCenteredBigString(screen, gameCleared
+                ? LanguageManager.get("gameOver.gameClear")
+                : LanguageManager.get("gameOver.gameOver"), y);
         if (failedStage > 0) {
             y += spacing;
             backBufferGraphics.setColor(Color.RED);
-            drawCenteredRegularString(screen, "Stage " + failedStage + " Failed", y);
+            drawCenteredRegularString(screen, String.format(
+                    LanguageManager.get("gameOver.stageFailed"), failedStage), y);
         }
         y += spacing * 2;
         backBufferGraphics.setColor(Color.WHITE);
-        String[] results = { "Score " + score, "Lives remaining " + lives,
-                "Enemies destroyed " + enemies,
-                String.format("Accuracy %.2f%%", accuracy * 100) };
+        String[] results = { String.format(LanguageManager.get("score.score"), score),
+                String.format(LanguageManager.get("score.livesRemaining"), lives),
+                String.format(LanguageManager.get("score.enemiesDestroyed"), enemies),
+                String.format(LanguageManager.get("score.accuracy"),
+                        String.format("%.2f", accuracy * 100)) };
         if (modeLabel != null)
             results = new String[] { results[0], results[1], results[2], results[3], modeLabel };
         for (String result : results) {
@@ -1626,14 +1664,14 @@ public final class DrawManager {
         }
         y += spacing;
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredRegularString(screen, "New achievements:", y);
+        drawCenteredRegularString(screen, LanguageManager.get("records.newAchievements"), y);
         backBufferGraphics.setColor(Color.WHITE);
         for (Achievement achievement : achievements) {
             y += spacing;
             drawCenteredRegularString(screen, achievement.getName(), y);
         }
         backBufferGraphics.setColor(acceptsInput ? Color.GREEN : Color.GRAY);
-        drawCenteredRegularString(screen, "Space: play again   Esc: menu",
+        drawCenteredRegularString(screen, LanguageManager.get("gameOver.playAgainEsc"),
                 screen.getHeight() - spacing);
     }
 
@@ -1642,7 +1680,8 @@ public final class DrawManager {
         for (Achievement achievement : Achievement.values()) {
             Long unlocked = service.getUnlockTime(achievement);
             backBufferGraphics.setColor(unlocked == null ? Color.WHITE : Color.GREEN);
-            drawCenteredRegularString(screen, achievement.getName() + (unlocked == null ? " [Locked]"
+            drawCenteredRegularString(screen, achievement.getName()
+                    + (unlocked == null ? " " + LanguageManager.get("records.locked")
                     : " [" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                             .format(new Date(unlocked)) + "]"),
                     y);
@@ -1654,8 +1693,13 @@ public final class DrawManager {
 
     public void drawMenu(final Screen screen, final int option) {
         String[] labels = {
-            "Play", "Shop", "Hangar", "High scores",
-            "Records & Achievements", "Settings", "Exit"
+            LanguageManager.get("menu.play"),
+            LanguageManager.get("menu.shop"),
+            LanguageManager.get("menu.hangar"),
+            LanguageManager.get("menu.highScores"),
+            LanguageManager.get("menu.records"),
+            LanguageManager.get("menu.settings"),
+            LanguageManager.get("menu.exit")
         };
         int[] codes = { 2, 10, 11, 3, 9, 4, 0 };
         Icon[] icons = {
@@ -1680,8 +1724,13 @@ public final class DrawManager {
             return -1;
 
         String[] labels = {
-                "Play", "Shop", "Hangar", "High scores",
-                "Records & Achievements", "Settings", "Exit"
+                LanguageManager.get("menu.play"),
+                LanguageManager.get("menu.shop"),
+                LanguageManager.get("menu.hangar"),
+                LanguageManager.get("menu.highScores"),
+                LanguageManager.get("menu.records"),
+                LanguageManager.get("menu.settings"),
+                LanguageManager.get("menu.exit")
         };
         int[] codes = { 2, 10, 11, 3, 9, 4, 0 };
         int fontHeight = fontRegularMetrics.getHeight();
@@ -1713,7 +1762,7 @@ public final class DrawManager {
         if (fontRegularMetrics == null)
             return -1;
 
-        return getCenteredOptionAt(screen, SETTINGS_MENU_OPTIONS,
+        return getCenteredOptionAt(screen, getSettingsMenuOptions(),
                 screen.getHeight() / 2, fontRegularMetrics.getHeight() * 2,
                 mouseX, mouseY);
     }
@@ -1745,7 +1794,7 @@ public final class DrawManager {
         if (fontRegularMetrics == null)
             return -1;
 
-        return getCenteredOptionAt(screen, GAMEPLAY_SETTINGS_OPTIONS,
+        return getCenteredOptionAt(screen, getGameplaySettingsOptions(),
                 screen.getHeight() / 2, fontRegularMetrics.getHeight() * 2,
                 mouseX, mouseY);
     }
@@ -1821,7 +1870,12 @@ public final class DrawManager {
      */
     private String[] getControlsSettingsLabels(final int selectedOption,
             final boolean waitingForKey) {
-        String[] labels = { "Move Left", "Move Right", "Fire", "Back" };
+        String[] labels = {
+            LanguageManager.get("controls.moveLeft"),
+            LanguageManager.get("controls.moveRight"),
+            LanguageManager.get("controls.fire"),
+            LanguageManager.get("controls.back")
+        };
         String[] keys = {
                 getKeyDisplayText(ControlsConfig.getKey(ControlsConfig.LEFT)),
                 getKeyDisplayText(ControlsConfig.getKey(ControlsConfig.RIGHT)),
@@ -1831,7 +1885,7 @@ public final class DrawManager {
         for (int i = 0; i < keys.length; i++) {
             labels[i] += ": ";
             labels[i] += waitingForKey && i == selectedOption
-                    ? "Press a key (Esc to cancel)"
+                    ? LanguageManager.get("controls.pressKey")
                     : keys[i];
         }
 
@@ -1842,39 +1896,39 @@ public final class DrawManager {
             final RecordsService service, final int tab) {
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen,
-                tab == 0 ? "Run Records" : "Achievements", screen.getHeight() / 9);
+                tab == 0 ? LanguageManager.get("records.runs") : LanguageManager.get("records.achievements"), screen.getHeight() / 9);
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen,
-                "Left/Right: switch   Esc/Space: return", screen.getHeight() / 6);
+                LanguageManager.get("records.nav"), screen.getHeight() / 6);
         int y = screen.getHeight() / 6 + fontRegularMetrics.getHeight() * 2;
         if (tab == 0) {
             backBufferGraphics.setColor(Color.WHITE);
-            drawCenteredRegularString(screen, "Personal bests", y);
+            drawCenteredRegularString(screen, LanguageManager.get("records.personalBests"), y);
             if (service.getRecordCount() == 0) {
-                drawCenteredRegularString(screen, "No completed runs yet.",
+                drawCenteredRegularString(screen, LanguageManager.get("records.noRuns"),
                         y + fontRegularMetrics.getHeight());
             } else {
-                drawCenteredRegularString(screen, "Highest score: "
+                drawCenteredRegularString(screen, LanguageManager.get("records.highestScore")
                         + service.getHighestScore(), y + fontRegularMetrics.getHeight());
-                drawCenteredRegularString(screen, "Most enemies: "
+                drawCenteredRegularString(screen, LanguageManager.get("records.mostEnemies")
                         + service.getMostEnemiesDefeated(),
                         y + fontRegularMetrics.getHeight() * 2);
-                drawCenteredRegularString(screen, "Longest survival: "
+                drawCenteredRegularString(screen, LanguageManager.get("records.longestSurvival")
                         + service.getLongestSurvivalMillis() / 1000.0 + "s",
                         y + fontRegularMetrics.getHeight() * 3);
             }
             y += fontRegularMetrics.getHeight() * 4;
-            drawCenteredRegularString(screen, "Top completed runs", y);
+            drawCenteredRegularString(screen, LanguageManager.get("records.topRuns"), y);
             List<RunRecord> runs = service.getTopRuns();
             if (runs.isEmpty()) {
-                drawCenteredRegularString(screen, "No completed runs yet.",
+                drawCenteredRegularString(screen, LanguageManager.get("records.noRuns"),
                         y + fontRegularMetrics.getHeight() * 2);
             } else {
                 int index = 1;
                 for (RunRecord run : runs) {
                     y += fontRegularMetrics.getHeight();
                     drawCenteredRegularString(screen, String.format(
-                            "%2d. %d pts  %d enemies  %.1fs", index++,
+                            LanguageManager.get("records.runEntry"), index++,
                             run.getScore(), run.getEnemiesDefeated(),
                             run.getActiveDurationMillis() / 1000.0), y);
                 }
@@ -1885,9 +1939,9 @@ public final class DrawManager {
         backBufferGraphics.setColor(Color.GRAY);
         String status = service.getSaveError();
         String message = status == null
-                ? (service.getLoadWarning() == null ? "Profile ready" : "Profile restored from backup")
-                : (status.startsWith("Saving") ? "Saving profile..."
-                        : "Profile error - check game log");
+                ? (service.getLoadWarning() == null ? LanguageManager.get("records.profileReady") : LanguageManager.get("records.profileRestored"))
+                : (status.startsWith("Saving") ? LanguageManager.get("records.savingProfile")
+                        : LanguageManager.get("records.profileError"));
         drawCenteredRegularString(screen, message,
                 screen.getHeight() - fontRegularMetrics.getHeight());
     }
@@ -1922,9 +1976,9 @@ public final class DrawManager {
      */
     public void drawShipSelection(final Screen screen, final ShipType[] shipTypes,
             final int selectedIndex) {
-        String titleString = "SELECT SHIP";
+        String titleString = LanguageManager.get("hangar.selectShip");
         String instructionsString = Core.getShopController().isShipAvailable(shipTypes[selectedIndex])
-                ? "SPACE: SELECT   ESC: BACK" : "UNLOCK IN SHOP   ESC: BACK";
+                ? LanguageManager.get("hangar.select") : LanguageManager.get("hangar.locked");
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, titleString, screen.getHeight() / 6);
@@ -1948,9 +2002,10 @@ public final class DrawManager {
             }
 
             String name = (isSelected ? "> " : "") + type.getName()
-                    + (available ? "" : " [LOCKED]") + (isSelected ? " <" : "");
-            String stats = String.format("SPEED: %d | HP: %d | RELOAD: %dMS",
-                    type.getSpeed(), type.getMaxLives(), type.getShootingInterval());
+                    + (available ? "" : " [" + LanguageManager.get("hangar.lockedBadge") + "]") + (isSelected ? " <" : "");
+            String stats = String.format(LanguageManager.get("hangar.speed"), type.getSpeed())
+                    + " | " + String.format(LanguageManager.get("hangar.hp"), type.getMaxLives())
+                    + " | " + String.format(LanguageManager.get("hangar.reload"), type.getShootingInterval());
 
             backBufferGraphics.setColor(isSelected ? Color.GREEN : Color.GRAY);
             drawCenteredRegularString(screen, name, startY + i * spacing);
@@ -1997,24 +2052,24 @@ public final class DrawManager {
             final Ship previewShip, final Rectangle colorBar,
             final boolean editingCustomColor) {
         backBufferGraphics.setColor(Color.WHITE);
-        drawCenteredBigString(screen, "Hangar", screen.getHeight() / 5);
+        drawCenteredBigString(screen, LanguageManager.get("hangar.title"), screen.getHeight() / 5);
         drawEntity(previewShip, previewShip.getPositionX(), previewShip.getPositionY());
 
         boolean custom = ShipCustomization.isCustomColor();
         backBufferGraphics.setColor(Color.WHITE);
-        String label = "Color: " + ShipCustomization.getColorName();
+        String label = String.format(LanguageManager.get("hangar.color"), ShipCustomization.getColorName());
         if (custom) {
             drawShipColorBar(colorBar, ShipCustomization.getCustomHue(), editingCustomColor);
             label += String.format(" #%06X", previewShip.getColor().getRGB() & 0xFFFFFF);
             drawCenteredRegularString(screen, editingCustomColor
-                    ? "Left/Right or drag: adjust color"
-                    : "Enter or drag: edit custom color", screen.getHeight() - 85);
+                    ? LanguageManager.get("hangar.editColor")
+                    : LanguageManager.get("hangar.editColorEnter"), screen.getHeight() - 85);
         }
         drawCenteredRegularString(screen, label,
                 screen.getHeight() / 2 + (custom ? 75 : 45));
         drawCenteredRegularString(screen, editingCustomColor
-                ? "Enter: done" : "Left/Right: choose color", screen.getHeight() - 60);
-        drawCenteredRegularString(screen, "Esc: return to menu", screen.getHeight() - 35);
+                ? LanguageManager.get("hangar.done") : LanguageManager.get("hangar.chooseColorNav"), screen.getHeight() - 60);
+        drawCenteredRegularString(screen, LanguageManager.get("hangar.returnMenu"), screen.getHeight() - 35);
     }
 
     /** Draws the full hue spectrum and a marker at the custom hue. */
@@ -2051,10 +2106,14 @@ public final class DrawManager {
     }
 
     public void drawHangarMenu(final Screen screen, final int selectedOption) {
-        String[] labels = { "Choose ship", "Choose color", "Back" };
+        String[] labels = {
+            LanguageManager.get("hangar.chooseShip"),
+            LanguageManager.get("hangar.chooseColor"),
+            LanguageManager.get("hangar.back")
+        };
 
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Hangar", screen.getHeight() / 5);
+        drawCenteredBigString(screen, LanguageManager.get("hangar.title"), screen.getHeight() / 5);
 
         int firstY = screen.getHeight() / 2;
         int spacing = fontRegularMetrics.getHeight() * 3;
@@ -2066,18 +2125,23 @@ public final class DrawManager {
 
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen,
-                "Up/Down: select   Space/Enter: confirm",
+                LanguageManager.get("settings.nav"),
                 screen.getHeight() - 50);
-        drawCenteredRegularString(screen, "Esc: main menu",
+        drawCenteredRegularString(screen, LanguageManager.get("hangar.returnMenu"),
                 screen.getHeight() - 28);
     }
 
     public void drawGameModeMenu(final Screen screen, final int option) {
-        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Back" };
+        String[] labels = {
+            LanguageManager.get("mode.endless"),
+            LanguageManager.get("mode.campaign"),
+            LanguageManager.get("mode.story"),
+            LanguageManager.get("mode.back")
+        };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Select Mode", screen.getHeight() / 3);
+        drawCenteredBigString(screen, LanguageManager.get("mode.selectMode"), screen.getHeight() / 3);
 
         backBufferGraphics.setFont(fontRegular);
         for (int i = 0; i < labels.length; i++) {
@@ -2089,11 +2153,15 @@ public final class DrawManager {
 
     // 2P 선택 화면을 위한 메인 메서드 추가
     public void drawPlayerSelectMenu(final Screen screen, final int option) {
-        String[] labels = { "1 Player", "2 Players (Co-op)", "Back" };
+        String[] labels = {
+            LanguageManager.get("player.one"),
+            LanguageManager.get("player.two"),
+            LanguageManager.get("mode.back")
+        };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen, "Select Players", screen.getHeight() / 3);
+        drawCenteredBigString(screen, LanguageManager.get("player.selectPlayers"), screen.getHeight() / 3);
 
         backBufferGraphics.setFont(fontRegular);
         for (int i = 0; i < labels.length; i++) {

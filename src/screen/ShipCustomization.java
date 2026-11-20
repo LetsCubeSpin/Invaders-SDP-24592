@@ -1,5 +1,6 @@
 package screen;
 
+import engine.LanguageManager;
 import java.awt.Color;
 
 /** Stores the player's visual ship customization for the current session. */
@@ -14,13 +15,13 @@ public final class ShipCustomization {
         Color.BLUE
     };
 
-    private static final String[] COLOR_NAMES = {
-        "Green",
-        "Cyan",
-        "Magenta",
-        "Yellow",
-        "Orange",
-        "Blue"
+    private static final String[] COLOR_KEYS = {
+        "color.green",
+        "color.cyan",
+        "color.magenta",
+        "color.yellow",
+        "color.orange",
+        "color.blue"
     };
 
     private static int selectedColorIndex;
@@ -35,7 +36,8 @@ public final class ShipCustomization {
     }
 
     public static String getColorName() {
-        return isCustomColor() ? "Custom" : COLOR_NAMES[selectedColorIndex];
+        return isCustomColor() ? LanguageManager.get("color.custom")
+                : LanguageManager.get(COLOR_KEYS[selectedColorIndex]);
     }
 
     public static boolean isCustomColor() {

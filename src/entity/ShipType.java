@@ -1,16 +1,18 @@
 package entity;
 
+import engine.LanguageManager;
+
 /**
  * Defines the available player ship types and their gameplay attributes.
  */
 public enum ShipType {
 
-    STANDARD("Standard Ship", 2, 750, 4, false),
-    SPEEDSTER("Speedster", 4, 400, 3, false),
-    TANK("Heavy Tank", 1, 1000, 5, true);
+    STANDARD("standard", 2, 750, 4, false),
+    SPEEDSTER("speedster", 4, 400, 3, false),
+    TANK("tank", 1, 1000, 5, true);
 
-    /** Name displayed to the player. */
-    private final String name;
+    /** Translation key suffix for the ship name. */
+    private final String nameKey;
 
     /** Horizontal movement speed. */
     private final int speed;
@@ -24,13 +26,13 @@ public enum ShipType {
     /** Whether this ship supports a shield. */
     private final boolean shieldCapable;
 
-    ShipType(final String name,
+    ShipType(final String nameKey,
             final int speed,
             final int shootingInterval,
             final int maxLives,
             final boolean shieldCapable) {
 
-        this.name = name;
+        this.nameKey = nameKey;
         this.speed = speed;
         this.shootingInterval = shootingInterval;
         this.maxLives = maxLives;
@@ -38,7 +40,7 @@ public enum ShipType {
     }
 
     public String getName() {
-        return this.name;
+        return LanguageManager.get("ship." + this.nameKey);
     }
 
     public int getSpeed() {

@@ -4,6 +4,7 @@ import audio.AudioManager;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
 import currency.ShopCatalog.Category;
+import engine.LanguageManager;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -193,7 +194,7 @@ public class ShopScreen extends Screen {
         drawManager.initDrawing(this);
         drawManager.drawShop(this, upgrades, unlocks, assets, selectedSection,
                 upgradeIndex, unlockIndex, selectedAction,
-                lastProductAvailableByDefault ? "Available in Hangar. No purchase needed." : resultMessage(lastResult),
+                lastProductAvailableByDefault ? LanguageManager.get("shop.purchase.available") : resultMessage(lastResult),
                 lastProductAvailableByDefault || lastResult == PurchaseResult.SUCCESS,
                 controller.getSaveStatus());
         drawManager.completeDrawing(this);
@@ -202,13 +203,13 @@ public class ShopScreen extends Screen {
     static String resultMessage(PurchaseResult result) {
         if (result == null) return "";
         switch (result) {
-        case SUCCESS: return "Purchase complete.";
-        case INSUFFICIENT_FUNDS: return "Not enough credits.";
-        case ALREADY_UNLOCKED: return "Already owned. No credits spent.";
-        case INVALID_ITEM_ID: return "Invalid product. Nothing purchased.";
-        case CATEGORY_MISMATCH: return "Unknown product or wrong category.";
-        case ITEM_NOT_AVAILABLE: return "This product is unavailable.";
-        default: return "Purchase could not be completed.";
+        case SUCCESS: return LanguageManager.get("shop.purchase.success");
+        case INSUFFICIENT_FUNDS: return LanguageManager.get("shop.purchase.insufficientFunds");
+        case ALREADY_UNLOCKED: return LanguageManager.get("shop.purchase.alreadyUnlocked");
+        case INVALID_ITEM_ID: return LanguageManager.get("shop.purchase.invalidItemId");
+        case CATEGORY_MISMATCH: return LanguageManager.get("shop.purchase.categoryMismatch");
+        case ITEM_NOT_AVAILABLE: return LanguageManager.get("shop.purchase.itemNotAvailable");
+        default: return LanguageManager.get("shop.purchase.default");
         }
     }
 }
