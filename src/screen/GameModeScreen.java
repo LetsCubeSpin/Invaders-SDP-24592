@@ -8,14 +8,16 @@ import engine.Core;
 public class GameModeScreen extends Screen { // Implementation of the game mode selection screen.
 
     private static final int SELECTION_TIME = 200;
-    /** Choices of the mode step: 0 Endless, 1 Campaign, 2 Story, 3 Back. */
-    static final int MODE_CHOICES = 4;
+    /** Choices of the mode step: 0 Endless, 1 Campaign, 2 Story, 3 Custom, 4 Back. */
+    static final int MODE_CHOICES = 5;
     /** Choices of the player step: 0 1P, 1 2P, 2 Back. */
     static final int PLAYER_CHOICES = 3;
     /** Mode index of story mode, which is played by one player. */
     static final int STORY_MODE = 2;
+    /** Mode index of custom levels, which bypass player selection. */
+    static final int CUSTOM_MODE = 3;
     /** Mode index of Back on the mode step. */
-    static final int MODE_BACK = 3;
+    static final int MODE_BACK = 4;
 
     private int selected;
     private Cooldown selectionCooldown;
@@ -71,9 +73,9 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
                         this.returnCode = 1;
                         this.isRunning = false;
                         AudioManager.playSFX("audio/sfx/menu_back.wav");
-                    } else if (this.selected == STORY_MODE) {
-                        // Story mode is one player only, so it starts right away.
-                        this.returnCode = returnCodeFor(STORY_MODE);
+                    } else if (this.selected == STORY_MODE || this.selected == CUSTOM_MODE) {
+                        // Story and custom levels bypass the player-count selection.
+                        this.returnCode = returnCodeFor(this.selected);
                         this.isRunning = false;
                         AudioManager.playSFX("audio/sfx/menu_select.wav");
                     } else { // Endless(0) 또는 Campaign(1) 선택 시 2단계(인원 선택)로 전진
@@ -135,7 +137,7 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
     }
 
     /**
-     * @param mode Mode index: 0 Endless, 1 Campaign, 2 Story.
+     * @param mode Mode index: 0 Endless, 1 Campaign, 2 Story, 3 Custom.
      * @return Code Core uses to start the mode.
      */
     static int returnCodeFor(final int mode) {
@@ -146,6 +148,8 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
             return 2;
         case STORY_MODE:
             return 15;
+        case CUSTOM_MODE:
+            return 16;
         default:
             throw new IllegalArgumentException("Unknown game mode: " + mode);
         }
