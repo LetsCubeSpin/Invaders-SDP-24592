@@ -6,13 +6,11 @@ import entity.Ship;
 import audio.AudioManager;
 
 /**
- * Item qui octroie un bouclier d'energie temporaire (15 secondes).
- * Tant qu'il est actif, le vaisseau est protege contre les tirs ennemis.
+ * Item qui octroie un bouclier d'energie sans limite de temps.
+ * Il protege le vaisseau contre un seul coup, puis il se brise.
  */
 public class ShieldItem extends Item {
 
-    /** Duree de 15 secondes en millisecondes. */
-    private static final long DURATION = 15000;
     private static final int ITEM_WIDTH = 13;
     private static final int ITEM_HEIGHT = 8;
 
@@ -28,7 +26,7 @@ public class ShieldItem extends Item {
         if (ship != null && ship.getShipType().isShieldCapable()) {
             ship.setShieldActive(true);
             AudioManager.playSFX("audio/sfx/status_shield_on.wav");
-            Core.getLogger().info("Energy Shield activated for 15 seconds.");
+            Core.getLogger().info("Energy Shield activated until it takes a hit.");
         }
     }
 
@@ -36,13 +34,14 @@ public class ShieldItem extends Item {
     public void removeEffect(final Ship ship) {
         if (ship != null) {
             ship.setShieldActive(false);
-            Core.getLogger().info("Energy Shield expired.");
+            Core.getLogger().info("Energy Shield removed.");
         }
     }
 
     @Override
     public long getDuration() {
-        return DURATION;
+        // No timer: the shield stays up until a hit breaks it.
+        return 0;
     }
 
     @Override

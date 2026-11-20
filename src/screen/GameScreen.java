@@ -1529,8 +1529,11 @@ public class GameScreen extends Screen {
 		if (!status.isAlive() || playerShip.isInvulnerable())
 			return false;
 		if (playerShip.isShieldActive()) {
-			this.logger.info("Shot absorbed by Energy Shield.");
+			this.logger.info("Shot absorbed by Energy Shield, which breaks.");
 			AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+			// The Energy Shield takes one hit and then breaks.
+			playerShip.setShieldActive(false);
+			AudioManager.playSFX("audio/sfx/status_shield_off.wav");
 			// The Energy Shield belongs to Ship, so PlayerStatus cannot see
 			// this hit by itself. Announce it anyway, or a listener would
 			// hear a blocked hit only when the timed shield was the one that
