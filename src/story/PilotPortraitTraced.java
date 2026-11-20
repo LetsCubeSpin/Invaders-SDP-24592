@@ -318,7 +318,7 @@ public final class PilotPortraitTraced {
         g.fill(lens);
     }
 
-    /** Scan lines, a slow scan bar, a thin frame and a faint flicker. */
+    /** Scan lines, a slow scan bar and a faint flicker. */
     private static void paintOverlay(final Graphics2D g, final int x,
             final int y, final int w, final int h, final double t) {
         g.setColor(new Color(0, 0, 0, 70));
@@ -331,8 +331,5 @@ public final class PilotPortraitTraced {
         double flick = 0.5 + 0.5 * Math.sin(t * 37) * Math.sin(t * 11);
         g.setColor(new Color(110, 255, 140, (int) (4 + 8 * flick)));
         g.fillRect(x, y, w, h);
-        g.setStroke(new BasicStroke(1f));
-        g.setColor(MID);
-        g.drawRect(x, y, w - 1, h - 1);
     }
 }

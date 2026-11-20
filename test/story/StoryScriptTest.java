@@ -33,4 +33,36 @@ class StoryScriptTest {
     void pilotHasAName() {
         assertEquals("PILOT", StoryScript.PILOT_NAME);
     }
+
+    @Test
+    void questionsFollowStageOneAndStageThreeOnly() {
+        for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
+            boolean asked = stage == StoryProgress.FIRST_QUESTION_STAGE
+                    || stage == StoryProgress.MID_BOSS_STAGE;
+            assertEquals(asked, StoryScript.question(stage, 0) != null,
+                    "stage " + stage);
+        }
+    }
+
+    @Test
+    void secondQuestionDependsOnTheFirstAnswer() {
+        StoryQuestion assault = StoryScript.question(3, 0);
+        StoryQuestion rescue = StoryScript.question(3, 1);
+        assertFalse(assault.getText().equals(rescue.getText()));
+        assertEquals("ABSORB", assault.getTitle(0));
+        assertEquals("INFILTRATE", rescue.getTitle(1));
+    }
+
+    @Test
+    void questionTextsAreAscii() {
+        for (int stage : new int[] { 1, 3 })
+            for (int first = 0; first < 2; first++) {
+                StoryQuestion question = StoryScript.question(stage, first);
+                String all = question.getText();
+                for (int choice = 0; choice < 2; choice++)
+                    all += question.getTitle(choice) + question.getDetail(choice);
+                for (char c : all.toCharArray())
+                    assertTrue(c < 128, "stage " + stage);
+            }
+    }
 }

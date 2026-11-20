@@ -27,7 +27,49 @@ public final class StoryScript {
     /** What the pilot says at the start of stage 1. */
     private static final String STAGE_1_LINE = "Let's go wipe them all out.";
 
+    private static final StoryQuestion FIRST_QUESTION = new StoryQuestion(
+            "Two signals at once. The position of the Swarm vanguard fleet, "
+                    + "and a distress call from the Moon base.",
+            new String[] { "ASSAULT", "RESCUE" },
+            new String[] { "Strike the enemy commander first",
+                    "Save the Moon base survivors" });
+
+    private static final StoryQuestion SECOND_QUESTION_AFTER_ASSAULT =
+            new StoryQuestion(
+                    "In the wreckage of ARGUS, we found an alien core, "
+                            + "still beating.",
+                    new String[] { "ABSORB", "DESTROY" },
+                    new String[] { "Absorb the core", "Destroy the core" });
+
+    private static final StoryQuestion SECOND_QUESTION_AFTER_RESCUE =
+            new StoryQuestion(
+                    "Among the people we rescued was a Swarm scientist, "
+                            + "Sera. \"Trust me. I will show you the way to "
+                            + "the mothership.\"",
+                    new String[] { "ESCORT", "INFILTRATE" },
+                    new String[] { "Guard the flight home",
+                            "Infiltrate the mothership" });
+
     private StoryScript() {
+    }
+
+    /**
+     * @param stage
+     *            Story stage that was just cleared.
+     * @param firstChoice
+     *            Answer to the first question, 0 or 1. Only the second
+     *            question depends on it.
+     * @return The question asked after the stage, or null when the stage is
+     *         not followed by one.
+     */
+    public static StoryQuestion question(final int stage,
+            final int firstChoice) {
+        if (stage == StoryProgress.FIRST_QUESTION_STAGE)
+            return FIRST_QUESTION;
+        if (stage == StoryProgress.MID_BOSS_STAGE)
+            return firstChoice == 0 ? SECOND_QUESTION_AFTER_ASSAULT
+                    : SECOND_QUESTION_AFTER_RESCUE;
+        return null;
     }
 
     /**

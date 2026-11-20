@@ -47,6 +47,7 @@ import records.RunSession;
 import records.RecordsService;
 import records.Achievement;
 import story.StoryProgress;
+import story.StoryQuestion;
 import story.StoryStage;
 import story.StoryScript;
 import story.StoryStageData;
@@ -228,6 +229,24 @@ public class GameScreen extends Screen {
     private static final double STORY_CHARS_PER_SECOND = 30;
 
     private StoryIntro storyIntro = StoryIntro.NONE;
+
+    /** Parts of the question asked after a cleared story stage. */
+    private enum StoryQuestionPhase { NONE, TYPING, CHOOSING, DONE }
+
+    /** Pixels per frame the ship flies forward while a choice is made. */
+    private static final int STORY_FORWARD_SPEED = 3;
+    /** How long the chosen half stays shown before the screen closes. */
+    private static final int STORY_CHOICE_HOLD_MILLIS = 800;
+
+    private boolean storyChoiceEnabled;
+    private StoryProgress storyProgress;
+    private StoryQuestion storyQuestion;
+    private StoryQuestionPhase questionPhase = StoryQuestionPhase.NONE;
+    private Typewriter questionTypewriter;
+    /** Starts true so a Space held while the last enemy fell is ignored. */
+    private boolean questionSpaceWasDown = true;
+    private int storyChoice = -1;
+    private long choiceMadeMillis;
     private Typewriter introTypewriter;
     private long introStartMillis;
     private long goStartMillis;
@@ -528,6 +547,7 @@ public class GameScreen extends Screen {
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
 				? progress.bossForStage(stageNumber) : null;
 		screen.startStoryIntro(stageNumber);
+		screen.storyProgress = progress;
 		return screen;
 	}
 
@@ -601,6 +621,125 @@ public class GameScreen extends Screen {
 		this.storyIntro = StoryIntro.GO;
 		this.goStartMillis = now;
 		AudioManager.playSFX("audio/sfx/countdown_go.wav");
+	}
+
+	/**
+	 * Lets the player answer the story question that follows the stage by
+	 * flying the ship into one half of the banner line. Off by default, in
+	 * which case the stage simply ends and the story scenes ask the question.
+	 *
+	 * @param enabled
+	 *            Whether the question is asked on this screen.
+	 */
+	public void setStoryChoiceEnabled(final boolean enabled) {
+		this.storyChoiceEnabled = enabled;
+	}
+
+	/** @return Choice made on this screen, 0 or 1, or -1 when none was made. */
+	public int getStoryChoice() {
+		return this.storyChoice;
+	}
+
+	/**
+	 * Runs the story question after the stage is cleared: the text is typed
+	 * out, Space starts the choosing, and flying the ship up into the left or
+	 * right half of the banner line picks choice 0 or 1.
+	 *
+	 * @return Whether the question still needs the screen.
+	 */
+	boolean updateStoryQuestion(final long now, final boolean spaceDown,
+			final boolean forwardDown, final boolean leftDown,
+			final boolean rightDown) {
+		boolean spacePressed = spaceDown && !this.questionSpaceWasDown;
+		this.questionSpaceWasDown = spaceDown;
+		if (!this.storyChoiceEnabled || !this.stageCleared
+				|| this.storyProgress == null)
+			return false;
+
+		if (this.questionPhase == StoryQuestionPhase.NONE) {
+			int firstChoice = this.level == StoryProgress.FIRST_QUESTION_STAGE
+					? 0 : this.storyProgress.getFirstChoice();
+			this.storyQuestion = StoryScript.question(this.level, firstChoice);
+			if (this.storyQuestion == null)
+				return false;
+			this.questionPhase = StoryQuestionPhase.TYPING;
+			this.questionTypewriter = new Typewriter(
+					this.storyQuestion.getText(), STORY_CHARS_PER_SECOND);
+			this.questionTypewriter.start(now);
+			return true;
+		}
+
+		switch (this.questionPhase) {
+		case TYPING:
+			if (spacePressed) {
+				if (this.questionTypewriter.isDone(now)) {
+					this.questionPhase = StoryQuestionPhase.CHOOSING;
+					AudioManager.playSFX("audio/sfx/menu_select.wav");
+				} else
+					this.questionTypewriter.finish();
+			}
+			return true;
+		case CHOOSING:
+			flyShipToChoose(now, forwardDown, leftDown, rightDown);
+			return true;
+		case DONE:
+			return now - this.choiceMadeMillis < STORY_CHOICE_HOLD_MILLIS;
+		default:
+			return false;
+		}
+	}
+
+	/** Moves the ship while choosing, and picks the half it flies into. */
+	private void flyShipToChoose(final long now, final boolean forwardDown,
+			final boolean leftDown, final boolean rightDown) {
+		boolean isRightBorder = this.ship.getPositionX()
+				+ this.ship.getWidth() + this.ship.getSpeed() > this.width - 1;
+		boolean isLeftBorder = this.ship.getPositionX()
+				- this.ship.getSpeed() < 1;
+		if (rightDown && !isRightBorder)
+			this.ship.moveRight();
+		if (leftDown && !isLeftBorder)
+			this.ship.moveLeft();
+		clampShipPosition();
+		// Forward only works while choosing.
+		if (forwardDown)
+			this.ship.setPositionY(
+					this.ship.getPositionY() - STORY_FORWARD_SPEED);
+		if (this.ship.getPositionY() <= storyChoiceLineY()) {
+			this.storyChoice = shipSide();
+			this.questionPhase = StoryQuestionPhase.DONE;
+			this.choiceMadeMillis = now;
+			AudioManager.playSFX("audio/sfx/menu_select.wav");
+		}
+	}
+
+	/** Height of the lower line of the banner, the line that is split. */
+	private int storyChoiceLineY() {
+		return this.height / 2 + this.height / 12;
+	}
+
+	/** @return 0 when the ship is over the left half, 1 over the right. */
+	private int shipSide() {
+		int center = this.ship.getPositionX() + this.ship.getWidth() / 2;
+		return center < this.width / 2 ? 0 : 1;
+	}
+
+	private void drawStoryQuestion() {
+		long now = System.currentTimeMillis();
+		if (this.questionPhase == StoryQuestionPhase.TYPING) {
+			drawManager.drawStoryQuestionBox(this,
+					this.questionTypewriter.getText(),
+					this.questionTypewriter.visibleLength(now),
+					this.questionTypewriter.isDone(now), now);
+		} else if (this.questionPhase == StoryQuestionPhase.CHOOSING
+				|| this.questionPhase == StoryQuestionPhase.DONE) {
+			drawManager.drawStoryChoices(this,
+					new String[] { this.storyQuestion.getTitle(0),
+							this.storyQuestion.getTitle(1) },
+					new String[] { this.storyQuestion.getDetail(0),
+							this.storyQuestion.getDetail(1) },
+					shipSide(), this.storyChoice, now);
+		}
 	}
 
 	/** @return Whether a story stage is still in its dialogue or title part. */
@@ -1039,8 +1178,17 @@ public class GameScreen extends Screen {
 
         advanceStageIfReady();
 
-        if (this.levelFinished && this.screenFinishedCooldown.checkFinished())
-            this.isRunning = false;
+        if (this.levelFinished && this.screenFinishedCooldown.checkFinished()) {
+            boolean waiting = updateStoryQuestion(System.currentTimeMillis(),
+                    inputManager.isKeyDown(KeyEvent.VK_SPACE),
+                    inputManager.isKeyDown(KeyEvent.VK_UP),
+                    inputManager.isKeyDown(
+                            ControlsConfig.getKey(ControlsConfig.LEFT)),
+                    inputManager.isKeyDown(
+                            ControlsConfig.getKey(ControlsConfig.RIGHT)));
+            if (!waiting)
+                this.isRunning = false;
+        }
     }
 
     /**
@@ -1266,6 +1414,8 @@ public class GameScreen extends Screen {
 			drawManager.drawHorizontalLine(this, this.height / 2 + this.height
 					/ 12);
         }
+        if (this.questionPhase != StoryQuestionPhase.NONE)
+            drawStoryQuestion();
         drawManager.drawParticles(this.particleSystem);
 
         if (this.visibleAchievement != null)

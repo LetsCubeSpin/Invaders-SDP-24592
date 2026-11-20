@@ -910,16 +910,15 @@ public final class DrawManager {
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
     }
 
-    /** Left edge and width of the pilot portrait slot in story dialogue. */
+    /** Left edge of the pilot portrait in story dialogue. */
     private static final int DIALOGUE_PORTRAIT_X = 5;
-    private static final int DIALOGUE_PORTRAIT_WIDTH = 132;
     /** Height of the boxes, and their gap below the lower line. */
     private static final int DIALOGUE_BOX_HEIGHT = 160;
     private static final int DIALOGUE_BOX_GAP = 19;
     /** Space kept free below the boxes. */
     private static final int DIALOGUE_BOTTOM_MARGIN = 30;
-    /** Left edge of the dialogue text box, which ends at the right margin. */
-    private static final int DIALOGUE_TEXT_X = 151;
+    /** Gap between the portrait and the text box. */
+    private static final int DIALOGUE_BOX_SPACING = 14;
     private static final int DIALOGUE_TEXT_PADDING = 10;
 
     /**
@@ -1036,37 +1035,28 @@ public final class DrawManager {
         // The lines sit at a fraction of the height, so the boxes start just
         // below the lower one and stay inside the part of the window that
         // is really visible.
-        int boxY = screen.getHeight() / 2 + screen.getHeight() / 12
-                + DIALOGUE_BOX_GAP;
-        int boxHeight = Math.min(DIALOGUE_BOX_HEIGHT,
-                screen.getHeight() - DIALOGUE_BOTTOM_MARGIN - boxY);
-        int textWidth = screen.getWidth() - DIALOGUE_TEXT_X
-                - DIALOGUE_PORTRAIT_X;
-        // Portrait slot.
-        backBufferGraphics.setColor(Color.BLACK);
-        backBufferGraphics.fillRect(DIALOGUE_PORTRAIT_X, boxY,
-                DIALOGUE_PORTRAIT_WIDTH, boxHeight);
+        int boxY = dialogueBoxY(screen);
+        int boxHeight = dialogueBoxHeight(screen);
+        // Portrait, with one green border right around it.
         int portraitWidth = (int) Math.round(boxHeight
                 * story.PilotPortraitTraced.SRC_W
                 / story.PilotPortraitTraced.SRC_H);
         story.PilotPortraitTraced.draw((Graphics2D) backBufferGraphics,
-                DIALOGUE_PORTRAIT_X
-                        + (DIALOGUE_PORTRAIT_WIDTH - portraitWidth) / 2,
-                boxY, portraitWidth, boxHeight,
+                DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
                 millis / 1000.0);
         backBufferGraphics.setColor(Color.GREEN);
         backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
-                DIALOGUE_PORTRAIT_WIDTH, boxHeight);
+                portraitWidth - 1, boxHeight - 1);
 
-        // Text box.
+        // Text box right next to the portrait.
+        int boxX = DIALOGUE_PORTRAIT_X + portraitWidth + DIALOGUE_BOX_SPACING;
+        int textWidth = screen.getWidth() - boxX - DIALOGUE_PORTRAIT_X;
         backBufferGraphics.setColor(Color.BLACK);
-        backBufferGraphics.fillRect(DIALOGUE_TEXT_X, boxY,
-                textWidth, boxHeight);
+        backBufferGraphics.fillRect(boxX, boxY, textWidth, boxHeight);
         backBufferGraphics.setColor(Color.GREEN);
-        backBufferGraphics.drawRect(DIALOGUE_TEXT_X, boxY,
-                textWidth, boxHeight);
+        backBufferGraphics.drawRect(boxX, boxY, textWidth - 1, boxHeight - 1);
         backBufferGraphics.setFont(fontRegular);
-        int textX = DIALOGUE_TEXT_X + DIALOGUE_TEXT_PADDING;
+        int textX = boxX + DIALOGUE_TEXT_PADDING;
         backBufferGraphics.drawString(speaker, textX, boxY + 24);
         backBufferGraphics.setColor(Color.WHITE);
         drawTypedText(text, visibleChars, textX, boxY + 54,
@@ -1075,10 +1065,130 @@ public final class DrawManager {
         if (done && (millis / 500) % 2 == 0) {
             backBufferGraphics.setColor(Color.GRAY);
             String hint = "SPACE";
-            backBufferGraphics.drawString(hint, DIALOGUE_TEXT_X
+            backBufferGraphics.drawString(hint, boxX
                     + textWidth - DIALOGUE_TEXT_PADDING
                     - fontRegularMetrics.stringWidth(hint),
                     boxY + boxHeight - 10);
+        }
+    }
+
+    /** Top of the dialogue boxes, just below the lower line of the banner. */
+    private int dialogueBoxY(final Screen screen) {
+        return screen.getHeight() / 2 + screen.getHeight() / 12
+                + DIALOGUE_BOX_GAP;
+    }
+
+    /** Height of the dialogue boxes, kept inside the visible window. */
+    private int dialogueBoxHeight(final Screen screen) {
+        return Math.min(DIALOGUE_BOX_HEIGHT, screen.getHeight()
+                - DIALOGUE_BOTTOM_MARGIN - dialogueBoxY(screen));
+    }
+
+    /**
+     * Draws a story question typed out in one wide box over the game screen.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param text
+     *            Full text of the question.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole text is shown, which shows the prompt.
+     * @param millis
+     *            Current time, for the blinking prompt.
+     */
+    public void drawStoryQuestionBox(final Screen screen, final String text,
+            final int visibleChars, final boolean done, final long millis) {
+        int boxX = DIALOGUE_PORTRAIT_X;
+        int boxY = dialogueBoxY(screen);
+        int boxWidth = screen.getWidth() - 2 * DIALOGUE_PORTRAIT_X;
+        int boxHeight = dialogueBoxHeight(screen);
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(boxX, boxY, boxWidth, boxHeight);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(boxX, boxY, boxWidth - 1, boxHeight - 1);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawTypedText(text, visibleChars, boxX + DIALOGUE_TEXT_PADDING,
+                boxY + 30, boxWidth - 2 * DIALOGUE_TEXT_PADDING);
+        if (done && (millis / 500) % 2 == 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            String hint = "SPACE";
+            backBufferGraphics.drawString(hint, boxX + boxWidth
+                    - DIALOGUE_TEXT_PADDING
+                    - fontRegularMetrics.stringWidth(hint),
+                    boxY + boxHeight - 10);
+        }
+    }
+
+    /**
+     * Draws the two choices of a story question in the banner bar. The lower
+     * line of the bar is split in two halves, and flying the ship into one
+     * half picks that choice.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param titles
+     *            Titles of choice 0 (left half) and choice 1 (right half).
+     * @param details
+     *            Descriptions of the two choices.
+     * @param shipSide
+     *            Half the ship is under, 0 or 1.
+     * @param chosen
+     *            Choice that was made, or -1 while the player is choosing.
+     * @param millis
+     *            Current time, for the flashing of the chosen half.
+     */
+    public void drawStoryChoices(final Screen screen, final String[] titles,
+            final String[] details, final int shipSide, final int chosen,
+            final long millis) {
+        int width = screen.getWidth();
+        int upperY = screen.getHeight() / 2 - screen.getHeight() / 12;
+        int lowerY = screen.getHeight() / 2 + screen.getHeight() / 12;
+        int middle = width / 2;
+        Color dim = new Color(0, 120, 0);
+
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(0, upperY, width, lowerY - upperY);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawLine(0, upperY, width - 1, upperY);
+        backBufferGraphics.setColor(dim);
+        backBufferGraphics.drawLine(middle, upperY, middle, lowerY);
+
+        backBufferGraphics.setFont(fontRegular);
+        for (int side = 0; side < 2; side++) {
+            int left = side == 0 ? 0 : middle + 2;
+            int right = side == 0 ? middle - 2 : width - 1;
+            boolean active = chosen < 0 ? side == shipSide : side == chosen;
+            boolean flash = side == chosen && (millis / 150) % 2 == 0;
+            Color color = flash ? Color.WHITE : active ? Color.GREEN : dim;
+
+            // The half of the lower line, thicker under the ship.
+            int thickness = active ? 3 : 1;
+            backBufferGraphics.setColor(color);
+            backBufferGraphics.fillRect(left, lowerY - thickness + 1,
+                    right - left + 1, thickness);
+
+            int centerX = (left + right) / 2;
+            backBufferGraphics.drawString(titles[side], centerX
+                    - fontRegularMetrics.stringWidth(titles[side]) / 2,
+                    upperY + 24);
+            backBufferGraphics.setColor(active ? Color.WHITE : Color.GRAY);
+            int row = 0;
+            for (int[] range : wrapRanges(details[side],
+                    right - left - 2 * DIALOGUE_TEXT_PADDING)) {
+                String line = details[side].substring(range[0], range[1]);
+                backBufferGraphics.drawString(line, centerX
+                        - fontRegularMetrics.stringWidth(line) / 2,
+                        upperY + 44 + row * 18);
+                row++;
+            }
+        }
+
+        if (chosen < 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            drawCenteredRegularString(screen, "UP ARROW: FLY TO A SIDE",
+                    lowerY + 24);
         }
     }
 
