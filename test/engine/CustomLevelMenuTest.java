@@ -235,7 +235,14 @@ class CustomLevelMenuTest {
 
     @Test
     void exportSerializesTheImportedSnapshotNotOriginalFileBytes() throws Exception {
-        Path file = source("snapshot.json", "Imported title");
+        Path file = directory.resolve("snapshot.json");
+        LevelDefinition snapshot = new LevelDefinition(1, "snapshot", "Imported title", List.of(
+                new WaveDefinition("first", new EnemyCell[][] {{new EnemyCell("A", 1), null}},
+                        40, 100, 60, 2000),
+                new WaveDefinition("second", new EnemyCell[][] {{null, new EnemyCell("B", 2)}},
+                        80, 120, 45, 1500)));
+        new JsonLevelWriter().write(file, snapshot);
+        byte[] expectedSnapshot = Files.readAllBytes(file);
         // External formatting differs from the writer's canonical output.
         String externalJson = Files.readString(file).replace("\n", "").replace("  ", "");
         Files.writeString(file, externalJson);
@@ -250,7 +257,7 @@ class CustomLevelMenuTest {
         run(view);
         Path exported = view.output.resolve("snapshot.json");
         assertNotEquals(externalJson, Files.readString(exported));
-        assertEquals("Imported title", new JsonLevelReader().read(exported).getName());
+        assertArrayEquals(expectedSnapshot, Files.readAllBytes(exported));
         assertEquals("Changed on disk after Import", Files.readString(file));
     }
 
