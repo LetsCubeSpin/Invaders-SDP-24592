@@ -38,9 +38,13 @@ public final class BossTypeByLevelTest {
 			check(type != null, "Boss stage " + level + " returns a boss");
 			reachable.add(type);
 		}
-		for (Boss.BossType type : Boss.BossType.values())
+		for (Boss.BossType type : Boss.BossType.values()) {
+			if (type == Boss.BossType.BOSS_D) {
+				continue; // Story-exclusive boss (TRUCE route)
+			}
 			check(reachable.contains(type),
 					type + " is reachable in GameScreen.BOSS_LEVELS");
+		}
 	}
 
 	private static void checkFirstBossStageOpensWithTheSlowBoss() {
