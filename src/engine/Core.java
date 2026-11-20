@@ -154,7 +154,7 @@ public final class Core {
 							0, 0);
 					// Game & score.
 					RunSession runSession = new RunSession(UUID.randomUUID().toString());
-										recordsService.startRun(runSession.getRunId());
+					recordsService.startRun(runSession.getRunId());
 					do {
 						// Award one team life at the usual milestones, up to this mode's cap.
 						boolean bonusLife = gameState.getLevel()
