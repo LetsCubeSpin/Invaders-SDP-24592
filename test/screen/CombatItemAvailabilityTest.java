@@ -94,11 +94,8 @@ class CombatItemAvailabilityTest {
         assertTrue(items.isEmpty());
         assertTrue(ship.isShieldActive());
         assertEquals(1, ship.getGrenadeCount());
-        // The shield has no timer, so it has no HUD countdown either.
-        assertTrue(manager.getBuffManager().getActiveBuffsRemainingTime().isEmpty());
+        assertEquals(Set.of("Energy Shield"), manager.getBuffManager().getActiveBuffsRemainingTime().keySet());
         assertFalse(game.damagePlayer(1, "shielded"));
-        // One hit breaks the shield.
-        assertFalse(ship.isShieldActive());
         game.initialize();
         Ship restarted = (Ship) get(game, "ship");
         assertFalse(restarted.isShieldActive());
@@ -107,7 +104,7 @@ class CombatItemAvailabilityTest {
     }
 
     @Test
-    void shieldHasNoTimerAndStaysUntilItIsReset() throws Exception {
+    void shieldExpiresAndResetsWithItsHudEntry() throws Exception {
         Ship ship = new Ship(100, 100, ShipType.STANDARD);
         ItemManager items = new ItemManager(520);
         BuffManager buffs = items.getBuffManager();
@@ -115,12 +112,19 @@ class CombatItemAvailabilityTest {
         items.spawnItem(shield);
         items.checkCollisions(ship);
         assertTrue(ship.isShieldActive());
-        assertEquals(0, shield.getDuration());
-        assertTrue(buffs.getActiveBuffsRemainingTime().isEmpty());
+        assertEquals(15_000, shield.getDuration());
+        @SuppressWarnings("unchecked")
+        Map<Item, Long> deadlines = (Map<Item, Long>) field(buffs, "activeBuffs").get(buffs);
+        assertNotNull(deadlines.replace(shield, 0L));
         items.update(ship);
-        assertTrue(ship.isShieldActive(), "no timer ends the shield");
-        shield.removeEffect(ship);
         assertFalse(ship.isShieldActive());
+        assertTrue(buffs.getActiveBuffsRemainingTime().isEmpty());
+        items.spawnItem(new ShieldItem(100, 100));
+        items.checkCollisions(ship);
+        assertTrue(ship.isShieldActive());
+        buffs.resetAllBuffs(ship);
+        assertFalse(ship.isShieldActive());
+        assertTrue(buffs.getActiveBuffsRemainingTime().isEmpty());
     }
 
     @Test
