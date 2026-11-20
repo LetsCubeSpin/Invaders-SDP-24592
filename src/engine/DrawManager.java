@@ -4,6 +4,7 @@ import boss.BossHudInfo;
 
 import java.awt.Color;
 import java.awt.Font;
+import screen.CustomLevelListScreen;
 import java.awt.FontFormatException;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -1709,8 +1710,51 @@ public final class DrawManager {
                 screen.getWidth(), screen.getHeight());
     }
 
+    public void drawCustomLevelMenu(final Screen screen, final int option,
+            final int levelCount) {
+        backBufferGraphics.setColor(Color.GREEN);
+        drawCenteredBigString(screen, "Custom Level", 90);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawCenteredRegularString(screen, "Imported Levels: " + levelCount, 140);
+        String[] labels = { "Import JSON", "Play Level", "Export JSON", "Back" };
+        for (int i = 0; i < labels.length; i++) {
+            boolean enabled = levelCount > 0 || i == 0 || i == 3;
+            backBufferGraphics.setColor(!enabled ? Color.GRAY : i == option ? Color.GREEN : Color.WHITE);
+            drawCenteredRegularString(screen, labels[i], 220 + i * 45);
+        }
+        backBufferGraphics.setColor(Color.WHITE);
+        drawCenteredRegularString(screen, "Arrows / Space / Esc", screen.getHeight() - 45);
+    }
+
+    private void drawFileLabel(final Screen screen, final String text, final int y) {
+        // Use a system font for Unicode filenames, independently of the game's pixel font.
+        Font font = new Font(Font.SANS_SERIF, Font.PLAIN, 14);
+        backBufferGraphics.setFont(font);
+        FontMetrics metrics = backBufferGraphics.getFontMetrics(font);
+        String label = FileNameDisplay.fit(text, screen.getWidth() - 48, metrics::stringWidth);
+        backBufferGraphics.drawString(label, (screen.getWidth() - metrics.stringWidth(label)) / 2, y);
+    }
+
+    public void drawCustomLevelList(final Screen screen,
+            final java.util.List<CustomLevelMenu.Entry> entries, final int selected,
+            final CustomLevelMenu.Action action) {
+        backBufferGraphics.setColor(Color.GREEN);
+        drawCenteredBigString(screen, action == CustomLevelMenu.Action.PLAY ? "Play Level" : "Export JSON", 65);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawCenteredRegularString(screen, (selected + 1) + " / " + entries.size(), 105);
+        int pageSize = CustomLevelListScreen.PAGE_SIZE;
+        int start = selected / pageSize * pageSize;
+        for (int i = start; i < Math.min(start + pageSize, entries.size()); i++) {
+            backBufferGraphics.setColor(i == selected ? Color.GREEN : Color.WHITE);
+            drawFileLabel(screen, (i + 1) + ". " + FileNameDisplay.label(entries.get(i).getFilename()), 155 + (i - start) * 32);
+        }
+        backBufferGraphics.setColor(Color.LIGHT_GRAY);
+        drawFileLabel(screen, entries.get(selected).getSource().getParent().toString(), screen.getHeight() - 95);
+        drawCenteredRegularString(screen, "Arrows / Space / Esc", screen.getHeight() - 45);
+    }
+
     public void drawGameModeMenu(final Screen screen, final int option) {
-        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Back" };
+        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Custom Level", "Back" };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);
