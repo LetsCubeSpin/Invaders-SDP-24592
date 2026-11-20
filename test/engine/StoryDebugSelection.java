@@ -34,9 +34,15 @@ record StoryDebugSelection(StoryRoute route, int stage, Difficulty difficulty, S
         if (fields.length != 4) {
             throw new IllegalArgumentException("Expected ROUTE STAGE DIFFICULTY SHIP.");
         }
-        return new StoryDebugSelection(StoryRoute.valueOf(token(fields[0])),
-                Integer.parseInt(token(fields[1])), Difficulty.valueOf(token(fields[2])),
-                ShipType.valueOf(token(fields[3])));
+        StoryRoute route = StoryRoute.valueOf(token(fields[0]));
+        int stage = Integer.parseInt(token(fields[1]));
+        if (!Difficulty.EASY.name().equals(token(fields[2]))) {
+            throw new IllegalArgumentException("Unsupported difficulty '" + fields[2] + "'. Expected EASY.");
+        }
+        if (!ShipType.STANDARD.name().equals(token(fields[3]))) {
+            throw new IllegalArgumentException("Unsupported ship '" + fields[3] + "'. Expected STANDARD.");
+        }
+        return new StoryDebugSelection(route, stage, Difficulty.EASY, ShipType.STANDARD);
     }
 
     private static String token(String value) {
@@ -66,6 +72,6 @@ record StoryDebugSelection(StoryRoute route, int stage, Difficulty difficulty, S
                 + (StoryProgress.isBossStage(stage) ? progress.bossForStage(stage) : "none")
                 + "\nStory loadout: " + weapon + "   Starting grenades: "
                 + (progress.givesGrenadesOnStage(stage) ? "granted" : "none")
-                + "\nCurrent GameScreen starts every ship with NORMAL and zero grenades.";
+                + "\nCurrent starting equipment: NORMAL bullets and zero grenades.";
     }
 }
