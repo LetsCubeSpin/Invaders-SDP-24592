@@ -4,14 +4,20 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 import engine.GameSettings;
 import engine.GameState;
+import engine.StoryDebugModifiers;
+import entity.BonusEnemyManager;
 import entity.Boss;
+import entity.Bullet;
+import entity.BulletPool;
 import entity.BulletType;
 import entity.EnemyShip;
 import entity.EnemyShipFormation;
+import entity.GrenadeFragment;
 import entity.Ship;
 import entity.ShipType;
 import event.GameplayEventListener;
@@ -54,6 +60,91 @@ class StoryGameScreenTest {
     private static GameScreen story(final int stage, final StoryRoute route) {
         return story(stage, route, ShipType.STANDARD,
                 UnaryOperator.identity());
+    }
+
+    private static GameScreen debug(final int stage, final StoryDebugModifiers modifiers) {
+        GameScreen screen = GameScreen.forStoryDebugStage(new GameState(stage, 0, 1, 0, 0),
+                progress(StoryRoute.HYBRID), UnaryOperator.identity(), 448, 520, 60, modifiers);
+        audio.AudioManager.setMuted(true);
+        screen.initialize();
+        return screen;
+    }
+
+    @Test
+    void debugStartingLivesAreTheActualPoolAndHudLimit() throws Exception {
+        for (int lives : new int[] {1, ShipType.STANDARD.getMaxLives(), 15, 99}) {
+            GameScreen game = debug(1, new StoryDebugModifiers(false, lives, 1, 1));
+            assertEquals(lives, game.getPlayerStatus().getMaxLives());
+            assertEquals(lives, game.getPlayerStatus(0).getLives());
+            assertEquals(lives, game.getGameState().getLivesRemaining());
+            assertEquals(lives, read(game, "maxSharedLives"));
+            assertTrue(game.damagePlayer(1, "test"));
+            assertEquals(lives - 1, game.getGameState().getLivesRemaining());
+        }
+        for (int carry : new int[] {1, 15, 99}) {
+            GameScreen normal = GameScreen.forStoryStage(new GameState(1, 0, carry, 0, 0),
+                    progress(StoryRoute.HYBRID), UnaryOperator.identity(), false, 448, 520, 60,
+                    ShipType.STANDARD, null);
+            int cap = ShipType.STANDARD.getMaxLives();
+            assertEquals(cap, normal.getPlayerStatus().getMaxLives());
+            assertEquals(Math.min(cap, carry), normal.getGameState().getLivesRemaining());
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void storyEnemyHpAndKillRewardsApplyAcrossWaveChanges() throws Exception {
+        GameScreen game = debug(4, new StoryDebugModifiers(false, 15, 2, 4));
+        for (int wave = 0; wave < 2; wave++) {
+            EnemyShipFormation formation = formation(game);
+            EnemyShip first = formation.iterator().next();
+            for (EnemyShip enemy : formation)
+                assertEquals(2, enemy.getHealth());
+            int score = game.getGameState().getScore();
+            int kills = game.getGameState().getShipsDestroyed();
+            ((Set<GrenadeFragment>) read(game, "fragments")).add(new GrenadeFragment(
+                    first.getPositionX() + 2, first.getPositionY() + 4, 0));
+            call(game, "manageGrenades");
+            assertEquals(1, first.getHealth());
+            assertEquals(score, game.getGameState().getScore());
+            assertEquals(kills, game.getGameState().getShipsDestroyed());
+            ((Set<Bullet>) read(game, "bullets")).add(BulletPool.getBullet(
+                    first.getPositionX() + 2, first.getPositionY() + 2, -4));
+            call(game, "manageCollisions");
+            assertTrue(first.isDestroyed());
+            assertEquals(score + first.getPointValue(), game.getGameState().getScore());
+            assertEquals(kills + 1, game.getGameState().getShipsDestroyed());
+            destroyAll(formation);
+            game.advanceStageIfReady();
+            assertEquals(wave == 1, game.isStageCleared());
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void bonusShipConsumesHitsAndAwardsPointsOnlyOnce() throws Exception {
+        GameScreen game = debug(1, new StoryDebugModifiers(false, 4, 2, 1));
+        BonusEnemyManager manager = (BonusEnemyManager) read(game, "bonusEnemyManager");
+        Object cooldown = read(manager, "spawnCooldown");
+        Field time = cooldown.getClass().getDeclaredField("time");
+        time.setAccessible(true);
+        time.setLong(cooldown, 0L);
+        manager.update(448);
+        EnemyShip bonus = manager.getShip();
+        bonus.setPositionX(120);
+        assertEquals(2, bonus.getHealth());
+        ((Set<Bullet>) read(game, "bullets")).add(BulletPool.getBullet(
+                bonus.getPositionX() + 2, bonus.getPositionY() + 2, -4));
+        call(game, "manageCollisions");
+        assertTrue(manager.isActive());
+        assertEquals(1, bonus.getHealth());
+        assertEquals(0, game.getGameState().getScore());
+        ((Set<GrenadeFragment>) read(game, "fragments")).add(new GrenadeFragment(
+                bonus.getPositionX() + 2, bonus.getPositionY() + 4, 0));
+        call(game, "manageGrenades");
+        assertFalse(manager.isActive());
+        assertEquals(bonus.getPointValue(), game.getGameState().getScore());
+        assertEquals(1, game.getGameState().getShipsDestroyed());
     }
 
     @Test

@@ -58,19 +58,26 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1
 
 The script uses `JAVA_HOME`, or `javac` on PATH. To select a JDK explicitly, add `-JdkRoot 'C:\Program Files\Java\jdk-17'`, replacing that example with your installation directory (the parent of `bin`). A desktop session is required.
 
-1. Select a **Story route** and a **Stage (1–7)**, then click **Start stage**.
-2. After a clear, defeat, or battle-window close, choose **Replay same settings**, **Change selection**, or **Exit tool**. **Change selection** reopens the picker at your last route and stage.
-3. **Cancel** or closing the selection/result dialog exits the tool. Closing a battle window ends only that battle and returns to the result dialog.
+1. Select a **Story route** and **Stage (1–7)**. Set **Invincible** (default OFF), **Starting lives** (1–99, default 4), **Enemy HP multiplier** and **Enemy speed multiplier** (defaults 1.0×). Both multiplier menus offer 0.25×, 0.5×, 1.0×, 2.0× and 4.0×. Click **Start stage**.
+2. After a clear, defeat or battle-window close, **Replay same settings** restarts the same stage with all four modifiers. **Change selection** reopens all six controls at their previous values.
+3. **Exit tool**, **Cancel** or closing the selection/result dialog exits the tool.
 
-The tool compiles once per launch. Each battle starts in a new JVM with memory-only preferences and its own temporary save directory. Last selections are kept only until the tool exits. Move with Left/Right, fire with Space, and use G for grenades when available. The preview distinguishes Story loadout data from the currently implemented starting equipment.
+The tool compiles once per launch. Each battle starts in a fresh JVM with the selected starting lives, zero score, fresh enemies, memory-only preferences and its own temporary save directory. Left/Right moves, Space fires and G throws a grenade when available.
 
-To play a single battle and exit, supply **all four** options with `EASY` and `STANDARD` in the difficulty and ship fields.
+For a single battle, supply the route, stage, `EASY` and `STANDARD`. Omitted modifiers use their defaults. This example starts TRUCE stage 7 with invincibility, 15 lives, double enemy HP and half enemy speed.
 
 ```powershell
-pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Difficulty EASY -Ship STANDARD
+pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Difficulty EASY -Ship STANDARD -Invincible ON -StartingLives 15 -EnemyHpMultiplier 2 -EnemySpeedMultiplier 0.5
 ```
 
-On Linux/macOS, use `sh ./scripts/run-story-debug.sh` with JDK 17+ and a desktop session. The `test-story-debug.*` scripts are automated regression tests, not interactive launchers. See the [detailed Story debug guide](docs/story-debug-launcher.md) for controls, troubleshooting, isolation and current gameplay limitations.
+On Linux/macOS, run `sh ./scripts/run-story-debug.sh` for the picker. The equivalent single battle uses the same values.
+
+```sh
+sh ./scripts/run-story-debug.sh --route TRUCE --stage 7 --difficulty EASY --ship STANDARD \
+  --invincible ON --starting-lives 15 --enemy-hp-multiplier 2 --enemy-speed-multiplier 0.5
+```
+
+Controls, CLI limits, movement measurements, save isolation and starting-equipment details are in the [Story debug guide](docs/story-debug-launcher.md).
 
 ## Attribution and Licensing
 

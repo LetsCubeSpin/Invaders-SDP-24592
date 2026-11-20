@@ -4,7 +4,11 @@ param(
     [string]$Route,
     [string]$Stage,
     [string]$Difficulty,
-    [string]$Ship
+    [string]$Ship,
+    [string]$Invincible,
+    [string]$StartingLives,
+    [string]$EnemyHpMultiplier,
+    [string]$EnemySpeedMultiplier
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +23,18 @@ if ($fields.Count -gt 0) {
     if ($Difficulty.Trim() -ine 'EASY') { throw 'Difficulty must be EASY.' }
     if ($Ship.Trim() -ine 'STANDARD') { throw 'Ship must be STANDARD.' }
     $selection = @($Route, [string]$stageNumber, 'EASY', 'STANDARD')
+}
+$modifierOptions = [ordered]@{
+    Invincible = '--invincible'
+    StartingLives = '--starting-lives'
+    EnemyHpMultiplier = '--enemy-hp-multiplier'
+    EnemySpeedMultiplier = '--enemy-speed-multiplier'
+}
+foreach ($name in $modifierOptions.Keys) {
+    if ($PSBoundParameters.ContainsKey($name)) {
+        if ($fields.Count -ne 4) { throw 'Combat modifiers require all four selections.' }
+        $selection += @($modifierOptions[$name], $PSBoundParameters[$name])
+    }
 }
 
 $repo = Split-Path -Parent $PSScriptRoot

@@ -8,6 +8,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+import engine.StoryDebugModifiers;
 import entity.Boss;
 import entity.BossBullet;
 import event.BossDefeatedEvent;
@@ -120,6 +121,11 @@ public final class BossManager {
      *         boss was already defeated.
      */
     public Boss spawn(final BossSpawnRequest request) {
+        return spawn(request, StoryDebugModifiers.defaults());
+    }
+
+    /** Creates a boss with the health and movement settings of this battle. */
+    public Boss spawn(final BossSpawnRequest request, final StoryDebugModifiers modifiers) {
         if (this.boss != null && !this.finished)
             return null;
         String key = request.getBossType() + ":" + request.getLevel() + ":"
@@ -128,7 +134,7 @@ public final class BossManager {
             return null;
 
         this.boss = new Boss(request.getPositionX(), request.getPositionY(),
-                request.getBossType());
+                request.getBossType(), modifiers);
         this.attackSystem = new BossAttackSystem(
                 BossAttackConfig.forType(request.getBossType()), this.random);
         this.currentKey = key;

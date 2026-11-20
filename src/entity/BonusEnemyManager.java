@@ -5,6 +5,7 @@ import java.util.logging.Logger;
 import audio.AudioManager;
 import engine.Cooldown;
 import engine.Core;
+import engine.StoryDebugModifiers;
 
 /**
  * Manages the bonus enemy ship that sometimes crosses the top of the screen.
@@ -20,6 +21,7 @@ public class BonusEnemyManager {
 	/** Horizontal speed of the bonus ship. */
 	private static final int BONUS_SHIP_SPEED = 2;
 
+	private final StoryDebugModifiers modifiers;
 	/** Bonus enemy ship currently on screen, null if there is none. */
 	private EnemyShip bonusShip;
 	/** Time until the next bonus ship appears. */
@@ -33,6 +35,11 @@ public class BonusEnemyManager {
 	 * Constructor, the first bonus ship appears after 10-30 seconds.
 	 */
 	public BonusEnemyManager() {
+		this(StoryDebugModifiers.defaults());
+	}
+
+	public BonusEnemyManager(final StoryDebugModifiers modifiers) {
+		this.modifiers = modifiers;
 		this.spawnCooldown = Core.getVariableCooldown(BONUS_SHIP_INTERVAL,
 				BONUS_SHIP_VARIANCE);
 		this.spawnCooldown.reset();
@@ -50,12 +57,12 @@ public class BonusEnemyManager {
 	public final void update(final int screenWidth) {
 		if (this.bonusShip != null) {
 			if (!this.bonusShip.isDestroyed())
-				this.bonusShip.move(BONUS_SHIP_SPEED, 0);
+				this.bonusShip.moveScaled(BONUS_SHIP_SPEED, 0, this.modifiers.enemySpeedMultiplier());
 			else if (this.explosionCooldown.checkFinished())
 				this.bonusShip = null;
 		}
 		if (this.bonusShip == null && this.spawnCooldown.checkFinished()) {
-			this.bonusShip = new EnemyShip();
+			this.bonusShip = new EnemyShip(this.modifiers.scaleHp(1));
 			AudioManager.playSFX("audio/sfx/bonus_appear.wav");
 			this.spawnCooldown.reset();
 			this.logger.info("A special ship appears");
@@ -65,6 +72,18 @@ public class BonusEnemyManager {
 			this.bonusShip = null;
 			this.logger.info("The special ship has escaped");
 		}
+	}
+
+	/** Applies one hit; only the lethal hit starts the explosion and awards the defeat. */
+	public final boolean hit() {
+		if (!isActive())
+			return false;
+		if (this.bonusShip.getHealth() == 1) {
+			destroy();
+			return true;
+		}
+		this.bonusShip.hit();
+		return false;
 	}
 
 	/**
