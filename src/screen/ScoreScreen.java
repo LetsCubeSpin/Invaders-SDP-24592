@@ -86,7 +86,13 @@ public class ScoreScreen extends Screen {
             final GameState state, final List<Achievement> unlocks) {
         this(width,height,fps,state,false,unlocks);
     }
-    /** Without the run statistics, the accuracy shown is 0. */
+    /**
+     * Without the run statistics, the accuracy shown is 0.
+     *
+     * <p>For tests only. A real run must pass its statistics to the
+     * constructor that takes {@link RunStats}; otherwise the score screen
+     * shows 0% accuracy without any error.</p>
+     */
     public ScoreScreen(final int width, final int height, final int fps,
             final GameState gameState, final boolean infiniteMode, final List<Achievement> unlocks) {
         this(width,height,fps,gameState,infiniteMode,unlocks,RunStats.EMPTY);
