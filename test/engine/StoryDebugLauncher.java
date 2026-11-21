@@ -42,7 +42,7 @@ public final class StoryDebugLauncher {
         requireDebugSession();
         StoryDebugSelection choice;
         if (args.length == 0) {
-            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(StoryDebugLauncher::choose);
+            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(() -> choose(defaultSelection()));
             SwingUtilities.invokeAndWait(dialog);
             choice = dialog.get();
             if (choice == null) return;
@@ -69,22 +69,27 @@ public final class StoryDebugLauncher {
                 false, width, height, 60, choice.ship(), null);
     }
 
-    private static StoryDebugSelection choose() {
+    static StoryDebugSelection defaultSelection() {
+        return new StoryDebugSelection(new PlaceholderStoryScenes().getRoute(), 1,
+                StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
+    }
+
+    static StoryDebugSelection choose(StoryDebugSelection previous) {
         JPanel fields = new JPanel(new GridLayout(0, 2, 8, 6));
         JComboBox<StoryRoute> route = addField(fields, "Story route", StoryRoute.values());
-        route.setSelectedItem(new PlaceholderStoryScenes().getRoute());
+        route.setSelectedItem(previous.route());
         Integer[] stages = new Integer[StoryProgress.TOTAL_STAGES];
         for (int i = 0; i < stages.length; i++) stages[i] = i + 1;
         JComboBox<Integer> stage = addField(fields, "Stage", stages);
-        JComboBox<StoryDebugSelection.Difficulty> difficulty = addField(fields, "Difficulty",
-                StoryDebugSelection.Difficulty.values());
-        difficulty.setSelectedItem(StoryDebugSelection.Difficulty.EASY);
-        JComboBox<ShipType> ship = addField(fields, "Ship", ShipType.values());
-        ship.setSelectedItem(ShipType.STANDARD);
+        stage.setSelectedItem(previous.stage());
+        fields.add(new JLabel("Difficulty"));
+        fields.add(new JLabel(StoryDebugSelection.Difficulty.EASY.name()));
+        fields.add(new JLabel("Ship"));
+        fields.add(new JLabel(ShipType.STANDARD.name()));
 
         Supplier<StoryDebugSelection> selection = () -> new StoryDebugSelection(
                 route.getItemAt(route.getSelectedIndex()), stage.getItemAt(stage.getSelectedIndex()),
-                difficulty.getItemAt(difficulty.getSelectedIndex()), ship.getItemAt(ship.getSelectedIndex()));
+                StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
         JTextArea preview = new JTextArea();
         preview.setEditable(false);
         preview.setFocusable(false);
@@ -92,9 +97,8 @@ public final class StoryDebugLauncher {
         preview.setForeground(Color.GREEN);
         preview.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         preview.setBorder(javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        for (JComboBox<?> field : new JComboBox<?>[] {route, stage, difficulty, ship}) {
-            field.addActionListener(event -> preview.setText(selection.get().describe()));
-        }
+        route.addActionListener(event -> preview.setText(selection.get().describe()));
+        stage.addActionListener(event -> preview.setText(selection.get().describe()));
         preview.setText(selection.get().describe());
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.add(fields, BorderLayout.CENTER);

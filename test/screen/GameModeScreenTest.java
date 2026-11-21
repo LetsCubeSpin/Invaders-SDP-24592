@@ -9,9 +9,10 @@ class GameModeScreenTest {
 
     @Test
     void modeStepHasStoryModeBeforeBack() {
-        assertEquals(4, GameModeScreen.choiceCount(0));
+        assertEquals(5, GameModeScreen.choiceCount(0));
         assertEquals(2, GameModeScreen.STORY_MODE);
-        assertEquals(3, GameModeScreen.MODE_BACK);
+        assertEquals(3, GameModeScreen.CUSTOM_MODE);
+        assertEquals(4, GameModeScreen.MODE_BACK);
     }
 
     @Test
@@ -24,6 +25,7 @@ class GameModeScreenTest {
         assertEquals(8, GameModeScreen.returnCodeFor(0));
         assertEquals(2, GameModeScreen.returnCodeFor(1));
         assertEquals(15, GameModeScreen.returnCodeFor(GameModeScreen.STORY_MODE));
+        assertEquals(16, GameModeScreen.returnCodeFor(GameModeScreen.CUSTOM_MODE));
     }
 
     @Test

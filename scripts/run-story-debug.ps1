@@ -16,7 +16,9 @@ if ($fields.Count -gt 0) {
     if ($fields.Count -ne 4) { throw 'Specify all four: -Route -Stage -Difficulty -Ship, or omit all to open the picker.' }
     $stageNumber = 0
     if (-not [int]::TryParse($Stage, [ref]$stageNumber)) { throw 'Stage must be an integer.' }
-    $selection = @($Route, [string]$stageNumber, $Difficulty, $Ship)
+    if ($Difficulty.Trim() -ine 'EASY') { throw 'Difficulty must be EASY.' }
+    if ($Ship.Trim() -ine 'STANDARD') { throw 'Ship must be STANDARD.' }
+    $selection = @($Route, [string]$stageNumber, 'EASY', 'STANDARD')
 }
 
 $repo = Split-Path -Parent $PSScriptRoot
@@ -39,14 +41,16 @@ $classes = Join-Path $session 'classes'
 New-Item -ItemType Directory -Path $classes -ErrorAction Stop | Out-Null
 Push-Location -LiteralPath $session
 try {
-    # Compile the development entry point and its transitive sources; the release jar stays unchanged.
-    & $compiler --release 17 -encoding UTF-8 -d $classes -sourcepath "$repo\src;$repo\test" "$repo\test\engine\StoryDebugLauncher.java"
+    # Compile once for the entire tool session, including all subsequent battle JVMs.
+    Write-Host 'Compiling Story debug launcher...'
+    & $compiler --release 17 -encoding UTF-8 -d $classes -sourcepath "$repo\src;$repo\test" "$repo\test\engine\StoryDebugController.java"
     if ($LASTEXITCODE -ne 0) {
         [Console]::Error.WriteLine("javac failed ($LASTEXITCODE).")
         exit $LASTEXITCODE
     }
+    Write-Host 'Starting Story debug launcher...'
     & $java '-Dinvaders.storyDebug=true' '-Djava.util.prefs.PreferencesFactory=shop.PreviewPreferencesFactory' `
-        "-Duser.home=$session" "-Dinvaders.storageDir=$session" -cp "$classes;$repo\res" engine.StoryDebugLauncher @selection
+        "-Duser.home=$session" "-Dinvaders.storageDir=$session" -cp "$classes;$repo\res" engine.StoryDebugController @selection
     if ($LASTEXITCODE -ne 0) {
         [Console]::Error.WriteLine("Story debug failed ($LASTEXITCODE).")
         exit $LASTEXITCODE

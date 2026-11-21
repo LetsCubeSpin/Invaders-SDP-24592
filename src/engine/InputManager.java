@@ -14,6 +14,14 @@ import java.awt.event.MouseMotionListener;
  */
 public final class InputManager implements KeyListener, MouseListener, MouseMotionListener {
 
+    /** Releases controls whose release events may have been consumed by a modal dialog. */
+    public void releaseAllInputs() {
+        java.util.Arrays.fill(keys, false);
+        mousePressed = false;
+        rightMousePressed = false;
+        clearLastPressedKey();
+    }
+
 	/** Number of recognised keys. */
 	private static final int NUM_KEYS = 256;
 	/** Array with the jeys marked as pressed or not. */

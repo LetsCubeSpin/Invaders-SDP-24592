@@ -115,6 +115,8 @@ public final class Core {
 		GameState gameState;
 		ShipType selectedShip = ShipType.STANDARD;
 		int playerCount = 1;
+		CustomLevelMenu customLevels = new CustomLevelMenu(Core::createCustomLevelSession,
+				new SwingCustomLevelView(frame, FPS));
 
 		int returnCode = 1;
 		do {
@@ -139,6 +141,10 @@ public final class Core {
 				returnCode = frame.setScreen(currentScreen);
 				playerCount = ((GameModeScreen) currentScreen).getPlayerCount();
 				LOGGER.info("Closing game mode selection screen.");
+				break;
+			case 16:
+				customLevels.run();
+				returnCode = 14;
 				break;
 			case 2:
 				// The selected ship decides how many lives the run starts with.
