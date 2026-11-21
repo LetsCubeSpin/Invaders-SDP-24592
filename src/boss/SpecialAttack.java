@@ -7,7 +7,6 @@ import engine.Cooldown;
 import engine.Core;
 import engine.DifficultyAdjustWhilePlaying;
 import entity.BossBullet;
-import audio.AudioManager;
 import entity.item.OrbitalAnnihilator;
 
 /**
@@ -316,7 +315,6 @@ public abstract class SpecialAttack {
 		protected List<BossBullet> perform(final int originX,
 										   final int originY, final int targetX, final int targetY,
 										   final int damage) {
-			AudioManager.playSFX("audio/sfx/item_laser_beam.wav");
 			return new ArrayList<BossBullet>();
 		}
 

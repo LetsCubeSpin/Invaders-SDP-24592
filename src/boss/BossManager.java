@@ -276,6 +276,9 @@ public final class BossManager {
         BossAttackSystem.AttackResult result = this.attackSystem.update(
                 originX, originY, targetX, targetY);
 		this.boss.setShieldActive(this.attackSystem.isShieldActive());
+		if (this.attackSystem.consumeShieldActivated()) {
+			this.eventManager.publish(BossEvent.shieldActivated(this.boss));
+		}
         if (result == null)
             return;
 
@@ -284,7 +287,7 @@ public final class BossManager {
             summonRequests.addAll(result.getSummons());
         }
 
-        if (!result.getBullets().isEmpty() || result.isWindup()) {
+        if (!result.getBullets().isEmpty() || result.isWindup() || result.isSpecial()) {
             if (this.boss.getState() == Boss.State.MOVING
                     || this.boss.getState() == Boss.State.IDLE) {
                 this.boss.setState(Boss.State.ATTACKING);

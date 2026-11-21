@@ -122,6 +122,16 @@ public class GameScreen extends Screen {
 	/** Sound played when the boss is defeated. */
 	private static final String BOSS_EXPLOSION_SOUND =
 			"audio/sfx/boss_explosion.wav";
+	/** Sound played when the boss activates its shield. */
+	private static final String BOSS_SHIELD_ON_SOUND =
+			"audio/sfx/status_shield_on.wav";
+	/** Sound played when a shield blocks an attack. */
+	private static final String SHIELD_BLOCK_SOUND =
+			"audio/sfx/item_shield_block.wav";
+	/** Minimum interval between shield block sounds inside a laser beam. */
+	private static final long LASER_SHIELD_BLOCK_SFX_INTERVAL_MS = 250L;
+	/** Timestamp of the last shield block sound played against a boss laser. */
+	private long lastLaserShieldBlockSfxMillis;
 	/** Stages where a boss appears (agreed with the team, may change). */
 	static final int[] BOSS_LEVELS = { 3, 5, 7 };
     /** Chance for a destroyed enemy ship to drop a Cluster Grenade item. */
@@ -1409,11 +1419,21 @@ public class GameScreen extends Screen {
 				if (overlapsX && belowBoss) {
 					damagePlayer(player, 1,
 							PlayerHitSource.BOSS_BULLET,
-							"Hit on player ship by OBELISK laser");
+							"Hit on player ship by OBELISK laser",
+							shouldPlayLaserBlockSound());
 				}
 			}
 		}
     }
+
+	private boolean shouldPlayLaserBlockSound() {
+		long now = System.currentTimeMillis();
+		if (now - this.lastLaserShieldBlockSfxMillis
+				< LASER_SHIELD_BLOCK_SFX_INTERVAL_MS)
+			return false;
+		this.lastLaserShieldBlockSfxMillis = now;
+		return true;
+	}
 
     /**
 	 * Applies one hit to the player. Every source of damage goes through this
@@ -1448,7 +1468,12 @@ public class GameScreen extends Screen {
 	}
 
 	private boolean damagePlayer(final PlayerSlot player, final int damage,
-			final PlayerHitSource source, final String logMessage) {
+								 final PlayerHitSource source, final String logMessage) {
+		return damagePlayer(player, damage, source, logMessage, true);
+	}
+
+	private boolean damagePlayer(final PlayerSlot player, final int damage,
+			final PlayerHitSource source, final String logMessage, final boolean playBlockSound) {
 		Ship playerShip = player.getShip();
 		PlayerStatus status = player.getStatus();
 		// Still inside the recovery period from an earlier hit. This outlasts
@@ -1458,7 +1483,8 @@ public class GameScreen extends Screen {
 			return false;
 		if (playerShip.isShieldActive()) {
 			this.logger.info("Shot absorbed by Energy Shield.");
-			AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+			if (playBlockSound)
+				AudioManager.playSFX(SHIELD_BLOCK_SOUND);
 			// The Energy Shield belongs to Ship, so PlayerStatus cannot see
 			// this hit by itself. Announce it anyway, or a listener would
 			// hear a blocked hit only when the timed shield was the one that
@@ -1470,8 +1496,8 @@ public class GameScreen extends Screen {
 		// the hit lands at all; the effects below must not run otherwise.
 		int livesBefore = status.getLives();
 		if (!status.takeDamage(damage)) {
-			if (status.isShieldActive())
-                AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+			if (status.isShieldActive() && playBlockSound)
+				AudioManager.playSFX(SHIELD_BLOCK_SOUND);
             return false;
         }
 		AudioManager.playSFX("audio/sfx/player_hit.wav");
@@ -1537,7 +1563,7 @@ public class GameScreen extends Screen {
 		if (boss == null || boss.isDefeated())
 			return;
 		if (boss.isShieldActive()) {
-			AudioManager.playSFX("audio/sfx/status_shield_on.wav");
+			AudioManager.playSFX(SHIELD_BLOCK_SOUND);
 			return;
 		}
 		boss.takeDamage(storyBossDamage(damage));
@@ -1782,6 +1808,8 @@ public class GameScreen extends Screen {
 			else
 				AudioManager.playSFX(BOSS_SHOT_SOUND);
 			break;
+		case SHIELD_ACTIVATED:
+				AudioManager.playSFX(BOSS_SHIELD_ON_SOUND);
 		case DEFEATED:
 			AudioManager.playSFX(BOSS_EXPLOSION_SOUND);
 			// Three explosions across the boss, as it is bigger than an enemy.

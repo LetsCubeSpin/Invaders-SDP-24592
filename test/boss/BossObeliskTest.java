@@ -121,4 +121,74 @@ public class BossObeliskTest {
 				"run-1", "evt-1", DefeatedEnemyType.BOSS_D, 5000L);
 		assertNotNull(event);
 	}
+
+	@Test
+	public void testPhase2ShieldOnOffTimingCycle() {
+		java.util.concurrent.atomic.AtomicLong fakeTime =
+				new java.util.concurrent.atomic.AtomicLong(10_000L);
+		BossAttackConfig config = BossAttackConfig.forType(Boss.BossType.BOSS_D);
+		BossAttackSystem system = new BossAttackSystem(
+				config, new Random(42), fakeTime::get);
+
+		system.update(116, 92, 116, 400); // 전투 시작 초기화
+		system.setPhase(2);
+		assertFalse(system.isShieldActive());
+
+		// 1. 실드 주기(9000ms) 경과 직전까지는 OFF, +1ms 시 ON + 이벤트 플래그 true
+		fakeTime.addAndGet(9000L);
+		system.update(116, 92, 116, 400);
+		assertFalse(system.isShieldActive());
+
+		fakeTime.addAndGet(1L);
+		system.update(116, 92, 116, 400);
+		assertTrue(system.isShieldActive());
+		assertTrue(system.consumeShieldActivated());
+		assertFalse(system.consumeShieldActivated());
+
+		// 2. 지속 시간(3500ms) 동안 유지되다가 +1ms 시 OFF
+		fakeTime.addAndGet(3500L);
+		system.update(116, 92, 116, 400);
+		assertTrue(system.isShieldActive());
+
+		fakeTime.addAndGet(1L);
+		system.update(116, 92, 116, 400);
+		assertFalse(system.isShieldActive());
+	}
+
+	@Test
+	public void testPhase3LaserChargeFireEndFlow() {
+		java.util.concurrent.atomic.AtomicLong fakeTime =
+				new java.util.concurrent.atomic.AtomicLong(10_000L);
+		BossAttackConfig config = BossAttackConfig.forType(Boss.BossType.BOSS_D);
+		BossAttackSystem system = new BossAttackSystem(
+				config, new Random(42), fakeTime::get);
+
+		system.update(116, 92, 116, 400);
+		system.setPhase(3);
+
+		// 1. 충전(Windup) 시작
+		BossAttackSystem.AttackResult chargeResult =
+				system.update(116, 92, 116, 400);
+		assertNotNull(chargeResult);
+		assertTrue(chargeResult.isSpecial());
+		assertTrue(chargeResult.isWindup());
+		assertTrue(system.isLaserCharging());
+		assertFalse(system.isLaserFiring());
+
+		// 2. 충전 시간(1500ms + 1ms) 경과 -> 발사(Beam) 전환
+		fakeTime.addAndGet(entity.item.OrbitalAnnihilator.CHARGE_DURATION + 1L);
+		BossAttackSystem.AttackResult fireResult =
+				system.update(116, 92, 116, 400);
+		assertNotNull(fireResult);
+		assertTrue(fireResult.isSpecial());
+		assertFalse(fireResult.isWindup());
+		assertFalse(system.isLaserCharging());
+		assertTrue(system.isLaserFiring());
+
+		// 3. 빔 지속 시간(2000ms + 1ms) 경과 -> 레이저 종료
+		fakeTime.addAndGet(entity.item.OrbitalAnnihilator.BEAM_DURATION + 1L);
+		system.update(116, 92, 116, 400);
+		assertFalse(system.isLaserCharging());
+		assertFalse(system.isLaserFiring());
+	}
 }

@@ -1,15 +1,11 @@
 package boss;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+import java.util.function.LongSupplier;
 
 import engine.Cooldown;
-import engine.Core;
 import entity.BossBullet;
 import entity.EnemyType;
-import audio.AudioManager;
 
 /**
  * Boss attack system: attack interval and cooldowns, attack patterns per
@@ -96,6 +92,8 @@ public final class BossAttackSystem {
     private final BossAttackConfig config;
     /** Random generator used to pick patterns. */
     private final Random random;
+	/** Clock source in milliseconds. */
+	private final LongSupplier clock;
     /** Current phase. */
     private int phase;
     /** False after the boss is defeated. */
@@ -135,6 +133,9 @@ public final class BossAttackSystem {
      */
     private boolean specialDueAtPhaseStart;
 
+	/** True on the frame the periodic shield just turned on. */
+	private boolean shieldActivatedThisFrame;
+
     /**
      * Constructor. Cooldowns start on the first {@link #update} call,
      * so the first attack comes one interval after the battle begins.
@@ -144,10 +145,18 @@ public final class BossAttackSystem {
      * @param random
      *            Random generator used to pick patterns.
      */
-    public BossAttackSystem(final BossAttackConfig config,
-            final Random random) {
+    public BossAttackSystem(final BossAttackConfig config, final Random random) {
+		this(config, random, System::currentTimeMillis);
+	}
+
+	/**
+	 * Package-private constructor with an injectable clock for deterministic tests.
+	 */
+	BossAttackSystem(final BossAttackConfig config,
+					 final Random random, final LongSupplier clock) {
         this.config = config;
         this.random = random;
+		this.clock = Objects.requireNonNull(clock, "clock");
         this.phase = 1;
         this.active = true;
         this.buffMultiplier = 1.0;
@@ -180,6 +189,7 @@ public final class BossAttackSystem {
 
 	/** Stops all attacks, used when the boss is defeated. */
 	public void stop() {
+		this.shieldActivatedThisFrame = false;
 		this.active = false;
 		this.pendingSpecial = null;
 		this.shieldActive = false;
@@ -207,6 +217,8 @@ public final class BossAttackSystem {
 
         if (!this.active)
             return null;
+
+		this.shieldActivatedThisFrame = false;
 
         // GameScreen calls this only after its input delay, like
         // EnemyShipFormation, so the countdown does not use up the first
@@ -250,13 +262,13 @@ public final class BossAttackSystem {
 					targetX, targetY, this.config.getDamage());
 			if (special.getBuffMilliseconds() > 0) {
 				this.buffMultiplier = special.getIntervalMultiplier();
-				this.buffCooldown = Core.getCooldown(
-						special.getBuffMilliseconds());
+				this.buffCooldown = new Cooldown(
+						special.getBuffMilliseconds(), this.clock);
 				this.buffCooldown.reset();
 			}
 			if (special.getBeamMilliseconds() > 0) {
-				this.beamCooldown = Core.getCooldown(
-						special.getBeamMilliseconds());
+				this.beamCooldown = new Cooldown(
+						special.getBeamMilliseconds(), this.clock);
 				this.beamCooldown.reset();
 				this.activeBeamWidth = special.getBeamWidth();
 			}
@@ -283,12 +295,9 @@ public final class BossAttackSystem {
 			this.pendingSpecial = special;
 			this.windupDurationMillis = Math.max(1,
 					special.getWindupMilliseconds());
-			this.windupStartMillis = System.currentTimeMillis();
-			this.windupCooldown = Core.getCooldown(this.windupDurationMillis);
+			this.windupStartMillis = this.clock.getAsLong();
+			this.windupCooldown = new Cooldown(this.windupDurationMillis, this.clock);
 			this.windupCooldown.reset();
-			if (special.getBeamMilliseconds() > 0) {
-				AudioManager.playSFX("audio/sfx/item_laser_charge.wav");
-			}
 			return new AttackResult(special.getName(), true, true,
 					new ArrayList<BossBullet>(), summons);
 		}
@@ -329,8 +338,8 @@ public final class BossAttackSystem {
         BossAttackConfig.PhaseConfig phaseConfig = this.config
                 .getPhase(this.phase);
         if (phaseConfig.isSummonEnabled()) {
-            this.summonCooldown = Core.getCooldown(
-                    phaseConfig.getSummonIntervalMilliseconds());
+            this.summonCooldown = new Cooldown(
+                    phaseConfig.getSummonIntervalMilliseconds(), this.clock);
             this.summonCooldown.reset();
         } else {
             this.summonCooldown = null;
@@ -355,10 +364,10 @@ public final class BossAttackSystem {
 
 		if (this.shieldCooldown != null && this.shieldCooldown.checkFinished()) {
 			this.shieldActive = true;
-			this.shieldDurationCooldown = Core.getCooldown(
-					phaseConfig.getShieldDurationMilliseconds());
+			this.shieldActivatedThisFrame = true;
+			this.shieldDurationCooldown = new Cooldown(
+					phaseConfig.getShieldDurationMilliseconds(), this.clock);
 			this.shieldDurationCooldown.reset();
-			AudioManager.playSFX("audio/sfx/status_shield_on.wav");
 		}
 	}
 
@@ -368,8 +377,8 @@ public final class BossAttackSystem {
 		BossAttackConfig.PhaseConfig phaseConfig = this.config
 				.getPhase(this.phase);
 		if (phaseConfig.isShieldEnabled()) {
-			this.shieldCooldown = Core.getCooldown(
-					phaseConfig.getShieldIntervalMilliseconds());
+			this.shieldCooldown = new Cooldown(
+					phaseConfig.getShieldIntervalMilliseconds(), this.clock);
 			this.shieldCooldown.reset();
 		} else {
 			this.shieldCooldown = null;
@@ -396,7 +405,7 @@ public final class BossAttackSystem {
 	public float getLaserChargeProgress() {
 		if (!isLaserCharging())
 			return isLaserFiring() ? 1.0f : 0.0f;
-		float progress = (System.currentTimeMillis() - this.windupStartMillis)
+		float progress = (this.clock.getAsLong() - this.windupStartMillis)
 				/ (float) this.windupDurationMillis;
 		return Math.max(0f, Math.min(1f, progress));
 	}
@@ -420,9 +429,16 @@ public final class BossAttackSystem {
 
     /** Starts waiting for the next attack with the current interval. */
     private void restartAttackCooldown() {
-        this.attackCooldown = Core.getCooldown(getCurrentIntervalMilliseconds());
+        this.attackCooldown = new Cooldown(getCurrentIntervalMilliseconds(), this.clock);
         this.attackCooldown.reset();
     }
+
+	/** Package-private check for BossManager to emit SHIELD_ACTIVATED event. */
+	boolean consumeShieldActivated() {
+		boolean activated = this.shieldActivatedThisFrame;
+		this.shieldActivatedThisFrame = false;
+		return activated;
+	}
 
     public static final class SummonRequest {
         private final int positionX;

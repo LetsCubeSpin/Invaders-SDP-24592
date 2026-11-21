@@ -15,14 +15,12 @@ import entity.BulletType;
 public enum StoryRoute {
 
     /** 1.1.1 Absorb the core. */
-    // TODO: final boss becomes BOSS_C (VESPERA) when it is added.
     HYBRID(1, 0, 0, Boss.BossType.BOSS_C, BulletType.MULTI, false),
     /** 1.1.2 Destroy the core. */
     HUMAN_VICTORY(2, 0, 1, Boss.BossType.BOSS_A, BulletType.RAPID, false),
     /** 1.2.1 Escort the survivors home. */
     HOMECOMING(3, 1, 0, Boss.BossType.BOSS_B, BulletType.NORMAL, true),
     /** 1.2.2 Infiltrate the mothership. */
-    // TODO: final boss becomes BOSS_D (OBELISK) and weapon becomes PIERCE.
     TRUCE(4, 1, 1, Boss.BossType.BOSS_D, BulletType.MULTI, false);
 
     /** Ending number shown to the records system (1 to 4). */
