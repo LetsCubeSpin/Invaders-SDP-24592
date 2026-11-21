@@ -79,14 +79,18 @@ public final class AchievementStatus {
 
     /**
      * @return progress such as "13/20" towards the next tier, capped at the
-     *         target, or an empty string while hidden and for a STAGE
-     *         achievement, whose stage values are not saved.
+     *         target, or an empty string while hidden. It is never below
+     *         the target of the highest unlocked tier, which a stage of an
+     *         abandoned run or a moment during play may have reached
+     *         without a completed run saving it.
      */
     public String getProgressText() {
-        if (!isRevealed() || this.achievement.getScope() == Achievement.Scope.STAGE)
+        if (!isRevealed())
             return "";
         long target = getTarget();
-        return Math.min(this.progress, target) + "/" + target;
+        long shown = Math.max(this.progress, isUnlocked()
+                ? this.achievement.getTarget(this.unlockedTiers) : 0);
+        return Math.min(shown, target) + "/" + target;
     }
 
     private int shownTier() {

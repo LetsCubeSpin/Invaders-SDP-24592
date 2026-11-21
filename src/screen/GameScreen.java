@@ -45,6 +45,7 @@ import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
 import records.RunSession;
+import records.StageClear;
 import records.RecordsService;
 import records.AchievementUnlock;
 import story.StoryProgress;
@@ -483,12 +484,17 @@ public class GameScreen extends Screen {
 							event.getEventId());
 			}
 		});
-		// Stage achievements read the values of this stage from the session.
+		// The session keeps the cleared stage with the run, and stage
+		// achievements are checked against it at once.
 		this.recordsEvents.subscribe(LevelCompletedEvent.class,
 				new GameplayEventListener<LevelCompletedEvent>() {
 			public void onEvent(final LevelCompletedEvent event) {
-				if (recordsService != null && GameScreen.this.runSession != null)
-					recordsService.stageCleared(GameScreen.this.runSession);
+				RunSession session = GameScreen.this.runSession;
+				if (session == null)
+					return;
+				StageClear clear = session.stageCleared(System.nanoTime());
+				if (clear != null && recordsService != null)
+					recordsService.stageCleared(session.getRunId(), clear);
 			}
 		});
 

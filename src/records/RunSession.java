@@ -1,5 +1,8 @@
 package records;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import event.BossDefeatedEvent;
@@ -52,6 +55,10 @@ public final class RunSession {
 	private final int[] stageStartCounts = new int[7];
 	/** Active duration in nanoseconds when the current stage started. */
 	private long stageStartNanos;
+	/** Whether the current stage was already cleared. */
+	private boolean stageCleared;
+	/** Stages cleared in this run, saved with its record. */
+	private final List<StageClear> stagesCleared = new ArrayList<StageClear>();
 	/** Accumulated active duration in nanoseconds. */
 	private long activeDurationNanos;
 	/** Start time of the current active segment. */
@@ -166,7 +173,7 @@ public final class RunSession {
 	}
 
 	/**
-	 * Records that a stage of the run started; {@link #getStageValues}
+	 * Records that a stage of the run started; {@link #stageCleared}
 	 * counts from here. Ignored after the run finished.
 	 *
 	 * @param stage
@@ -179,6 +186,7 @@ public final class RunSession {
 			return;
 		this.stageReached = Math.max(this.stageReached, stage);
 		this.currentStage = stage;
+		this.stageCleared = false;
 		int[] counts = stageCounts();
 		System.arraycopy(counts, 0, this.stageStartCounts, 0, counts.length);
 		this.stageStartNanos = this.activeDurationNanos;
@@ -191,14 +199,19 @@ public final class RunSession {
 	}
 
 	/**
-	 * Values of the stage being played, counted since {@link #stageStarted};
-	 * read when the stage is cleared.
+	 * Records that the current stage was cleared, with the values counted
+	 * since {@link #stageStarted}. The clear is kept with the run, so it is
+	 * saved, and counts towards stage totals, only if the run is completed.
 	 *
 	 * @param nowNanos
 	 *            Monotonic time, normally from System.nanoTime().
-	 * @return the values of the current stage.
+	 * @return the cleared stage, or null if no stage started, the stage was
+	 *         already cleared, or the run finished.
 	 */
-	StatTally getStageValues(final long nowNanos) {
+	public StageClear stageCleared(final long nowNanos) {
+		if (this.completedRecord != null || this.currentStage == 0
+				|| this.stageCleared)
+			return null;
 		int[] counts = stageCounts();
 		int[] start = this.stageStartCounts;
 		long nanos = this.activeDurationNanos;
@@ -207,21 +220,21 @@ public final class RunSession {
 			if (elapsed > 0 && Long.MAX_VALUE - nanos >= elapsed)
 				nanos += elapsed;
 		}
-		StatTally stage = StatTally.forStage();
-		stage.set(Stat.SHOTS_FIRED, counts[0] - start[0]);
-		stage.set(Stat.BULLET_HITS, counts[1] - start[1]);
-		stage.set(Stat.ACCURACY_PERCENT, Stat.accuracyPercent(
-				counts[1] - start[1], counts[0] - start[0]));
-		stage.set(Stat.TIMES_HIT, counts[2] - start[2]);
-		stage.set(Stat.BOSSES_DEFEATED, counts[3] - start[3]);
-		stage.set(Stat.ITEMS_USED, counts[4] - start[4]);
-		stage.set(Stat.ENEMIES_DEFEATED, counts[5] - start[5]);
-		stage.set(Stat.WAVES_REACHED, counts[6] - start[6]);
-		stage.set(Stat.ACTIVE_SECONDS,
+		StageClear clear = new StageClear(this.currentStage,
+				counts[5] - start[5], counts[6] - start[6],
+				counts[0] - start[0], counts[1] - start[1],
+				counts[2] - start[2], counts[3] - start[3],
+				counts[4] - start[4],
 				TimeUnit.NANOSECONDS.toSeconds(nanos - this.stageStartNanos));
-		stage.set(Stat.STAGE_REACHED, this.currentStage);
-		stage.set(Stat.STAGES_CLEARED, 1);
-		return stage;
+		this.stageCleared = true;
+		this.stagesCleared.add(clear);
+		return clear;
+	}
+
+	/** @return the stages cleared so far, in order. */
+	public List<StageClear> getStagesCleared() {
+		return Collections.unmodifiableList(
+				new ArrayList<StageClear>(this.stagesCleared));
 	}
 
 	/** Records that a wave started; waves add up over the whole run. */
@@ -286,7 +299,7 @@ public final class RunSession {
 		this.completedRecord = new RunRecord(this.runId, this.mode, score,
 				enemiesDefeated, TimeUnit.NANOSECONDS.toMillis(
 						this.activeDurationNanos), completionTimeMillis,
-				getStats());
+				getStats(), this.stagesCleared);
 		return this.completedRecord;
 	}
 

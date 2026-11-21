@@ -31,7 +31,9 @@ import story.Ending;
  * never count towards a total. RUN achievements that only use enemies
  * defeated and active seconds are also checked during play, and
  * {@link Achievement.Scope#STAGE} achievements when a stage is cleared
- * ({@link #stageCleared}).</p>
+ * ({@link #stageCleared}). Stage clears are saved with their run, so
+ * {@link Achievement.Scope#STAGE_TOTAL} achievements, like TOTAL ones,
+ * only count completed runs.</p>
  */
 public final class RecordsService {
     private final ProfileStore store;
@@ -205,19 +207,28 @@ public final class RecordsService {
                 : Math.max(this.highestScore, record.getScore());
         this.records.put(record.getRunId(), record);
         StatTally run = StatTally.ofRun(record, beatHighScore);
+        List<StatTally> stages = new ArrayList<StatTally>();
+        for (StageClear stage : record.getStagesCleared())
+            stages.add(stage.toTally());
         for (Achievement achievement : this.achievements) {
-            if (achievement.getScope() == Achievement.Scope.STAGE
-                    || achievement.getStat().isProfileWide()
-                    || !achievement.counts(run))
+            if (achievement.getStat().isProfileWide())
                 continue;
-            long value = run.get(achievement.getStat());
-            long current = getProgress(achievement);
-            this.progress.put(achievement, Long.valueOf(
-                    achievement.getScope() == Achievement.Scope.RUN
-                            ? Math.max(current, value)
-                            : Long.MAX_VALUE - current < value ? Long.MAX_VALUE
-                                    : current + value));
+            boolean perStage = achievement.getScope() == Achievement.Scope.STAGE
+                    || achievement.getScope() == Achievement.Scope.STAGE_TOTAL;
+            for (StatTally values : perStage ? stages
+                    : Collections.singletonList(run))
+                if (achievement.counts(values))
+                    addProgress(achievement, values.get(achievement.getStat()));
         }
+    }
+
+    /** Keeps the best value, or adds it up, as the achievement's scope says. */
+    private void addProgress(final Achievement achievement, final long value) {
+        long current = getProgress(achievement);
+        boolean best = achievement.getScope() == Achievement.Scope.RUN
+                || achievement.getScope() == Achievement.Scope.STAGE;
+        this.progress.put(achievement, Long.valueOf(best ? Math.max(current, value)
+                : Long.MAX_VALUE - current < value ? Long.MAX_VALUE : current + value));
     }
 
     /** Sets the progress of the achievements that count seen endings. */
@@ -229,19 +240,24 @@ public final class RecordsService {
     }
 
     /**
-     * Checks the STAGE achievements against a stage that was just cleared,
-     * with the values counted since the stage started. Meant to be called
-     * for {@code event.LevelCompletedEvent}.
+     * Checks the {@link Achievement.Scope#STAGE} achievements against a
+     * stage that was just cleared, from {@link RunSession#stageCleared}, so
+     * they unlock at once. Stage totals wait for the completed run, which
+     * saves its stage clears. Meant to be called for
+     * {@code event.LevelCompletedEvent}.
      *
-     * @param session
-     *            Session of the run being played.
+     * @param runId
+     *            Run the stage belongs to.
+     * @param clear
+     *            Values of the cleared stage.
      * @return whether the stage belongs to the active run and was checked.
      */
-    public synchronized boolean stageCleared(final RunSession session) {
-        if (this.closed || session == null
-                || !session.getRunId().equals(this.activeRunId))
+    public synchronized boolean stageCleared(final String runId,
+            final StageClear clear) {
+        if (this.closed || clear == null || runId == null
+                || !runId.equals(this.activeRunId))
             return false;
-        StatTally stage = session.getStageValues(System.nanoTime());
+        StatTally stage = clear.toTally();
         long now = System.currentTimeMillis();
         for (Achievement achievement : this.achievements)
             if (achievement.getScope() == Achievement.Scope.STAGE
@@ -366,8 +382,8 @@ public final class RecordsService {
     /**
      * @return the current value of an achievement's stat over the completed
      *         runs that meet its requirements: the best run for a RUN
-     *         achievement, the sum for a TOTAL one. Always 0 for a STAGE
-     *         achievement, whose stage values are not saved.
+     *         achievement, the sum for a TOTAL one, and the same over the
+     *         saved stage clears for STAGE and STAGE_TOTAL.
      */
     public synchronized long getProgress(final Achievement achievement) {
         Long value = this.progress.get(achievement);

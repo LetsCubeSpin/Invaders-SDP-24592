@@ -6,9 +6,10 @@ package records;
  *
  * <p>A {@link Achievement.Scope#RUN} achievement uses the best single run,
  * a {@link Achievement.Scope#TOTAL} achievement adds up every completed
- * run, and a {@link Achievement.Scope#STAGE} achievement uses one cleared
- * stage. Values such as accuracy that cannot be added up are not for TOTAL
- * achievements. Values never go below 0.</p>
+ * run, a {@link Achievement.Scope#STAGE} achievement uses the best cleared
+ * stage and a {@link Achievement.Scope#STAGE_TOTAL} achievement adds up
+ * every cleared stage. Values such as accuracy that cannot be added up are
+ * not for TOTAL or STAGE_TOTAL achievements. Values never go below 0.</p>
  */
 public enum Stat {
     /** 1 for every completed run. */
@@ -43,8 +44,8 @@ public enum Stat {
      * requirements can use it.
      */
     ENDINGS_SEEN(Source.PROFILE, true, false),
-    /** 1 for a cleared stage; for STAGE achievements only. */
-    STAGES_CLEARED(Source.STAGE, false, true);
+    /** 1 for a cleared stage; for stage achievements only. */
+    STAGES_CLEARED(Source.STAGE, true, true);
 
     /** Where a value comes from. */
     private enum Source {

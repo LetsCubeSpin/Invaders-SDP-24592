@@ -463,6 +463,7 @@ class AchievementDefinitionTest {
             private final event.GameplayEventPublisher events =
                     new event.GameplayEventPublisher();
             private int nextId;
+            private StageClear lastClear;
 
             Play(final RecordsService records, final String runId) {
                 this.records = records;
@@ -499,12 +500,32 @@ class AchievementDefinitionTest {
                 return this;
             }
 
+            /** Clears the stage, as GameScreen does on LevelCompletedEvent. */
             boolean clear() {
-                return this.records.stageCleared(this.session);
+                this.lastClear = this.session.stageCleared(System.nanoTime());
+                return this.lastClear != null && this.records.stageCleared(
+                        this.session.getRunId(), this.lastClear);
             }
 
-            StatTally values() {
-                return this.session.getStageValues(System.nanoTime());
+            /** Clears stages one after another; each costs a life if asked. */
+            Play clearStages(final int count, final boolean hit) {
+                for (int i = 0; i < count; i++) {
+                    stage(this.session.getStats().getStageReached() + 1);
+                    if (hit)
+                        hit();
+                    clear();
+                }
+                return this;
+            }
+
+            RunRecord complete(final long completed) {
+                RunRecord record = this.session.finish(100, 0, completed);
+                this.records.completeRun(record);
+                return record;
+            }
+
+            void abandon() {
+                this.records.abandonRun(this.session.getRunId());
             }
         }
 
@@ -514,24 +535,42 @@ class AchievementDefinitionTest {
         private final Achievement steadyAim = Achievement.define("steady_aim",
                 "Steady Aim", "Clear a stage with {target}% accuracy (20+ shots).")
                 .stage(Stat.ACCURACY_PERCENT, 70, 85, 100).atLeast(Stat.SHOTS_FIRED, 20).build();
+        private final Achievement cleanStages = Achievement.define("clean_stages",
+                "Clean Stages", "Clear {target} stages without losing a life.")
+                .stageTotal(Stat.STAGES_CLEARED, 3, 6).atMost(Stat.TIMES_HIT, 0).build();
 
         @Test
         void stageValuesCountOnlyFromTheStartOfTheStage() {
             RecordsService records = service();
             try {
                 Play play = new Play(records, "values");
-                play.stage(1).shoot(10, 2).hit().defeat(4);
-                play.stage(2).shoot(5, 4).defeat(3);
+                play.stage(1).shoot(10, 2).hit().defeat(4).clear();
+                play.stage(2).shoot(5, 4).defeat(3).clear();
 
-                StatTally stage = play.values();
-                assertEquals(5, stage.get(Stat.SHOTS_FIRED));
-                assertEquals(4, stage.get(Stat.BULLET_HITS));
-                assertEquals(80, stage.get(Stat.ACCURACY_PERCENT));
-                assertEquals(0, stage.get(Stat.TIMES_HIT), "the hit was in stage 1");
-                assertEquals(3, stage.get(Stat.ENEMIES_DEFEATED));
-                assertEquals(2, stage.get(Stat.STAGE_REACHED));
-                assertEquals(1, stage.get(Stat.STAGES_CLEARED));
-                assertFalse(stage.has(Stat.SCORE), "score is not counted per stage");
+                StageClear stage = play.lastClear;
+                assertEquals(2, stage.getStage());
+                assertEquals(5, stage.getShotsFired());
+                assertEquals(4, stage.getHits());
+                assertEquals(0, stage.getTimesHit(), "the hit was in stage 1");
+                assertEquals(3, stage.getEnemiesDefeated());
+                StatTally values = stage.toTally();
+                assertEquals(80, values.get(Stat.ACCURACY_PERCENT));
+                assertEquals(1, values.get(Stat.STAGES_CLEARED));
+                assertFalse(values.has(Stat.SCORE), "score is not counted per stage");
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void aStageIsClearedOnlyOnce() {
+            RecordsService records = service();
+            try {
+                Play play = new Play(records, "once");
+                play.stage(1);
+                assertTrue(play.clear());
+                assertFalse(play.clear(), "a second clear of the same stage is ignored");
+                assertEquals(1, play.complete(1).getStagesCleared().size());
             } finally {
                 records.close();
             }
@@ -546,8 +585,7 @@ class AchievementDefinitionTest {
                 assertTrue(play.clear());
                 assertNull(records.getUnlockTime(this.flawless), "stage 1 cost a life");
 
-                play.stage(2).defeat(5);
-                play.clear();
+                play.stage(2).defeat(5).clear();
                 assertNotNull(records.getUnlockTime(this.flawless),
                         "a life lost in an earlier stage does not count");
                 assertEquals(new AchievementUnlock(this.flawless, 1), records.pollNotification());
@@ -557,7 +595,22 @@ class AchievementDefinitionTest {
         }
 
         @Test
-        void aStageAchievementHasTiersButNoSavedProgress() {
+        void aSingleStageAchievementStaysUnlockedWhenTheRunIsAbandoned() {
+            RecordsService records = service(this.flawless);
+            try {
+                Play play = new Play(records, "abandoned");
+                play.stage(1).clear();
+                play.abandon();
+
+                assertNotNull(records.getUnlockTime(this.flawless));
+                assertEquals("1/1", status(records, this.flawless).getProgressText());
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void aStageAchievementHasTiers() {
             RecordsService records = service(this.steadyAim);
             try {
                 Play play = new Play(records, "aim");
@@ -569,7 +622,78 @@ class AchievementDefinitionTest {
                 AchievementStatus status = status(records, this.steadyAim);
                 assertEquals("Steady Aim (Silver)", status.getTitle());
                 assertEquals("Clear a stage with 100% accuracy (20+ shots).", status.getCondition());
-                assertEquals("", status.getProgressText());
+                assertEquals("85/100", status.getProgressText());
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void stageTotalsOnlyCountStagesOfCompletedRuns() {
+            RecordsService records = service(this.cleanStages);
+            try {
+                Play first = new Play(records, "first");
+                first.clearStages(2, false).clearStages(1, true);
+                assertEquals(0, records.getProgress(this.cleanStages),
+                        "nothing counts before the run is completed");
+                first.complete(1);
+                assertEquals("2/3", status(records, this.cleanStages).getProgressText(),
+                        "the stage that cost a life does not count");
+
+                Play abandoned = new Play(records, "abandoned");
+                abandoned.clearStages(4, false);
+                abandoned.abandon();
+                assertEquals(2, records.getProgress(this.cleanStages),
+                        "stages of an abandoned run never count");
+
+                Play third = new Play(records, "third");
+                third.clearStages(1, false).complete(3);
+                assertEquals(Long.valueOf(3), records.getUnlockTime(this.cleanStages));
+                assertEquals("Clean Stages (Bronze)", status(records, this.cleanStages).getTitle());
+                assertEquals("3/6", status(records, this.cleanStages).getProgressText());
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void stageClearsAreSavedWithTheirRun() throws IOException {
+            RecordsService records = service(this.cleanStages, this.steadyAim);
+            Play play = new Play(records, "saved");
+            play.stage(1).shoot(20, 15).clear();
+            play.stage(2).hit().clear();
+            play.complete(1);
+            records.close();
+
+            String saved = new String(Files.readAllBytes(profile()), StandardCharsets.UTF_8);
+            assertTrue(saved.contains("record.0.stages=2"), saved);
+            RunRecord loaded = new ProfileStore(profile()).load().getRecords().get(0);
+            assertEquals(2, loaded.getStagesCleared().size());
+            assertEquals(15, loaded.getStagesCleared().get(0).getHits());
+            assertEquals(1, loaded.getStagesCleared().get(1).getTimesHit());
+
+            RecordsService restarted = service(this.cleanStages, this.steadyAim);
+            try {
+                assertEquals(1, restarted.getProgress(this.cleanStages));
+                assertEquals(75, restarted.getProgress(this.steadyAim),
+                        "a stage achievement shows the best saved stage");
+            } finally {
+                restarted.close();
+            }
+        }
+
+        @Test
+        void aMalformedStageClearIsRejected() throws IOException {
+            Files.write(profile(), ("version=2\nrecord.count=1\nrecord.0.id=r\n"
+                    + "record.0.score=1\nrecord.0.enemies=1\nrecord.0.duration=1\n"
+                    + "record.0.completed=1\nrecord.0.mode=CAMPAIGN\nrecord.0.stage=1\n"
+                    + "record.0.waves=1\nrecord.0.shots=1\nrecord.0.hits=1\n"
+                    + "record.0.timesHit=0\nrecord.0.bosses=0\nrecord.0.items=0\n"
+                    + "record.0.stages=1\nrecord.0.stage.0=1,2,3\n"
+                    + "achievement.count=0\n").getBytes(StandardCharsets.UTF_8));
+            RecordsService records = service();
+            try {
+                assertTrue(records.isWritesBlocked());
             } finally {
                 records.close();
             }
@@ -599,6 +723,8 @@ class AchievementDefinitionTest {
                     .stage(Stat.SCORE, 100).build(), "score is not counted per stage");
             assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
                     .stage(Stat.STAGES_CLEARED, 1).atMost(Stat.RUNS_COMPLETED, 1).build());
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .stageTotal(Stat.ACCURACY_PERCENT, 80).build(), "accuracy does not add up");
         }
     }
 
@@ -627,17 +753,34 @@ class AchievementDefinitionTest {
         }
 
         @Test
-        void sharpshooterNeedsEightyPercentWithFiftyShots() {
+        void sharpshooterNeedsFiftyPercentWithFiftyShots() {
             RecordsService records = game();
             try {
                 records.completeRun(run("few-shots", 1, 1, 49, 49, 1));
-                records.completeRun(run("79-percent", 2, 1, 100, 79, 1));
+                records.completeRun(run("49-percent", 2, 1, 100, 49, 1));
                 assertNull(records.getUnlockTime(Achievement.SHARPSHOOTER));
-                assertEquals("79/80",
+                assertEquals("49/50",
                         status(records, Achievement.SHARPSHOOTER).getProgressText());
 
-                records.completeRun(run("80-percent", 3, 1, 50, 40, 1));
+                records.completeRun(run("50-percent", 3, 1, 50, 25, 1));
                 assertEquals(Long.valueOf(3), records.getUnlockTime(Achievement.SHARPSHOOTER));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void cleanSweepCountsStagesClearedWithoutLosingALife() {
+            RecordsService records = game();
+            try {
+                Stages.Play play = new Stages.Play(records, "sweep");
+                play.clearStages(9, false).clearStages(3, true).complete(1);
+                assertEquals("9/10", status(records, Achievement.CLEAN_SWEEP).getProgressText());
+
+                new Stages.Play(records, "more").clearStages(1, false).complete(2);
+                assertEquals("Clean Sweep (Bronze)",
+                        status(records, Achievement.CLEAN_SWEEP).getTitle());
+                assertEquals("10/25", status(records, Achievement.CLEAN_SWEEP).getProgressText());
             } finally {
                 records.close();
             }

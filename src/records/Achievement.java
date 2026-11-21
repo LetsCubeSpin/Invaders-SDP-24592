@@ -34,10 +34,18 @@ public final class Achievement {
         /**
          * One cleared Campaign or Story stage must reach the target, with
          * the values counted from the start of that stage. Checked as soon
-         * as the stage is cleared. Stage values are not saved, so the
-         * records page shows no progress for these.
+         * as the stage is cleared, so it unlocks even if the run is
+         * abandoned later. Progress shows the best stage of the completed
+         * runs.
          */
         STAGE,
+        /**
+         * The values of every cleared stage that meets the requirements
+         * add up over the whole game. Stage clears are saved with their
+         * run, so stages of abandoned runs never count, and these are
+         * checked when a run is completed.
+         */
+        STAGE_TOTAL,
         /**
          * One completed run must reach the target. Achievements that only
          * use enemies defeated and active seconds are also checked while
@@ -91,7 +99,7 @@ public final class Achievement {
     /** A requirement: accuracy only counts in a run with enough shots. */
     public static final Achievement SHARPSHOOTER = add(define("sharpshooter",
             "Sharpshooter", "Finish a run with {target}% accuracy (50+ shots).")
-            .run(Stat.ACCURACY_PERCENT, 80)
+            .run(Stat.ACCURACY_PERCENT, 50)
             .atLeast(Stat.SHOTS_FIRED, 50));
     /** Hidden, for one stage: a cleared stage that never cost a life. */
     public static final Achievement UNTOUCHABLE = add(define("untouchable",
@@ -99,6 +107,11 @@ public final class Achievement {
             .stage(Stat.STAGES_CLEARED, 1)
             .atMost(Stat.TIMES_HIT, 0)
             .hidden());
+    /** Tiers over every cleared stage of completed runs, with a requirement. */
+    public static final Achievement CLEAN_SWEEP = add(define("clean_sweep",
+            "Clean Sweep", "Clear {target} stages without losing a life.")
+            .stageTotal(Stat.STAGES_CLEARED, 10, 25, 50)
+            .atMost(Stat.TIMES_HIT, 0));
 
     private final String id;
     private final String name;
@@ -133,7 +146,8 @@ public final class Achievement {
      *            How to reach it; {@code {target}} is replaced by the target
      *            of the tier shown.
      * @return a definition to finish with {@link Builder#stage},
-     *         {@link Builder#run} or {@link Builder#total}.
+     *         {@link Builder#stageTotal}, {@link Builder#run} or
+     *         {@link Builder#total}.
      */
     static Builder define(final String id, final String name,
             final String condition) {
@@ -331,6 +345,21 @@ public final class Achievement {
         }
 
         /**
+         * Every cleared stage of the completed runs adds up towards the
+         * targets.
+         *
+         * @param stat
+         *            Value of each stage compared with the targets.
+         * @param targets
+         *            Target of each tier, from the first: 1 to
+         *            {@link #MAX_TIERS} positive, increasing values.
+         * @return this definition.
+         */
+        Builder stageTotal(final Stat stat, final long... targets) {
+            return measure(Scope.STAGE_TOTAL, stat, targets);
+        }
+
+        /**
          * One completed run must reach the targets.
          *
          * @param stat
@@ -400,15 +429,18 @@ public final class Achievement {
                     || !this.requirements.isEmpty()))
                 throw new IllegalArgumentException(this.stat
                         + " is not counted per run; use total without requirements.");
-            if (this.scope == Scope.TOTAL && !this.stat.addsUp())
+            boolean stages = this.scope == Scope.STAGE
+                    || this.scope == Scope.STAGE_TOTAL;
+            if ((this.scope == Scope.TOTAL || this.scope == Scope.STAGE_TOTAL)
+                    && !this.stat.addsUp())
                 throw new IllegalArgumentException(this.stat
-                        + " cannot be added up over runs; use run.");
+                        + " cannot be added up: " + this.id);
             for (Stat used : usedStats())
-                if (this.scope == Scope.STAGE ? !used.isPerStage()
+                if (stages ? !used.isPerStage()
                         : !used.isPerRun() && !used.isProfileWide())
                     throw new IllegalArgumentException(used
-                            + " is not counted per " + (this.scope == Scope.STAGE
-                                    ? "stage" : "run") + ": " + this.id);
+                            + " is not counted per " + (stages ? "stage" : "run")
+                            + ": " + this.id);
             if (this.targets == null || this.targets.length < 1
                     || this.targets.length > MAX_TIERS)
                 throw new IllegalArgumentException(
