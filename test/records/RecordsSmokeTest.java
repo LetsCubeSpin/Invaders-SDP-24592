@@ -562,6 +562,41 @@ private static void testRecordsPageNavigationAndRender() {
 			assertEquals(9, runField.getInt(browser), "Up from the best run wraps to the last of the top ten");
 			changeRun.invoke(browser, 1);
 			assertEquals(0, runField.getInt(browser), "Down from the last run wraps to the best");
+			// More achievements than fit: Up/Down scrolls and stops at either end.
+			List<Achievement> many = new ArrayList<Achievement>();
+			for (int i = 0; i < 14; i++)
+				many.add(new Achievement("many_" + i, "Achievement " + (i + 1),
+						"Defeat {target} enemies in total.", Achievement.Scope.TOTAL,
+						Stat.ENEMIES_DEFEATED, i % 4 == 3, 10 + i, 100 + i, 1000 + i));
+			RecordsService crowded = new RecordsService(
+					testDirectory("crowded-profile").resolve("profile.properties"), many);
+			try {
+				crowded.completeRun(new RunRecord("crowded", 1, 105, 1, 1));
+				screen.PlayerRecordsScreen list = new screen.PlayerRecordsScreen(432, 490, 60, crowded);
+				java.lang.reflect.Method scroll = screen.PlayerRecordsScreen.class
+						.getDeclaredMethod("scrollAchievements", int.class);
+				java.lang.reflect.Field firstField = screen.PlayerRecordsScreen.class
+						.getDeclaredField("firstAchievement");
+				scroll.setAccessible(true);
+				firstField.setAccessible(true);
+				int perPage = draw.getAchievementsPerPage(page);
+				assertTrue(perPage >= 6 && perPage < many.size(),
+						"the six game achievements fit, fourteen do not: " + perPage);
+				scroll.invoke(list, -1);
+				assertEquals(0, firstField.getInt(list), "Up at the top stays at the top");
+				for (int i = 0; i < many.size(); i++)
+					scroll.invoke(list, 1);
+				assertEquals(many.size() - perPage, firstField.getInt(list),
+						"Down stops once the last achievement is shown");
+				draw.initDrawing(page);
+				draw.drawRecordsPage(page, crowded, screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS,
+						0, firstField.getInt(list));
+				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
+						"png", directory.resolve("achievements-scrolled.png").toFile());
+				draw.completeDrawing(page);
+			} finally {
+				crowded.close();
+			}
 			draw.initDrawing(page);
 			draw.drawAchievementResults(page, 10000, 0, 20, 0.5f, true,
 					new char[] { 'A', 'A', 'A' }, 0,
