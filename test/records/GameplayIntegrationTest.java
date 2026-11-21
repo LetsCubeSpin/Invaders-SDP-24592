@@ -38,6 +38,8 @@ public final class GameplayIntegrationTest {
         try {
             for (String path : Arrays.asList("bullet", "fragment")) campaign(service, path);
             infinite(service);
+            wavesAcrossStages();
+            hitsWithoutDefeat();
             menusAndResults();
             timingAndAbort(service);
             service.startRun("abandoned"); service.abandonRun("abandoned");
@@ -51,6 +53,14 @@ public final class GameplayIntegrationTest {
         return (boolean[])f.get(null);
     }
     private static void menusAndResults() throws Exception {
+        // 3 of 12 bullets hit, though 5 enemies fell (grenades defeat without a hit).
+        ScoreScreen accurate = new ScoreScreen(448,520,60,new GameState(1,100,0,12,5),
+                false,Collections.<Achievement>emptyList(),new RunStats(1,1,12,3,0,0,1));
+        check(Math.abs((Double)get(accurate,"accuracy")-0.25)<1e-9,
+                "score screen shows hits over shots, as the record does");
+        ScoreScreen noStats = new ScoreScreen(448,520,60,new GameState(1,100,0,12,5),
+                false,Collections.<Achievement>emptyList());
+        check((Double)get(noStats,"accuracy")==0, "score screen without run statistics shows no accuracy");
         for (boolean infinite : new boolean[]{false,true}) {
             ScoreScreen score = new ScoreScreen(448,520,60,new GameState(1,100,0,1,1),
                     infinite,Arrays.asList(Achievement.FIRST_ENEMY));
@@ -100,11 +110,12 @@ public final class GameplayIntegrationTest {
     @SuppressWarnings("unchecked")
     private static void campaign(RecordsService service, String path) throws Exception {
         service.startRun(path);
+        RunSession session = new RunSession(path, RunMode.CAMPAIGN);
         GameScreen game = new GameScreen(new GameState(7,0,3,0,0),
                 new GameSettings(1,1,1000,10000),false,448,520,60,
                 // The Standard ship can hold the Energy Shield, which the
                 // shield-absorption check below needs.
-                ShipType.STANDARD,new RunSession(path));
+                ShipType.STANDARD,session);
         game.initialize(); set(game,"inputDelay",Core.getCooldown(0));
         Ship player = (Ship)get(game,"ship");
         EnemyShipFormation formation = (EnemyShipFormation)get(game,"enemyShipFormation");
@@ -143,11 +154,86 @@ public final class GameplayIntegrationTest {
         set(game,"levelFinished",true);
         call(game,"manageGrenades"); call(game,"manageCollisions");
         check(events.size()==2,path+" does not count kills after the stage ends");
+        RunStats stats = session.getStats();
+        check(stats.getHits()==(path.equals("bullet") ? 2 : 0),
+                path+" session counts bullet hits, not grenade defeats");
+        check(stats.getTimesHit()==0, path+" shield absorption is not a player hit");
+        check(stats.getStageReached()==7 && stats.getWavesReached()==1, path+" session sees the stage and its wave");
+    }
+    /** A bullet that hits counts even when the target survives the hit. */
+    @SuppressWarnings("unchecked")
+    private static void hitsWithoutDefeat() throws Exception {
+        RunSession session = new RunSession("hits", RunMode.CAMPAIGN);
+        // Stage 7 is a boss stage.
+        GameScreen game = new GameScreen(new GameState(7,0,3,0,0),
+                new GameSettings(1,1,1000,10000),false,448,520,60,ShipType.STANDARD,session);
+        game.initialize(); set(game,"inputDelay",Core.getCooldown(0));
+        EnemyShipFormation formation = (EnemyShipFormation)get(game,"enemyShipFormation");
+        for (EnemyShip enemy : new ArrayList<EnemyShip>(toList(formation)))
+            formation.destroy(enemy);
+        final List<String> defeats = new ArrayList<String>();
+        game.getGameplayEvents().subscribe(event.EnemyDefeatedEvent.class,
+                new event.GameplayEventListener<event.EnemyDefeatedEvent>() {
+                    @Override
+                    public void onEvent(final event.EnemyDefeatedEvent e) { defeats.add(e.getEventId()); }
+                });
+        Set<Bullet> bullets = (Set<Bullet>)get(game,"bullets");
+        Method bossOnScreen = GameScreen.class.getDeclaredMethod("getBossOnScreen");
+        bossOnScreen.setAccessible(true);
+        Boss boss = (Boss)bossOnScreen.invoke(game);
+        check(boss != null, "stage 7 has a boss");
+        bullets.add(BulletPool.getBullet(boss.getPositionX()+boss.getWidth()/2,
+                boss.getPositionY()+boss.getHeight()/2,-4));
+        call(game,"manageCollisions");
+        check(!boss.isDefeated() && session.getStats().getHits()==1, "a bullet on a surviving boss is a hit");
+
+        List<EnemyShip> minions = (List<EnemyShip>)get(game,"summonedEnemies");
+        EnemyShip minion = new EnemyShip(40,300,DrawManager.SpriteType.EnemyShipA1,2);
+        minions.add(minion);
+        bullets.add(BulletPool.getBullet(minion.getPositionX()+4,minion.getPositionY()+4,-4));
+        call(game,"manageCollisions");
+        check(!minion.isDestroyed() && session.getStats().getHits()==2, "a bullet on an enemy with health left is a hit");
+
+        bullets.add(BulletPool.getBullet(5,5,-4));
+        call(game,"manageCollisions");
+        check(session.getStats().getHits()==2, "a bullet that hits nothing is not a hit");
+        check(defeats.isEmpty(), "none of these hits was a defeat");
+    }
+    private static List<EnemyShip> toList(final Iterable<EnemyShip> ships) {
+        List<EnemyShip> list = new ArrayList<EnemyShip>();
+        for (EnemyShip ship : ships) list.add(ship);
+        return list;
+    }
+    /** Waves add up across the screens of one run; the highest stage is kept. */
+    private static void wavesAcrossStages() throws Exception {
+        RunSession session = new RunSession("waves", RunMode.STORY);
+        GameScreen first = new GameScreen(new GameState(2,0,3,0,0),
+                Arrays.asList(new GameSettings(1,1,1000,10000), new GameSettings(1,1,1000,10000)),
+                false,448,520,60,ShipType.STANDARD,session);
+        first.initialize();
+        check(session.getStats().getWavesReached()==1, "the first wave starts with the stage");
+        call(first,"startNextWave");
+        check(session.getStats().getWavesReached()==2, "the next wave is counted when it starts");
+        GameScreen second = new GameScreen(new GameState(3,0,3,0,0),
+                new GameSettings(1,1,1000,10000),false,448,520,60,ShipType.STANDARD,session);
+        second.initialize();
+        check(session.getStats().getWavesReached()==3 && session.getStats().getStageReached()==3,
+                "waves add up over the run and the latest stage is reached");
+        second.getGameplayEvents().publish(new event.ShotFiredEvent("waves","late-screen-shot",2));
+        first.getGameplayEvents().publish(new event.ShotFiredEvent("waves","earlier-screen-shot",1));
+        check(session.getStats().getShotsFired()==3, "every screen of the run reports to its session");
+        GameScreen custom = GameScreen.forCustomLevel(new GameState(1,0,3,0,0),
+                new level.LevelDefinition(1, "custom-records", "Custom", Arrays.asList(
+                        new level.WaveDefinition("only", new level.EnemyCell[][] {{new level.EnemyCell("C", 1)}},
+                                80, 120, 90, 3000))), 1, 448, 520, 60);
+        custom.initialize();
+        check(custom.getActiveRunId()==null, "custom levels have no run session to record");
     }
     @SuppressWarnings("unchecked")
     private static void infinite(RecordsService service) throws Exception {
         service.startRun("infinite");
-        InfiniteGameScreen game = new InfiniteGameScreen(new GameState(1,0,3,0,0),448,520,60,new RunSession("infinite"));
+        RunSession session = new RunSession("infinite", RunMode.INFINITE);
+        InfiniteGameScreen game = new InfiniteGameScreen(new GameState(1,0,3,0,0),448,520,60,session);
         game.initialize();
         List<ZigzagEnemyShip> enemies = (List<ZigzagEnemyShip>)get(game,"enemies");
         Set<Bullet> bullets = (Set<Bullet>)get(game,"bullets");
@@ -172,5 +258,8 @@ public final class GameplayIntegrationTest {
         enemies.add(new ZigzagEnemyShip(100,100,DrawManager.SpriteType.EnemyShipA1,1));
         bullets.add(BulletPool.getBullet(104,104,-4)); call(game,"manageCollisions");
         check(events.size()==1,"infinite end animation cannot create more defeats");
+        RunStats stats = session.getStats();
+        check(stats.getHits()==1 && stats.getTimesHit()==1, "infinite session counts its defeat and the contact hit");
+        check(stats.getStageReached()==0 && stats.getWavesReached()==0, "infinite has no stages or waves");
     }
 }

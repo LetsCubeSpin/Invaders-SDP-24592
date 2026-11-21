@@ -13,6 +13,7 @@ import audio.AudioManager;
 import records.RunSession;
 import records.Achievement;
 import records.RecordsService;
+import event.BulletHitEvent;
 import event.EnemyDefeatedEvent;
 import event.GameplayEventIds;
 import event.GameplayEventListener;
@@ -108,6 +109,8 @@ public class InfiniteGameScreen extends Screen {
 		if (playerCount != 1 && playerCount != 2)
 			throw new IllegalArgumentException("Player count must be 1 or 2.");
 		this.runSession = runSession;
+		if (runSession != null)
+			runSession.listenTo(this.recordsEvents);
 		this.playerCount = playerCount;
 		this.recordsService = Core.getRecordsService();
 		this.recordsEvents.subscribe(EnemyDefeatedEvent.class,
@@ -462,6 +465,7 @@ public class InfiniteGameScreen extends Screen {
 			while (iterator.hasNext()) {
 				ZigzagEnemyShip enemy = iterator.next();
 				if (checkCollision(bullet, enemy)) {
+					publishBulletHit();
 					this.score += enemy.getPointValue();
 					this.shipsDestroyed++;
                     recordEnemyDefeat(enemy);
@@ -596,6 +600,13 @@ public class InfiniteGameScreen extends Screen {
 		if (bulletCount <= 0 || this.runSession == null) return;
 		this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
 				GameplayEventIds.newId(GameScreen.SHOT_ID_KIND), bulletCount));
+	}
+
+	/** Sends one player bullet hitting an enemy, for accuracy statistics. */
+	private void publishBulletHit() {
+		if (this.runSession == null) return;
+		this.recordsEvents.publish(new BulletHitEvent(this.runSession.getRunId(),
+				GameplayEventIds.newId(GameScreen.BULLET_HIT_ID_KIND)));
 	}
 
 	/**

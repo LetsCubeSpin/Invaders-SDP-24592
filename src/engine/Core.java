@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import screen.GameModeScreen;
 
 import java.util.UUID;
+import records.RunMode;
 import records.RunSession;
 import records.RunRecord;
 import records.RunRecordFormatter;
@@ -151,8 +152,9 @@ public final class Core {
 							0, 0);
 
 					// Game & score.
-					RunSession runSession = new RunSession(UUID.randomUUID().toString());
-										recordsService.startRun(runSession.getRunId());
+					RunSession runSession = new RunSession(UUID.randomUUID().toString(),
+							RunMode.CAMPAIGN);
+					recordsService.startRun(runSession.getRunId());
 					do {
 						// Award one team life at the usual milestones, up to this mode's cap.
 						boolean bonusLife = gameState.getLevel()
@@ -204,7 +206,8 @@ public final class Core {
 							+ gameState.getBulletsShot() + " bullets shot and "
 							+ gameState.getShipsDestroyed() + " ships destroyed.");
 					currentScreen = new ScoreScreen(width, height, FPS, gameState,
-							recordsService.getCurrentRunUnlocks());
+							false, recordsService.getCurrentRunUnlocks(),
+							runSession.getStats());
 					returnCode = frame.setScreen(currentScreen);
 					LOGGER.info("Closing score screen.");
 					break;
@@ -238,7 +241,8 @@ public final class Core {
 					break;
 				case 8:
 					// Infinite mode & score.
-					RunSession infiniteSession = new RunSession(UUID.randomUUID().toString());
+					RunSession infiniteSession = new RunSession(UUID.randomUUID().toString(),
+							RunMode.INFINITE);
 					recordsService.startRun(infiniteSession.getRunId());
 					currentScreen = new InfiniteGameScreen(gameState, width, height,
 							FPS, infiniteSession, playerCount);
@@ -261,7 +265,8 @@ public final class Core {
 							+ gameState.getShipsDestroyed() + " ships destroyed.");
 					// Infinite mode score screen, Space plays infinite mode again.
 					currentScreen = new ScoreScreen(width, height, FPS, gameState,
-							true, recordsService.getCurrentRunUnlocks());
+							true, recordsService.getCurrentRunUnlocks(),
+							infiniteSession.getStats());
 					returnCode = frame.setScreen(currentScreen);
 					LOGGER.info("Closing score screen.");
 					break;
@@ -304,7 +309,8 @@ public final class Core {
 		GameState gameState = new GameState(1, 0, maxLives, 0, 0);
 		StoryProgress progress = new StoryProgress();
 
-		RunSession runSession = new RunSession(UUID.randomUUID().toString());
+		RunSession runSession = new RunSession(UUID.randomUUID().toString(),
+				RunMode.STORY);
 		recordsService.startRun(runSession.getRunId());
 
 		scenes.showOpening();
@@ -342,7 +348,8 @@ public final class Core {
 					+ RunRecordFormatter.format(storyRecord));
 
 		currentScreen = new ScoreScreen(width, height, FPS, gameState,
-				recordsService.getCurrentRunUnlocks());
+				false, recordsService.getCurrentRunUnlocks(),
+				runSession.getStats());
 		int returnCode = frame.setScreen(currentScreen);
 		LOGGER.info("Closing score screen.");
 		// The score screen's "play again" code is the campaign's; story mode

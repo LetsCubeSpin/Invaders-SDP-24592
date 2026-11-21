@@ -1,6 +1,6 @@
 package event;
 /** One defeated enemy; source event IDs must remain stable across redelivery. */
-public final class EnemyDefeatedEvent implements GameplayEvent {
+public final class EnemyDefeatedEvent implements IdentifiedGameplayEvent {
     private final String runId;
     private final String eventId;
     private final DefeatedEnemyType enemyType;
