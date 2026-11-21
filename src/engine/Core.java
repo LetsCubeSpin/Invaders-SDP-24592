@@ -32,9 +32,12 @@ import campaign.CampaignManager;
 import screen.SettingsScreen;
 import screen.ShipColorScreen;
 import screen.ControlsSettingsScreen;
+import screen.StoryNarrationScreen;
+import story.DialogueStoryScenes;
 import story.PlaceholderStoryScenes;
 import story.StoryProgress;
 import story.StoryScenes;
+import story.StoryScript;
 
 /**
  * Implements core game logic.
@@ -156,7 +159,6 @@ public final class Core {
 					int startingLives = playerCount == 2 ? 1 : campaignMaxLives;
 					gameState = new GameState(1, 0, startingLives,
 							0, 0);
-
 					// Game & score.
 					RunSession runSession = new RunSession(UUID.randomUUID().toString(),
 							RunMode.CAMPAIGN);
@@ -279,7 +281,8 @@ public final class Core {
 				case 15:
 					// Story mode & score.
 					returnCode = playStory(selectedShip, width, height,
-							new PlaceholderStoryScenes());
+							new DialogueStoryScenes(Core::showStoryOpening,
+									new PlaceholderStoryScenes()));
 					break;
 			}
 
@@ -291,6 +294,13 @@ public final class Core {
 		fileHandler.flush();
 		fileHandler.close();
 		System.exit(0);
+	}
+
+	/** Shows the story opening narration and returns when the player is done. */
+	private static void showStoryOpening() {
+		currentScreen = new StoryNarrationScreen(frame.getWidth(),
+				frame.getHeight(), FPS, StoryScript.OPENING_NARRATION);
+		frame.setScreen(currentScreen);
 	}
 
 	/**
@@ -329,6 +339,10 @@ public final class Core {
 					Core::applyDifficulty, bonusLife, width, height, FPS,
 					selectedShip, runSession);
 			currentScreen = screen;
+			// The route property fixes the answers for testing, so the
+			// player is not asked on the screen in that case.
+			screen.setStoryChoiceEnabled(System.getProperty(
+					PlaceholderStoryScenes.ROUTE_PROPERTY) == null);
 			LOGGER.info("Starting story stage " + stage + ".");
 			frame.setScreen(screen);
 			LOGGER.info("Closing story stage " + stage + ".");
@@ -338,7 +352,11 @@ public final class Core {
 				LOGGER.info("Story stage " + stage + " failed.");
 				break;
 			}
-			askStoryQuestion(stage, progress, scenes);
+			int chosen = screen.getStoryChoice();
+			if (chosen >= 0)
+				applyStoryChoice(stage, progress, chosen);
+			else
+				askStoryQuestion(stage, progress, scenes);
 			gameState = new GameState(stage + 1, gameState.getScore(),
 					gameState.getLivesRemaining(), gameState.getBulletsShot(),
 					gameState.getShipsDestroyed());
@@ -361,6 +379,24 @@ public final class Core {
 		// The score screen's "play again" code is the campaign's; story mode
 		// replays itself instead.
 		return returnCode == 2 ? 15 : returnCode;
+	}
+
+	/**
+	 * Applies the answer the player gave on the stage screen.
+	 *
+	 * @param stage
+	 *            Stage that was just cleared.
+	 * @param progress
+	 *            Answers given so far.
+	 * @param choice
+	 *            0 or 1.
+	 */
+	static void applyStoryChoice(final int stage, final StoryProgress progress,
+			final int choice) {
+		if (stage == StoryProgress.FIRST_QUESTION_STAGE)
+			progress.chooseFirst(choice);
+		else if (stage == StoryProgress.MID_BOSS_STAGE)
+			progress.chooseSecond(choice);
 	}
 
 	/**

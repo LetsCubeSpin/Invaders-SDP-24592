@@ -1,12 +1,9 @@
 package boss;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+import java.util.function.LongSupplier;
 
 import engine.Cooldown;
-import engine.Core;
 import entity.BossBullet;
 import entity.EnemyType;
 
@@ -95,6 +92,8 @@ public final class BossAttackSystem {
     private final BossAttackConfig config;
     /** Random generator used to pick patterns. */
     private final Random random;
+	/** Clock source in milliseconds. */
+	private final LongSupplier clock;
     /** Current phase. */
     private int phase;
     /** False after the boss is defeated. */
@@ -113,12 +112,29 @@ public final class BossAttackSystem {
     private boolean started;
     /** Time until the next minion summon, or null if disabled in current phase. */
     private Cooldown summonCooldown;
+	/** Time until the next periodic shield activation, or null if disabled. */
+	private Cooldown shieldCooldown;
+	/** Remaining active time of the current shield, or null if inactive. */
+	private Cooldown shieldDurationCooldown;
+	/** True while the boss shield is currently active. */
+	private boolean shieldActive;
+	/** Timestamp when the current special attack windup started. */
+	private long windupStartMillis;
+	/** Total windup duration of the pending special attack. */
+	private int windupDurationMillis;
+	/** Remaining active time of a firing laser beam, or null if not firing. */
+	private Cooldown beamCooldown;
+	/** Width of the currently firing laser beam in pixels. */
+	private int activeBeamWidth;
     /**
      * True when a phase that allows the special attack has just begun. The
      * first special attack of the phase then starts right away, without
      * waiting for the attack interval or the special cooldown.
      */
     private boolean specialDueAtPhaseStart;
+
+	/** True on the frame the periodic shield just turned on. */
+	private boolean shieldActivatedThisFrame;
 
     /**
      * Constructor. Cooldowns start on the first {@link #update} call,
@@ -129,10 +145,18 @@ public final class BossAttackSystem {
      * @param random
      *            Random generator used to pick patterns.
      */
-    public BossAttackSystem(final BossAttackConfig config,
-            final Random random) {
+    public BossAttackSystem(final BossAttackConfig config, final Random random) {
+		this(config, random, System::currentTimeMillis);
+	}
+
+	/**
+	 * Package-private constructor with an injectable clock for deterministic tests.
+	 */
+	BossAttackSystem(final BossAttackConfig config,
+					 final Random random, final LongSupplier clock) {
         this.config = config;
         this.random = random;
+		this.clock = Objects.requireNonNull(clock, "clock");
         this.phase = 1;
         this.active = true;
         this.buffMultiplier = 1.0;
@@ -146,25 +170,33 @@ public final class BossAttackSystem {
      * @param newPhase
      *            New phase number.
      */
-    public void setPhase(final int newPhase) {
-        if (newPhase == this.phase)
-            return;
-        boolean specialWasEnabled = this.config.getPhase(this.phase)
-                .isSpecialEnabled();
-        this.phase = newPhase;
-        this.pendingSpecial = null;
-        restartAttackCooldown();
-        restartSummonCooldown();
-        // The first special attack of the phase is used right away (PRD 2.5).
-        if (!specialWasEnabled)
-            markSpecialDueIfEnabled();
-    }
+	public void setPhase(final int newPhase) {
+		if (newPhase == this.phase)
+			return;
+		boolean specialWasEnabled = this.config.getPhase(this.phase)
+				.isSpecialEnabled();
+		this.phase = newPhase;
+		this.pendingSpecial = null;
+		this.beamCooldown = null;
+		this.activeBeamWidth = 0;
+		restartAttackCooldown();
+		restartSummonCooldown();
+		restartShieldCooldown();
+		// The first special attack of the phase is used right away (PRD 2.5).
+		if (!specialWasEnabled)
+			markSpecialDueIfEnabled();
+	}
 
-    /** Stops all attacks, used when the boss is defeated. */
-    public void stop() {
-        this.active = false;
-        this.pendingSpecial = null;
-    }
+	/** Stops all attacks, used when the boss is defeated. */
+	public void stop() {
+		this.shieldActivatedThisFrame = false;
+		this.active = false;
+		this.pendingSpecial = null;
+		this.shieldActive = false;
+		this.shieldDurationCooldown = null;
+		this.beamCooldown = null;
+		this.activeBeamWidth = 0;
+	}
 
     /**
      * Runs the attack logic. Call once per frame.
@@ -186,16 +218,26 @@ public final class BossAttackSystem {
         if (!this.active)
             return null;
 
+		this.shieldActivatedThisFrame = false;
+
         // GameScreen calls this only after its input delay, like
         // EnemyShipFormation, so the countdown does not use up the first
         // attack interval.
-        if (!this.started) {
-            this.started = true;
-            restartAttackCooldown();
-            restartSummonCooldown();
-            markSpecialDueIfEnabled();
-            return null;
-        }
+		if (!this.started) {
+			this.started = true;
+			restartAttackCooldown();
+			restartSummonCooldown();
+			restartShieldCooldown();
+			markSpecialDueIfEnabled();
+			return null;
+		}
+
+		updateShieldState();
+
+		if (this.beamCooldown != null && this.beamCooldown.checkFinished()) {
+			this.beamCooldown = null;
+			this.activeBeamWidth = 0;
+		}
 
         if (this.buffCooldown != null && this.buffCooldown.checkFinished()) {
             this.buffCooldown = null;
@@ -208,26 +250,32 @@ public final class BossAttackSystem {
         // 탄막 쿨타임과 무관하게 매 프레임 소환 타이머 체크
         List<SummonRequest> summons = checkAndCreateSummons(originX, originY);
 
-        // 1. 특수 공격 준비 중
-        if (this.pendingSpecial != null) {
-            if (!this.windupCooldown.checkFinished())
-                return summons.isEmpty() ? null
-                        : new AttackResult("SUMMON", false, false,
-                        Collections.<BossBullet>emptyList(), summons);
-            SpecialAttack special = this.pendingSpecial;
-            this.pendingSpecial = null;
-            List<BossBullet> bullets = special.execute(originX, originY,
-                    targetX, targetY, this.config.getDamage());
-            if (special.getBuffMilliseconds() > 0) {
-                this.buffMultiplier = special.getIntervalMultiplier();
-                this.buffCooldown = Core.getCooldown(
-                        special.getBuffMilliseconds());
-                this.buffCooldown.reset();
-            }
-            restartAttackCooldown();
-            return new AttackResult(special.getName(), true, false, bullets,
-                    summons);
-        }
+		// 1. 특수 공격 준비 중
+		if (this.pendingSpecial != null) {
+			if (!this.windupCooldown.checkFinished())
+				return summons.isEmpty() ? null
+						: new AttackResult("SUMMON", false, false,
+						Collections.<BossBullet>emptyList(), summons);
+			SpecialAttack special = this.pendingSpecial;
+			this.pendingSpecial = null;
+			List<BossBullet> bullets = special.execute(originX, originY,
+					targetX, targetY, this.config.getDamage());
+			if (special.getBuffMilliseconds() > 0) {
+				this.buffMultiplier = special.getIntervalMultiplier();
+				this.buffCooldown = new Cooldown(
+						special.getBuffMilliseconds(), this.clock);
+				this.buffCooldown.reset();
+			}
+			if (special.getBeamMilliseconds() > 0) {
+				this.beamCooldown = new Cooldown(
+						special.getBeamMilliseconds(), this.clock);
+				this.beamCooldown.reset();
+				this.activeBeamWidth = special.getBeamWidth();
+			}
+			restartAttackCooldown();
+			return new AttackResult(special.getName(), true, false, bullets,
+					summons);
+		}
 
         // 2. 공격 쿨타임 대기 중이어도 소환이 발동되었으면 결과 반환
         if (!this.specialDueAtPhaseStart
@@ -237,20 +285,22 @@ public final class BossAttackSystem {
                     Collections.<BossBullet>emptyList(), summons);
         }
 
-        // 3. 특수 공격 발동
-        BossAttackConfig.PhaseConfig phaseConfig = this.config
-                .getPhase(this.phase);
-        SpecialAttack special = this.config.getSpecialAttack();
-        if (phaseConfig.isSpecialEnabled() && special != null
-                && (this.specialDueAtPhaseStart || special.isReady())) {
-            this.specialDueAtPhaseStart = false;
-            this.pendingSpecial = special;
-            this.windupCooldown = Core.getCooldown(
-                    Math.max(1, special.getWindupMilliseconds()));
-            this.windupCooldown.reset();
-            return new AttackResult(special.getName(), true, true,
-                    new ArrayList<BossBullet>(), summons);
-        }
+		// 3. 특수 공격 발동
+		BossAttackConfig.PhaseConfig phaseConfig = this.config
+				.getPhase(this.phase);
+		SpecialAttack special = this.config.getSpecialAttack();
+		if (phaseConfig.isSpecialEnabled() && special != null
+				&& (this.specialDueAtPhaseStart || special.isReady())) {
+			this.specialDueAtPhaseStart = false;
+			this.pendingSpecial = special;
+			this.windupDurationMillis = Math.max(1,
+					special.getWindupMilliseconds());
+			this.windupStartMillis = this.clock.getAsLong();
+			this.windupCooldown = new Cooldown(this.windupDurationMillis, this.clock);
+			this.windupCooldown.reset();
+			return new AttackResult(special.getName(), true, true,
+					new ArrayList<BossBullet>(), summons);
+		}
 
         // 4. 일반 탄막 공격 (+ 동일 프레임에 소환이 겹쳤다면 함께 포함)
         AttackPattern pattern = phaseConfig.pick(this.random);
@@ -288,13 +338,77 @@ public final class BossAttackSystem {
         BossAttackConfig.PhaseConfig phaseConfig = this.config
                 .getPhase(this.phase);
         if (phaseConfig.isSummonEnabled()) {
-            this.summonCooldown = Core.getCooldown(
-                    phaseConfig.getSummonIntervalMilliseconds());
+            this.summonCooldown = new Cooldown(
+                    phaseConfig.getSummonIntervalMilliseconds(), this.clock);
             this.summonCooldown.reset();
         } else {
             this.summonCooldown = null;
         }
     }
+
+	private void updateShieldState() {
+		if (this.shieldActive) {
+			if (this.shieldDurationCooldown != null
+					&& this.shieldDurationCooldown.checkFinished()) {
+				this.shieldActive = false;
+				this.shieldDurationCooldown = null;
+				restartShieldCooldown();
+			}
+			return;
+		}
+
+		BossAttackConfig.PhaseConfig phaseConfig = this.config
+				.getPhase(this.phase);
+		if (!phaseConfig.isShieldEnabled())
+			return;
+
+		if (this.shieldCooldown != null && this.shieldCooldown.checkFinished()) {
+			this.shieldActive = true;
+			this.shieldActivatedThisFrame = true;
+			this.shieldDurationCooldown = new Cooldown(
+					phaseConfig.getShieldDurationMilliseconds(), this.clock);
+			this.shieldDurationCooldown.reset();
+		}
+	}
+
+	private void restartShieldCooldown() {
+		this.shieldActive = false;
+		this.shieldDurationCooldown = null;
+		BossAttackConfig.PhaseConfig phaseConfig = this.config
+				.getPhase(this.phase);
+		if (phaseConfig.isShieldEnabled()) {
+			this.shieldCooldown = new Cooldown(
+					phaseConfig.getShieldIntervalMilliseconds(), this.clock);
+			this.shieldCooldown.reset();
+		} else {
+			this.shieldCooldown = null;
+		}
+	}
+
+	public boolean isShieldActive() {
+		return this.shieldActive;
+	}
+
+	public boolean isLaserCharging() {
+		return this.pendingSpecial != null
+				&& this.pendingSpecial.getBeamMilliseconds() > 0;
+	}
+
+	public boolean isLaserFiring() {
+		return this.beamCooldown != null && !this.beamCooldown.checkFinished();
+	}
+
+	public int getActiveBeamWidth() {
+		return this.activeBeamWidth;
+	}
+
+	public float getLaserChargeProgress() {
+		if (!isLaserCharging())
+			return isLaserFiring() ? 1.0f : 0.0f;
+		float progress = (this.clock.getAsLong() - this.windupStartMillis)
+				/ (float) this.windupDurationMillis;
+		return Math.max(0f, Math.min(1f, progress));
+	}
 
     /** @return Current time between attacks, in milliseconds. */
     public int getCurrentIntervalMilliseconds() {
@@ -315,9 +429,16 @@ public final class BossAttackSystem {
 
     /** Starts waiting for the next attack with the current interval. */
     private void restartAttackCooldown() {
-        this.attackCooldown = Core.getCooldown(getCurrentIntervalMilliseconds());
+        this.attackCooldown = new Cooldown(getCurrentIntervalMilliseconds(), this.clock);
         this.attackCooldown.reset();
     }
+
+	/** Package-private check for BossManager to emit SHIELD_ACTIVATED event. */
+	boolean consumeShieldActivated() {
+		boolean activated = this.shieldActivatedThisFrame;
+		this.shieldActivatedThisFrame = false;
+		return activated;
+	}
 
     public static final class SummonRequest {
         private final int positionX;

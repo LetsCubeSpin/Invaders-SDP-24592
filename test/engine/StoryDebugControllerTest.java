@@ -3,6 +3,10 @@ package engine;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -11,18 +15,26 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
+import audio.AudioManager;
+import entity.Boss;
 import entity.ShipType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.opentest4j.AssertionFailedError;
+import screen.GameScreen;
 import story.StoryRoute;
 
 @Timeout(45)
 class StoryDebugControllerTest {
     private static final StoryDebugSelection FIRST = new StoryDebugSelection(
-            StoryRoute.HYBRID, 1, StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
+            StoryRoute.HYBRID, 3, StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD,
+            new StoryDebugModifiers(true, 15, 2.0, 0.5));
     private static final StoryDebugSelection SECOND = new StoryDebugSelection(
-            StoryRoute.TRUCE, 7, StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
+            StoryRoute.TRUCE, 7, StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD,
+            new StoryDebugModifiers(false, 99, 0.5, 4.0));
 
     private static final class View implements StoryDebugController.View {
         final List<StoryDebugSelection> previous = new ArrayList<>();
@@ -131,7 +143,9 @@ class StoryDebugControllerTest {
                 workingPath = sessionPath.toRealPath().toString();
                 assertTrue(directories.add(sessionPath));
                 List<String> command = fixtureCommand(session, choice, evidence, "write", status);
-                assertEquals(status, session.runCommand(command, ProcessBuilder.Redirect.to(dir.resolve("child.log").toFile())));
+                Path log = dir.resolve("child.log");
+                int exit = session.runCommand(command, ProcessBuilder.Redirect.to(log.toFile()));
+                assertChildExit(status, exit, log);
                 assertTrue(Files.exists(sessionPath.resolve("scores")));
             }
             assertFalse(Files.exists(sessionPath));
@@ -142,6 +156,51 @@ class StoryDebugControllerTest {
         }
         for (Path file : normalFiles) assertEquals("normal-sentinel", Files.readString(file));
         try (var paths = Files.list(root)) { assertEquals(0, paths.count()); }
+    }
+
+    private static void assertChildExit(int expected, int actual, Path log) {
+        assertEquals(expected, actual, () -> readChildLog(log));
+    }
+
+    private static String readChildLog(Path log) {
+        try {
+            byte[] bytes = Files.readAllBytes(log);
+            try {
+                return StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+            } catch (CharacterCodingException invalidUtf8) {
+                return new String(bytes, Charset.forName("MS949"));
+            }
+        } catch (IOException | SecurityException error) {
+            return "Could not read " + log + ": " + error;
+        }
+    }
+
+    @Test
+    void matchingExitAcceptsInvalidUtf8(@TempDir Path dir) throws IOException {
+        Path log = dir.resolve("child.log");
+        Files.write(log, new byte[] {(byte) 0xff});
+        assertChildExit(0, 0, log);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UTF-8", "MS949"})
+    void exitMismatchIncludesDecodedLog(String encoding, @TempDir Path dir) throws IOException {
+        Path log = dir.resolve("child.log");
+        String message = "11월 전투 종료";
+        Files.write(log, message.getBytes(Charset.forName(encoding)));
+        AssertionFailedError failure = assertThrows(AssertionFailedError.class, () -> assertChildExit(0, 7, log));
+        assertTrue(failure.getMessage().contains(message));
+        assertEquals(0, failure.getExpected().getValue());
+        assertEquals(7, failure.getActual().getValue());
+    }
+
+    @Test
+    void exitMismatchSurvivesMissingLog(@TempDir Path dir) {
+        Path log = dir.resolve("missing.log");
+        AssertionFailedError failure = assertThrows(AssertionFailedError.class, () -> assertChildExit(7, 0, log));
+        assertTrue(failure.getMessage().contains(log.toString()));
+        assertEquals(7, failure.getExpected().getValue());
+        assertEquals(0, failure.getActual().getValue());
     }
 
     @Test
@@ -219,20 +278,56 @@ class StoryDebugControllerTest {
     }
 
     public static class Fixture {
+        // Exercise the same screen factory as the battle entry point, in the actual child JVM.
+        private static void checkBattle(StoryDebugSelection choice) throws Exception {
+            AudioManager.setMuted(true);
+            var modifiers = choice.modifiers();
+            GameScreen battle = StoryDebugLauncher.createScreen(choice, 448, 520);
+            battle.initialize();
+            assertEquals(0, battle.getGameState().getScore());
+            assertEquals(modifiers.startingLives(), battle.getGameState().getLivesRemaining());
+            assertEquals(modifiers.startingLives(), battle.getPlayerStatus().getMaxLives());
+            var getBoss = GameScreen.class.getDeclaredMethod("getBossOnScreen");
+            getBoss.setAccessible(true);
+            Boss boss = (Boss) getBoss.invoke(battle);
+            assertEquals(choice.progress().bossForStage(choice.stage()), boss.getType());
+            assertEquals(Math.round(boss.getType().getMaxHealth() * modifiers.enemyHpMultiplier()), boss.getCurrentHealth());
+            assertEquals(boss.getMaxHealth(), boss.getCurrentHealth());
+            int startX = boss.getPositionX();
+            for (int i = 0; i < 8; i++) boss.update(0, 448);
+            assertEquals((int) (8 * boss.getType().getSpeed() * modifiers.enemySpeedMultiplier()),
+                    boss.getPositionX() - startX);
+            var hitBoss = GameScreen.class.getDeclaredMethod("damageBoss", int.class);
+            hitBoss.setAccessible(true);
+            hitBoss.invoke(battle, boss.getMaxHealth() * 10);
+            assertTrue(boss.isDefeated());
+            assertTrue(battle.getGameState().getScore() > 0);
+            var damage = GameScreen.class.getDeclaredMethod("damagePlayer", int.class, String.class);
+            damage.setAccessible(true);
+            assertEquals(!modifiers.invincible(), damage.invoke(battle, 1, "debug child test"));
+            int expectedLives = modifiers.startingLives() - (modifiers.invincible() ? 0 : 1);
+            assertEquals(expectedLives, battle.getGameState().getLivesRemaining());
+            AudioManager.stopBGM();
+        }
+
         public static void main(String[] args) throws Exception {
-            StoryDebugSelection choice = StoryDebugSelection.parse(java.util.Arrays.copyOf(args, 4));
+            // Last three arguments belong to this fixture; all preceding arguments came from the session.
+            int tail = args.length - 3;
+            StoryDebugSelection choice = StoryDebugSelection.parse(java.util.Arrays.copyOf(args, tail));
+            String mode = args[tail + 1];
             StoryDebugLauncher.requireDebugSession();
             Path cwd = Path.of("").toRealPath();
             for (String property : List.of("user.home", "invaders.storageDir", "java.io.tmpdir"))
                 if (!cwd.equals(Path.of(System.getProperty(property)).toRealPath())) throw new AssertionError(property);
             if (!Preferences.userRoot().get("repeat-test", "fresh").equals("fresh")) throw new AssertionError("Old preferences");
             Preferences.userRoot().put("repeat-test", "used");
+            if (mode.equals("write")) checkBattle(choice);
             Files.writeString(cwd.resolve("scores"), "stage-only");
-            Path evidence = Path.of(args[4]);
+            Path evidence = Path.of(args[tail]);
             Path pending = evidence.resolveSibling(evidence.getFileName() + ".tmp");
             Files.writeString(pending, ProcessHandle.current().pid() + "\n" + cwd + "\n" + choice + "\n");
             Files.move(pending, evidence);
-            if (args[5].equals("shutdown")) {
+            if (mode.equals("shutdown")) {
                 Path nestedEvidence = evidence.resolveSibling("nested-child.txt");
                 StoryDebugSession nested = new StoryDebugSession(cwd);
                 Thread runner = new Thread(() -> {
@@ -248,8 +343,8 @@ class StoryDebugControllerTest {
                 // Deliberately skip close(): this is the supervisor-shutdown path under test.
                 System.exit(0);
             }
-            if (args[5].equals("wait")) Thread.sleep(60000);
-            System.exit(Integer.parseInt(args[6]));
+            if (mode.equals("wait")) Thread.sleep(60000);
+            System.exit(Integer.parseInt(args[tail + 2]));
         }
     }
 }

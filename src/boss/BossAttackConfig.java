@@ -119,6 +119,43 @@ public final class BossAttackConfig {
             return this.summonCount;
         }
 
+		/** Interval between periodic shields in milliseconds, or 0 if disabled. */
+		private int shieldIntervalMilliseconds;
+		/** Duration the periodic shield remains active, in milliseconds. */
+		private int shieldDurationMilliseconds;
+
+		/**
+		 * Configures periodic energy shield activation for this phase.
+		 *
+		 * @param intervalMilliseconds
+		 *            Cooldown between shield activations in milliseconds.
+		 * @param durationMilliseconds
+		 *            How long the shield stays active in milliseconds.
+		 * @return This phase, so calls can be chained.
+		 */
+		public PhaseConfig withShield(final int intervalMilliseconds,
+									  final int durationMilliseconds) {
+			if (intervalMilliseconds <= 0 || durationMilliseconds <= 0)
+				throw new IllegalArgumentException(
+						"Shield interval and duration must be positive.");
+			this.shieldIntervalMilliseconds = intervalMilliseconds;
+			this.shieldDurationMilliseconds = durationMilliseconds;
+			return this;
+		}
+
+		public boolean isShieldEnabled() {
+			return this.shieldIntervalMilliseconds > 0
+					&& this.shieldDurationMilliseconds > 0;
+		}
+
+		public int getShieldIntervalMilliseconds() {
+			return this.shieldIntervalMilliseconds;
+		}
+
+		public int getShieldDurationMilliseconds() {
+			return this.shieldDurationMilliseconds;
+		}
+
         /**
          * Picks a pattern at random, following the weights.
          *
@@ -192,6 +229,8 @@ public final class BossAttackConfig {
      */
     public static BossAttackConfig forType(final Boss.BossType type) {
         switch (type) {
+			case BOSS_D:
+				return createBossD();
             case BOSS_C:
                 return createBossC();
             case BOSS_B:
@@ -262,6 +301,28 @@ public final class BossAttackConfig {
                 new PhaseConfig[] { phase1, phase2, phase3 },
                 new SpecialAttack.RingBurst(1200, 120, 8, 2.5));
     }
+
+	/**
+	 * Boss D (OBELISK): periodic shield in phase 2, Orbital Annihilator laser
+	 * beam in phase 3.
+	 *
+	 * @return Attack data of boss D.
+	 */
+	private static BossAttackConfig createBossD() {
+		PhaseConfig phase1 = new PhaseConfig(1.0, false)
+				.add(new AttackPattern.SingleShot(4.0), 2)
+				.add(new AttackPattern.MultiShot(3.5, 75, 90, 105), 1);
+		PhaseConfig phase2 = new PhaseConfig(0.8, false)
+				.add(new AttackPattern.MultiShot(4.0, 65, 90, 115), 2)
+				.add(new AttackPattern.SpreadShot(3.5, 5, 60), 1)
+				.withShield(9000, 3500);
+		PhaseConfig phase3 = new PhaseConfig(0.65, true)
+				.add(new AttackPattern.SpreadShot(4.0, 5, 70), 2)
+				.add(new AttackPattern.SingleShot(4.5), 1);
+		return new BossAttackConfig(1800, 1,
+				new PhaseConfig[] { phase1, phase2, phase3 },
+				new SpecialAttack.OrbitalLaser(11000));
+	}
 
     /**
      * Returns the setup of a phase. Phases above the last one use the last.

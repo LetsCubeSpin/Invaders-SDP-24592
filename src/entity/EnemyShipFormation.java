@@ -15,6 +15,7 @@ import engine.Core;
 import engine.DrawManager;
 import engine.DrawManager.SpriteType;
 import engine.GameSettings;
+import engine.StoryDebugModifiers;
 import audio.AudioManager;
 
 /**
@@ -124,7 +125,10 @@ public class EnemyShipFormation implements Iterable<EnemyShip> {
 	private Direction currentDirection;
 	/** Direction the formation was moving previously. */
 	private Direction previousDirection;
-	/** Interval between movements, in frames. */
+	/** Fractional frames of the original movement clock, kept across updates. */
+	private double movementFrames;
+	private final double enemySpeedMultiplier;
+	/** Animation and explosion cleanup keep the original frame interval. */
 	private int movementInterval;
 	/** Total width of the formation. */
 	private int width;
@@ -198,6 +202,13 @@ private int getBulletSpeed() {
 	 *                                  or initial position is invalid.
 	 */
 	public EnemyShipFormation(final GameSettings gameSettings, final int level, final WaveDefinition wave) {
+		this(gameSettings, level, wave, StoryDebugModifiers.defaults());
+	}
+
+	/** Builds a wave with modifiers scoped to its battle. */
+	public EnemyShipFormation(final GameSettings gameSettings, final int level, final WaveDefinition wave,
+			final StoryDebugModifiers modifiers) {
+		this.enemySpeedMultiplier = modifiers.enemySpeedMultiplier();
 		if (wave != null && (wave.getRows() != gameSettings.getFormationHeight()
 				|| wave.getColumns() != gameSettings.getFormationWidth()
 				|| wave.getInitialX() != gameSettings.getInitialX()
@@ -258,7 +269,7 @@ private int getBulletSpeed() {
 				}
 				column.add(EnemyShip.createByType(enemyType,
 						positionX + SEPARATION_DISTANCE * columnIndex,
-						positionY + SEPARATION_DISTANCE * row, health));
+						positionY + SEPARATION_DISTANCE * row, modifiers.scaleHp(health)));
 				this.shipCount++;
 			}
 		}
@@ -508,37 +519,58 @@ private int getBulletSpeed() {
 			return;
 		cleanUp();
 
-		int movementX = 0;
-		int movementY = 0;
 		double remainingProportion = (double) this.shipCount
 				/ this.initialShipCount;
 		this.movementSpeed = (int) (Math.pow(remainingProportion, 2)
 				* this.baseSpeed);
 		this.movementSpeed += MINIMUM_SPEED;
 
-        movementInterval++;
+		int oldX = this.positionX;
+		int oldY = this.positionY;
+		this.movementFrames += this.enemySpeedMultiplier;
+		while (this.movementFrames >= STEP_INTERVAL) {
+			advanceMovementStep();
+			this.movementFrames -= STEP_INTERVAL;
+		}
 
-        // Every pattern steps at the same short interval, which keeps the
-        // movement smooth. movementSpeed is not thrown away with the long
-        // delay it used to set: scaledStep() reads it and lengthens the
-        // step instead, so the stage setting and the speed-up as enemies
-        // are defeated reach each pattern through the distance covered per
-        // step rather than through the pause between steps.
-        final int movementDelay = STEP_INTERVAL;
+		boolean updateSprites = ++this.movementInterval >= STEP_INTERVAL;
+		if (updateSprites)
+			this.movementInterval = 0;
+		int dx = this.positionX - oldX;
+		int dy = this.positionY - oldY;
+		if (!updateSprites && dx == 0 && dy == 0)
+			return;
+		for (List<EnemyShip> column : this.enemyShips) {
+			for (Iterator<EnemyShip> it = column.iterator(); it.hasNext();) {
+				EnemyShip ship = it.next();
+				if (ship.isDestroyed()) {
+					if (updateSprites) {
+						this.logger.info("Removed enemy " + column.indexOf(ship)
+								+ " from column " + this.enemyShips.indexOf(column));
+						it.remove();
+					}
+				} else {
+					ship.move(dx, dy);
+					if (updateSprites)
+						ship.update();
+				}
+			}
+		}
+	}
 
-        if (movementInterval >= movementDelay) {
-            movementInterval = 0;
-
-            if (this.movementPattern == MovementPattern.WAVE_BOUNCE) {
-                int[] waveMovement = moveWaveBounce();
-                movementX = waveMovement[0];
-                movementY = waveMovement[1];
-            } else if (this.movementPattern == MovementPattern.DIAGONAL_BOUNCE) {
-                int[] diagonalMovement = moveDiagonalBounce();
-                movementX = diagonalMovement[0];
-                movementY = diagonalMovement[1];
-            } else {
-
+	/** One original pattern step, including its bounds and direction changes. */
+	private void advanceMovementStep() {
+		int movementX = 0;
+		int movementY = 0;
+		if (this.movementPattern == MovementPattern.WAVE_BOUNCE) {
+			int[] movement = moveWaveBounce();
+			movementX = movement[0];
+			movementY = movement[1];
+		} else if (this.movementPattern == MovementPattern.DIAGONAL_BOUNCE) {
+			int[] movement = moveDiagonalBounce();
+			movementX = movement[0];
+			movementY = movement[1];
+		} else {
 			boolean isAtBottom = positionY
 					+ this.height > screen.getHeight() - BOTTOM_MARGIN;
 			boolean isAtRightSide = positionX
@@ -589,32 +621,9 @@ private int getBulletSpeed() {
 			else
 				movementY = Math.min(scaledStep(Y_SPEED), DESCENT_DISTANCE
 						- floorMod(positionY, DESCENT_DISTANCE));
-			}
-
-			positionX += movementX;
-			positionY += movementY;
-
-			// Cleans explosions.
-			List<EnemyShip> destroyed;
-			for (List<EnemyShip> column : this.enemyShips) {
-				destroyed = new ArrayList<EnemyShip>();
-				for (EnemyShip ship : column) {
-					if (ship != null && ship.isDestroyed()) {
-						destroyed.add(ship);
-						this.logger.info("Removed enemy "
-								+ column.indexOf(ship) + " from column "
-								+ this.enemyShips.indexOf(column));
-					}
-				}
-				column.removeAll(destroyed);
-			}
-
-			for (List<EnemyShip> column : this.enemyShips)
-				for (EnemyShip enemyShip : column) {
-					enemyShip.move(movementX, movementY);
-					enemyShip.update();
-				}
 		}
+		positionX += movementX;
+		positionY += movementY;
 	}
 
 	/**

@@ -3,6 +3,7 @@ package entity;
 import java.awt.Color;
 
 import engine.DrawManager.SpriteType;
+import engine.StoryDebugModifiers;
 
 /**
  * Implements the boss, a strong enemy that moves left and right
@@ -30,8 +31,9 @@ public class Boss extends Entity {
         /** Fast boss, gets stronger earlier. */
         BOSS_B(800, 3, 0.7, 0.4, 800),
         /** VESPERA, summons minions **/
-        BOSS_C(800, 3, 0.7, 0.4, 1000);
-
+        BOSS_C(800, 3, 0.7, 0.4, 1000),
+		/** OBELISK, periodic shield in phase 2 and laser beam in phase 3. */
+		BOSS_D(1000, 2, 0.7, 0.4, 1500);
         /** Maximum health of this kind of boss. */
         private final int maxHealth;
         /** Base horizontal speed in pixels per frame. */
@@ -88,12 +90,16 @@ public class Boss extends Entity {
     private int currentHealth;
     /** Horizontal speed in pixels per frame. */
     private int speed;
+    private final double movementMultiplier;
+    private double movementTicks;
     /** Moving direction: 1 is right, -1 is left. */
     private int direction;
     /** Current state of the boss. */
     private State state;
     /** Current phase: 1, 2 or 3. */
     private int phase;
+	/** True while the boss energy shield is blocking player attacks. */
+	private boolean shieldActive;
 
     /**
      * Constructor, creates the boss and resets its health and state.
@@ -106,12 +112,19 @@ public class Boss extends Entity {
      *            Kind of boss to create.
      */
     public Boss(final int positionX, final int positionY, final BossType type) {
+        this(positionX, positionY, type, StoryDebugModifiers.defaults());
+    }
+
+    /** Scales only this boss's maximum health and movement. */
+    public Boss(final int positionX, final int positionY, final BossType type,
+            final StoryDebugModifiers modifiers) {
         // Temporarily reuses the bonus ship sprite (16 x 7 cells, 2px each).
         super(positionX, positionY, WIDTH, HEIGHT, Color.MAGENTA);
         this.spriteType = SpriteType.EnemyShipSpecial;
 
         this.type = type;
-        this.maxHealth = type.getMaxHealth();
+        this.maxHealth = modifiers.scaleHp(type.getMaxHealth());
+        this.movementMultiplier = modifiers.enemySpeedMultiplier();
         this.currentHealth = this.maxHealth;
         this.speed = type.getSpeed();
         this.direction = 1;
@@ -136,6 +149,15 @@ public class Boss extends Entity {
         if (this.state == State.HIT)
             this.state = State.MOVING;
 
+        // Keep fractional frames and run each original boundary check, even at 4x.
+        this.movementTicks += this.movementMultiplier;
+        while (this.movementTicks >= 1.0) {
+            moveOneTick(leftLimit, rightLimit);
+            this.movementTicks -= 1.0;
+        }
+    }
+
+    private void moveOneTick(final int leftLimit, final int rightLimit) {
         this.positionX += this.speed * this.direction;
 
         if (this.positionX < leftLimit) {
@@ -157,8 +179,8 @@ public class Boss extends Entity {
      *            Amount of health to remove.
      */
     public final void takeDamage(final int damage) {
-        if (this.state == State.DEFEATED)
-            return;
+		if (this.state == State.DEFEATED || this.shieldActive)
+			return;
 
         this.currentHealth -= damage;
         if (this.currentHealth < 0)
@@ -195,10 +217,19 @@ public class Boss extends Entity {
     /**
      * Marks the boss as defeated and stops its movement.
      */
-    private void defeat() {
-        this.state = State.DEFEATED;
-        this.spriteType = SpriteType.Explosion;
-    }
+	private void defeat() {
+		this.state = State.DEFEATED;
+		this.shieldActive = false;
+		this.spriteType = SpriteType.Explosion;
+	}
+
+	public final boolean isShieldActive() {
+		return this.shieldActive;
+	}
+
+	public final void setShieldActive(final boolean shieldActive) {
+		this.shieldActive = shieldActive && this.state != State.DEFEATED;
+	}
 
     public final BossType getType() {
         return this.type;

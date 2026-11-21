@@ -8,6 +8,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+import engine.StoryDebugModifiers;
 import entity.Boss;
 import entity.BossBullet;
 import event.BossDefeatedEvent;
@@ -120,6 +121,11 @@ public final class BossManager {
      *         boss was already defeated.
      */
     public Boss spawn(final BossSpawnRequest request) {
+        return spawn(request, StoryDebugModifiers.defaults());
+    }
+
+    /** Creates a boss with the health and movement settings of this battle. */
+    public Boss spawn(final BossSpawnRequest request, final StoryDebugModifiers modifiers) {
         if (this.boss != null && !this.finished)
             return null;
         String key = request.getBossType() + ":" + request.getLevel() + ":"
@@ -128,7 +134,7 @@ public final class BossManager {
             return null;
 
         this.boss = new Boss(request.getPositionX(), request.getPositionY(),
-                request.getBossType());
+                request.getBossType(), modifiers);
         this.attackSystem = new BossAttackSystem(
                 BossAttackConfig.forType(request.getBossType()), this.random);
         this.currentKey = key;
@@ -231,6 +237,8 @@ public final class BossManager {
             return DefeatedEnemyType.BOSS_B;
         case BOSS_C:
             return DefeatedEnemyType.BOSS_C;
+		case BOSS_D:
+			return DefeatedEnemyType.BOSS_D;
         default:
             return DefeatedEnemyType.UNKNOWN;
         }
@@ -273,6 +281,10 @@ public final class BossManager {
         int originY = this.boss.getPositionY() + this.boss.getHeight();
         BossAttackSystem.AttackResult result = this.attackSystem.update(
                 originX, originY, targetX, targetY);
+		this.boss.setShieldActive(this.attackSystem.isShieldActive());
+		if (this.attackSystem.consumeShieldActivated()) {
+			this.eventManager.publish(BossEvent.shieldActivated(this.boss));
+		}
         if (result == null)
             return;
 
@@ -281,7 +293,7 @@ public final class BossManager {
             summonRequests.addAll(result.getSummons());
         }
 
-        if (!result.getBullets().isEmpty() || result.isWindup()) {
+        if (!result.getBullets().isEmpty() || result.isWindup() || result.isSpecial()) {
             if (this.boss.getState() == Boss.State.MOVING
                     || this.boss.getState() == Boss.State.IDLE) {
                 this.boss.setState(Boss.State.ATTACKING);

@@ -22,8 +22,9 @@ public final class BossEvent implements GameplayEvent {
         /** The boss attacked, or is preparing a special attack. */
         ATTACK("BossAttack"),
         /** The boss was defeated. */
-        DEFEATED("BossDefeated");
-
+        DEFEATED("BossDefeated"),
+		/** The boss activated its energy shield. */
+		SHIELD_ACTIVATED("BossShieldActivated");
         /** Name of the event as written in the PRD. */
         private final String eventName;
 
@@ -112,6 +113,11 @@ public final class BossEvent implements GameplayEvent {
         return new BossEvent(Type.DEFEATED, boss, boss.getPhase(), 0, 0, null,
                 false, false, 0);
     }
+
+	static BossEvent shieldActivated(final Boss boss) {
+		return new BossEvent(Type.SHIELD_ACTIVATED, boss, boss.getPhase(), 0,
+				0, null, false, false, 0);
+	}
 
     public Type getType() {
         return this.type;

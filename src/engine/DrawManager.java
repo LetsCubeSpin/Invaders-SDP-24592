@@ -413,6 +413,14 @@ public final class DrawManager {
                     20 + 22 * i, 12, 2);
     }
 
+    /** Shows a life pool that would overrun the space reserved for heart icons. */
+    public void drawLifeCount(final int lives, final int maxLives) {
+        drawIcon(lives > 0 ? Icon.LIFE : Icon.LIFE_LOST, 20, 12, 2);
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(Color.WHITE);
+        backBufferGraphics.drawString(lives + "/" + maxLives, 42, 25);
+    }
+
     /**
      * Draws a UI icon in its own colors.
      *
@@ -913,6 +921,297 @@ public final class DrawManager {
                     screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
     }
 
+    /** Left edge of the pilot portrait in story dialogue. */
+    private static final int DIALOGUE_PORTRAIT_X = 5;
+    /** Height of the boxes, and their gap below the lower line. */
+    private static final int DIALOGUE_BOX_HEIGHT = 160;
+    private static final int DIALOGUE_BOX_GAP = 19;
+    /** Space kept free below the boxes. */
+    private static final int DIALOGUE_BOTTOM_MARGIN = 30;
+    /** Gap between the portrait and the text box. */
+    private static final int DIALOGUE_BOX_SPACING = 14;
+    private static final int DIALOGUE_TEXT_PADDING = 10;
+
+    /**
+     * Splits a text into lines that fit the width. A line is a range of the
+     * text, so a typewriter can reveal the text without the words jumping
+     * from one line to the next.
+     *
+     * @param text
+     *            Text to wrap, a newline always starts a new line.
+     * @param maxWidth
+     *            Width of a line in pixels.
+     * @return Start (inclusive) and end (exclusive) of every line.
+     */
+    private List<int[]> wrapRanges(final String text, final int maxWidth) {
+        List<int[]> ranges = new java.util.ArrayList<int[]>();
+        int start = 0;
+        int length = text.length();
+        while (start <= length) {
+            int end = start;
+            int lastSpace = -1;
+            int next = -1;
+            while (end < length && text.charAt(end) != '\n') {
+                if (text.charAt(end) == ' ')
+                    lastSpace = end;
+                if (fontRegularMetrics.stringWidth(
+                        text.substring(start, end + 1)) > maxWidth
+                        && lastSpace > start) {
+                    end = lastSpace;
+                    next = lastSpace + 1;
+                    break;
+                }
+                end++;
+            }
+            if (next < 0)
+                next = end + 1;
+            ranges.add(new int[] { start, end });
+            start = next;
+        }
+        return ranges;
+    }
+
+    /**
+     * Draws the typed-out lines of a text.
+     *
+     * @param text
+     *            Full text.
+     * @param visibleChars
+     *            Number of characters of the text that are shown.
+     * @param x
+     *            Left edge of the lines.
+     * @param y
+     *            Baseline of the first line.
+     * @param maxWidth
+     *            Width available for a line.
+     */
+    private void drawTypedText(final String text, final int visibleChars,
+            final int x, final int y, final int maxWidth) {
+        backBufferGraphics.setFont(fontRegular);
+        int lineHeight = fontRegularMetrics.getHeight() + 4;
+        int row = 0;
+        for (int[] range : wrapRanges(text, maxWidth)) {
+            int shownEnd = Math.min(range[1], visibleChars);
+            if (shownEnd > range[0])
+                backBufferGraphics.drawString(
+                        text.substring(range[0], shownEnd), x,
+                        y + row * lineHeight);
+            row++;
+        }
+    }
+
+    /**
+     * Draws the story narration typed out on a plain screen.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param text
+     *            Full narration.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole text is shown, which shows the prompt.
+     * @param millis
+     *            Current time, for the blinking prompt.
+     */
+    public void drawStoryNarration(final Screen screen, final String text,
+            final int visibleChars, final boolean done, final long millis) {
+        int x = 30;
+        int width = screen.getWidth() - 2 * x;
+        backBufferGraphics.setColor(Color.GREEN);
+        drawTypedText(text, visibleChars, x, screen.getHeight() / 5, width);
+        drawPrompt(screen, done, millis, screen.getHeight() - 30);
+    }
+
+    /**
+     * Draws the portrait on the lower left and the typed line to its right,
+     * over the game screen.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param speaker
+     *            Name shown above the line.
+     * @param text
+     *            Full line.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole line is shown, which shows the prompt.
+     * @param millis
+     *            Current time, drives the portrait and the prompt.
+     */
+    public void drawStoryDialogue(final Screen screen, final String speaker,
+            final String text, final int visibleChars, final boolean done,
+            final long millis) {
+        // The lines sit at a fraction of the height, so the boxes start just
+        // below the lower one and stay inside the part of the window that
+        // is really visible.
+        int boxY = dialogueBoxY(screen);
+        int boxHeight = dialogueBoxHeight(screen);
+        // Portrait, with one green border right around it.
+        int portraitWidth = (int) Math.round(boxHeight
+                * story.PilotPortraitTraced.SRC_W
+                / story.PilotPortraitTraced.SRC_H);
+        story.PilotPortraitTraced.draw((Graphics2D) backBufferGraphics,
+                DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
+                millis / 1000.0);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
+                portraitWidth - 1, boxHeight - 1);
+
+        // Text box right next to the portrait.
+        int boxX = DIALOGUE_PORTRAIT_X + portraitWidth + DIALOGUE_BOX_SPACING;
+        int textWidth = screen.getWidth() - boxX - DIALOGUE_PORTRAIT_X;
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(boxX, boxY, textWidth, boxHeight);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(boxX, boxY, textWidth - 1, boxHeight - 1);
+        backBufferGraphics.setFont(fontRegular);
+        int textX = boxX + DIALOGUE_TEXT_PADDING;
+        backBufferGraphics.drawString(speaker, textX, boxY + 24);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawTypedText(text, visibleChars, textX, boxY + 54,
+                textWidth - 2 * DIALOGUE_TEXT_PADDING);
+
+        if (done && (millis / 500) % 2 == 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            String hint = "SPACE";
+            backBufferGraphics.drawString(hint, boxX
+                    + textWidth - DIALOGUE_TEXT_PADDING
+                    - fontRegularMetrics.stringWidth(hint),
+                    boxY + boxHeight - 10);
+        }
+    }
+
+    /** Top of the dialogue boxes, just below the lower line of the banner. */
+    private int dialogueBoxY(final Screen screen) {
+        return screen.getHeight() / 2 + screen.getHeight() / 12
+                + DIALOGUE_BOX_GAP;
+    }
+
+    /** Height of the dialogue boxes, kept inside the visible window. */
+    private int dialogueBoxHeight(final Screen screen) {
+        return Math.min(DIALOGUE_BOX_HEIGHT, screen.getHeight()
+                - DIALOGUE_BOTTOM_MARGIN - dialogueBoxY(screen));
+    }
+
+    /**
+     * Draws a story question typed out in one wide box over the game screen.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param text
+     *            Full text of the question.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole text is shown, which shows the prompt.
+     * @param millis
+     *            Current time, for the blinking prompt.
+     */
+    public void drawStoryQuestionBox(final Screen screen, final String text,
+            final int visibleChars, final boolean done, final long millis) {
+        int boxX = DIALOGUE_PORTRAIT_X;
+        int boxY = dialogueBoxY(screen);
+        int boxWidth = screen.getWidth() - 2 * DIALOGUE_PORTRAIT_X;
+        int boxHeight = dialogueBoxHeight(screen);
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(boxX, boxY, boxWidth, boxHeight);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(boxX, boxY, boxWidth - 1, boxHeight - 1);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawTypedText(text, visibleChars, boxX + DIALOGUE_TEXT_PADDING,
+                boxY + 30, boxWidth - 2 * DIALOGUE_TEXT_PADDING);
+        if (done && (millis / 500) % 2 == 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            String hint = "SPACE";
+            backBufferGraphics.drawString(hint, boxX + boxWidth
+                    - DIALOGUE_TEXT_PADDING
+                    - fontRegularMetrics.stringWidth(hint),
+                    boxY + boxHeight - 10);
+        }
+    }
+
+    /**
+     * Draws the two choices of a story question in the banner bar. The lower
+     * line of the bar is split in two halves, and flying the ship into one
+     * half picks that choice.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param titles
+     *            Titles of choice 0 (left half) and choice 1 (right half).
+     * @param details
+     *            Descriptions of the two choices.
+     * @param shipSide
+     *            Half the ship is under, 0 or 1.
+     * @param chosen
+     *            Choice that was made, or -1 while the player is choosing.
+     * @param millis
+     *            Current time, for the flashing of the chosen half.
+     */
+    public void drawStoryChoices(final Screen screen, final String[] titles,
+            final String[] details, final int shipSide, final int chosen,
+            final long millis) {
+        int width = screen.getWidth();
+        int upperY = screen.getHeight() / 2 - screen.getHeight() / 12;
+        int lowerY = screen.getHeight() / 2 + screen.getHeight() / 12;
+        int middle = width / 2;
+        Color dim = new Color(0, 120, 0);
+
+        backBufferGraphics.setColor(Color.BLACK);
+        backBufferGraphics.fillRect(0, upperY, width, lowerY - upperY);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawLine(0, upperY, width - 1, upperY);
+        backBufferGraphics.setColor(dim);
+        backBufferGraphics.drawLine(middle, upperY, middle, lowerY);
+
+        backBufferGraphics.setFont(fontRegular);
+        for (int side = 0; side < 2; side++) {
+            int left = side == 0 ? 0 : middle + 2;
+            int right = side == 0 ? middle - 2 : width - 1;
+            boolean active = chosen < 0 ? side == shipSide : side == chosen;
+            boolean flash = side == chosen && (millis / 150) % 2 == 0;
+            Color color = flash ? Color.WHITE : active ? Color.GREEN : dim;
+
+            // The half of the lower line, thicker under the ship.
+            int thickness = active ? 3 : 1;
+            backBufferGraphics.setColor(color);
+            backBufferGraphics.fillRect(left, lowerY - thickness + 1,
+                    right - left + 1, thickness);
+
+            int centerX = (left + right) / 2;
+            backBufferGraphics.drawString(titles[side], centerX
+                    - fontRegularMetrics.stringWidth(titles[side]) / 2,
+                    upperY + 24);
+            backBufferGraphics.setColor(active ? Color.WHITE : Color.GRAY);
+            int row = 0;
+            for (int[] range : wrapRanges(details[side],
+                    right - left - 2 * DIALOGUE_TEXT_PADDING)) {
+                String line = details[side].substring(range[0], range[1]);
+                backBufferGraphics.drawString(line, centerX
+                        - fontRegularMetrics.stringWidth(line) / 2,
+                        upperY + 44 + row * 18);
+                row++;
+            }
+        }
+
+        if (chosen < 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            drawCenteredRegularString(screen, "UP ARROW: FLY TO A SIDE",
+                    lowerY + 24);
+        }
+    }
+
+    /** Blinking "press space" prompt shown when the text is complete. */
+    private void drawPrompt(final Screen screen, final boolean show,
+            final long millis, final int y) {
+        if (show && (millis / 500) % 2 == 0) {
+            backBufferGraphics.setColor(Color.GRAY);
+            drawCenteredRegularString(screen, "Press SPACE", y);
+        }
+    }
+
     public void drawSettingsMenu(final Screen screen, final int selectedOption) {
         String[] options = SETTINGS_MENU_OPTIONS;
         Icon[] icons = { Icon.AUDIO, Icon.CONTROLS, Icon.COLOR, Icon.BACK };
@@ -1288,6 +1587,52 @@ public final class DrawManager {
         backBufferGraphics.setColor(Color.CYAN);
         backBufferGraphics.drawOval(x, y, width, height);
     }
+
+	/**
+	 * Draws OBELISK's downward Orbital Annihilator laser warning and beam.
+	 *
+	 * @param boss
+	 *            Firing boss entity.
+	 * @param beamWidth
+	 *            Width of the active beam in pixels.
+	 * @param bottomY
+	 *            Bottom Y coordinate of the play area.
+	 * @param firing
+	 *            True while firing, false while charging.
+	 * @param chargeProgress
+	 *            Charge progress in [0, 1].
+	 */
+	public void drawBossLaser(final Entity boss, final int beamWidth,
+							  final int bottomY, final boolean firing,
+							  final float chargeProgress) {
+		int centerX = boss.getPositionX() + boss.getWidth() / 2;
+		int startY = boss.getPositionY() + boss.getHeight();
+		int beamHeight = Math.max(0, bottomY - startY);
+		int beamX = centerX - beamWidth / 2;
+
+		if (firing) {
+			backBufferGraphics.setColor(new Color(255, 0, 0, 120));
+			backBufferGraphics.fillRect(beamX - 4, startY, beamWidth + 8,
+					beamHeight);
+
+			backBufferGraphics.setColor(Color.RED);
+			backBufferGraphics.fillRect(beamX, startY, beamWidth, beamHeight);
+
+			backBufferGraphics.setColor(Color.WHITE);
+			backBufferGraphics.fillRect(centerX - beamWidth / 4, startY,
+					beamWidth / 2, beamHeight);
+		} else {
+			backBufferGraphics.setColor(new Color(255, 0, 0, 90));
+			backBufferGraphics.fillRect(centerX - 1, startY, 2, beamHeight);
+
+			int radius = 2 + (int) (chargeProgress * beamWidth / 2);
+			boolean flicker = ((int) (chargeProgress * 20)) % 2 == 0;
+
+			backBufferGraphics.setColor(flicker ? Color.WHITE : Color.RED);
+			backBufferGraphics.fillOval(centerX - radius, startY - radius,
+					radius * 2, radius * 2);
+		}
+	}
 
     private String getKeyDisplayText(final int keyCode) {
         switch (keyCode) {
