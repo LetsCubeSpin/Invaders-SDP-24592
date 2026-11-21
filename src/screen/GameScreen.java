@@ -1810,6 +1810,7 @@ public class GameScreen extends Screen {
 			break;
 		case SHIELD_ACTIVATED:
 				AudioManager.playSFX(BOSS_SHIELD_ON_SOUND);
+				break;
 		case DEFEATED:
 			AudioManager.playSFX(BOSS_EXPLOSION_SOUND);
 			// Three explosions across the boss, as it is bigger than an enemy.
