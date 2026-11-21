@@ -14,10 +14,14 @@ New-Item -ItemType Directory -Path $testDirectory | Out-Null
 
 function Test-LauncherFailure([string]$Stage, [int]$ExpectedCode, [string[]]$ExpectedMessage,
         [string]$CompilerRoot = $JdkRoot, [switch]$OmitShip,
-        [string]$Difficulty = 'EASY', [string]$Ship = 'STANDARD') {
-    $arguments = @('-NoProfile', '-NonInteractive', '-File', $launcher, '-Route', 'TRUCE',
-        '-Stage', $Stage, '-Difficulty', $Difficulty)
-    if (-not $OmitShip) { $arguments += @('-Ship', $Ship) }
+        [string]$Difficulty = 'EASY', [string]$Ship = 'STANDARD', [string[]]$Modifiers = @(),
+        [switch]$OmitSelection) {
+    $arguments = @('-NoProfile', '-NonInteractive', '-File', $launcher)
+    if (-not $OmitSelection) {
+        $arguments += @('-Route', 'TRUCE', '-Stage', $Stage, '-Difficulty', $Difficulty)
+        if (-not $OmitShip) { $arguments += @('-Ship', $Ship) }
+    }
+    $arguments += $Modifiers
     if ($CompilerRoot) { $arguments += @('-JdkRoot', $CompilerRoot) }
     # Windows PowerShell wraps redirected native stderr in error records.
     $output = & {
@@ -40,6 +44,7 @@ try {
     $env:TEMP = $testDirectory
     $env:TMP = $testDirectory
     Test-LauncherFailure '7' 1 'Specify all four:' -OmitShip
+    Test-LauncherFailure '7' 1 'Combat modifiers require all four selections.' -OmitSelection -Modifiers @('-Invincible', 'ON')
     Test-LauncherFailure '7' 1 'JDK compiler not found.' -CompilerRoot (Join-Path $testDirectory 'missing JDK')
     # An invalid compiler option makes javac deterministically return 2 without opening a window.
     $env:JDK_JAVAC_OPTIONS = '--invalid-story-debug-test-option'
@@ -55,6 +60,9 @@ try {
     Test-LauncherFailure '8' 1 'Stage must be between 1 and 7'
     $env:JAVA_TOOL_OPTIONS = '-Djava.awt.headless=true'
     Test-LauncherFailure '7' 1 @('Route TRUCE   |   Stage 7   |   EASY   |   STANDARD', 'HeadlessException') -Difficulty 'easy' -Ship 'standard'
+    Test-LauncherFailure '7' 1 @('Invincible: ON   Starting lives: 15', 'Enemy HP: 2.0x   Enemy speed: 0.5x', 'HeadlessException') `
+        -Modifiers @('-StartingLives', '15', '-EnemyHpMultiplier', '2.0', '-Invincible', 'ON', '-EnemySpeedMultiplier', '0.5')
+    Test-LauncherFailure '7' 1 'Enemy speed multiplier must be between 0.25 and 4.0.' -Modifiers @('-EnemySpeedMultiplier', '4.01')
 } finally {
     $env:JDK_JAVAC_OPTIONS = $oldCompilerOptions
     $env:JAVA_TOOL_OPTIONS = $oldJavaOptions
@@ -66,5 +74,5 @@ try {
 }
 
 # Expected native failures must not leak into the GitHub Actions shell epilogue.
-Write-Output 'PASS: selection validation, EASY/STANDARD direct launch, missing JDK, javac/java exit codes, cleanup in a path with spaces.'
+Write-Output 'PASS: selection and modifier validation, legacy and modified direct launch, missing JDK, javac/java exit codes, cleanup in a path with spaces.'
 exit 0

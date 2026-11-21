@@ -411,6 +411,14 @@ public final class DrawManager {
                     20 + 22 * i, 12, 2);
     }
 
+    /** Shows a life pool that would overrun the space reserved for heart icons. */
+    public void drawLifeCount(final int lives, final int maxLives) {
+        drawIcon(lives > 0 ? Icon.LIFE : Icon.LIFE_LOST, 20, 12, 2);
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(Color.WHITE);
+        backBufferGraphics.drawString(lives + "/" + maxLives, 42, 25);
+    }
+
     /**
      * Draws a UI icon in its own colors.
      *

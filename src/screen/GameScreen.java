@@ -20,6 +20,7 @@ import engine.Core;
 import engine.GameSettings;
 import engine.GameState;
 import engine.GameplayConfig;
+import engine.StoryDebugModifiers;
 import engine.ControlsConfig;
 import engine.LevelGameplayAdapter;
 import level.LevelDefinition;
@@ -170,6 +171,7 @@ public class GameScreen extends Screen {
 	private int currentWave;
 	/** Story stage being played; null outside story mode. */
 	private StoryStage storyStage;
+	private final StoryDebugModifiers modifiers;
 	/** Boss of the story stage; null when the stage has no boss. */
 	private Boss.BossType storyBoss;
     /** Current difficulty level number. */
@@ -407,7 +409,15 @@ public class GameScreen extends Screen {
             final boolean bonusLife, final int width, final int height, final int fps,
             final ShipType shipType, final RunSession runSession,
             final int playerCount) {
+        this(gameState, waves, bonusLife, width, height, fps, shipType, runSession, playerCount, null);
+    }
+
+    private GameScreen(final GameState gameState, final List<GameSettings> waves,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession, final int playerCount,
+            final StoryDebugModifiers debug) {
         super(width, height, fps);
+        this.modifiers = debug == null ? StoryDebugModifiers.defaults() : debug;
 		if (playerCount != 1 && playerCount != 2)
 			throw new IllegalArgumentException("Player count must be 1 or 2.");
 		this.playerCount = playerCount;
@@ -438,6 +448,10 @@ public class GameScreen extends Screen {
 				: this.shipType.getMaxLives();
 		int initialLives = this.playerCount == 2 ? 1
 				: Math.min(gameState.getLivesRemaining(), maxLives);
+		if (debug != null) {
+			maxLives = debug.startingLives();
+			initialLives = maxLives;
+		}
 		this.playerStatus = new PlayerStatus(initialLives, maxLives,
 				this.shipType.isShieldCapable());
 		this.sharedLives = this.playerCount == 2
@@ -492,6 +506,24 @@ public class GameScreen extends Screen {
 			final boolean bonusLife, final int width, final int height,
 			final int fps, final ShipType shipType,
 			final RunSession runSession) {
+		return createStoryStage(gameState, progress, difficulty, bonusLife,
+				width, height, fps, shipType, runSession, null);
+	}
+
+	/** Starts one STANDARD Story battle with a fresh life pool and no run session. */
+	public static GameScreen forStoryDebugStage(final GameState gameState,
+			final StoryProgress progress, final UnaryOperator<GameSettings> difficulty,
+			final int width, final int height, final int fps, final StoryDebugModifiers modifiers) {
+		if (modifiers == null)
+			throw new IllegalArgumentException("Debug modifiers must not be null.");
+		return createStoryStage(gameState, progress, difficulty, false,
+				width, height, fps, ShipType.STANDARD, null, modifiers);
+	}
+
+	private static GameScreen createStoryStage(final GameState gameState, final StoryProgress progress,
+			final UnaryOperator<GameSettings> difficulty, final boolean bonusLife, final int width,
+			final int height, final int fps, final ShipType shipType, final RunSession runSession,
+			final StoryDebugModifiers debug) {
 		if (difficulty == null)
 			throw new IllegalArgumentException("difficulty must not be null.");
 		int stageNumber = gameState.getLevel();
@@ -503,7 +535,7 @@ public class GameScreen extends Screen {
 
 		GameScreen screen = new GameScreen(gameState,
 				Collections.nCopies(stage.getWaveCount(), settings), bonusLife,
-				width, height, fps, shipType, runSession);
+				width, height, fps, shipType, runSession, 1, debug);
 		screen.customWaves = storyWaves;
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
@@ -512,9 +544,8 @@ public class GameScreen extends Screen {
 	}
 
 	private EnemyShipFormation createFormation() {
-		EnemyShipFormation formation = this.customWaves == null
-				? new EnemyShipFormation(this.gameSettings, this.level)
-				: new EnemyShipFormation(this.gameSettings, this.level, this.customWaves.get(this.currentWave));
+		EnemyShipFormation formation = new EnemyShipFormation(this.gameSettings, this.level,
+				this.customWaves == null ? null : this.customWaves.get(this.currentWave), this.modifiers);
 		formation.attach(this);
 		return formation;
 	}
@@ -637,7 +668,7 @@ public class GameScreen extends Screen {
         this.fragments = new HashSet<GrenadeFragment>();
         this.grenadeDropsThisLevel = 0;
 
-		this.bonusEnemyManager = new BonusEnemyManager();
+		this.bonusEnemyManager = new BonusEnemyManager(this.modifiers);
 		this.screenFinishedCooldown = Core.getCooldown(SCREEN_CHANGE_INTERVAL);
         this.bullets = new HashSet<Bullet>();
 		this.fallingObstacles = new HashSet<FallingObstacle>();
@@ -670,7 +701,7 @@ public class GameScreen extends Screen {
 			this.bossManager.spawn(new BossSpawnRequest(
 					bossType,
 					this.width / 2 - Boss.WIDTH / 2, 78,
-					this.level, 0));
+					this.level, 0), this.modifiers);
 		this.bossExplosionCooldown = Core.getCooldown(BOSS_EXPLOSION_TIME);
 
         // Special input delay / countdown.
@@ -833,7 +864,7 @@ public class GameScreen extends Screen {
 
                 for (BossAttackSystem.SummonRequest req : summons) {
                     EnemyShip minion = EnemyShip.createByType(
-                            req.getEnemyType(), req.getPositionX(), req.getPositionY());
+                            req.getEnemyType(), req.getPositionX(), req.getPositionY(), this.modifiers.scaleHp(1));
                     Cooldown shootCooldown = this.enemyShipFormation.createShooterCooldown();
                     shootCooldown.reset();
                     minion.setShootingCooldown(shootCooldown);
@@ -844,7 +875,7 @@ public class GameScreen extends Screen {
             for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
                 EnemyShip minion = it.next();
                 minion.update();
-                minion.move(0, 2);
+                minion.moveScaled(0, 2, this.modifiers.enemySpeedMultiplier());
 
                 Ship target = chooseRandomLivingTargetShip();
                 if (target != null && minion.canShoot()) {
@@ -1115,7 +1146,10 @@ public class GameScreen extends Screen {
 
 		// Interface.
 		drawManager.drawScore(this, this.score);
-		drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
+		if (this.maxSharedLives > this.shipType.getMaxLives())
+			drawManager.drawLifeCount(getLivesRemaining(), this.maxSharedLives);
+		else
+			drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
 		drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
 
 		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
@@ -1313,13 +1347,7 @@ public class GameScreen extends Screen {
                 EnemyShip bonusShip = this.bonusEnemyManager.getShip();
                 if (!recyclable.contains(bullet) && this.bonusEnemyManager.isActive()
                         && checkCollision(bullet, bonusShip)) {
-                    recordEnemyDefeat(bonusShip);
-                    floatingScoreHud.show(bonusShip);
-                    this.score += this.bonusEnemyManager.destroy();
-                    this.shipsDestroyed++;
-                    this.particleSystem.spawnEnemyExplosion(
-                            bonusShip.getPositionX() + bonusShip.getWidth() / 2,
-                            bonusShip.getPositionY() + bonusShip.getHeight() / 2);
+                    hitBonusShip(bonusShip);
                     recyclable.add(bullet);
                 }
 
@@ -1367,6 +1395,18 @@ public class GameScreen extends Screen {
 			}
         }
         this.bossBullets.removeAll(hitBossBullets);
+    }
+
+    private void hitBonusShip(final EnemyShip bonusShip) {
+        if (!this.bonusEnemyManager.hit())
+            return;
+        recordEnemyDefeat(bonusShip);
+        floatingScoreHud.show(bonusShip);
+        this.score += bonusShip.getPointValue();
+        this.shipsDestroyed++;
+        this.particleSystem.spawnEnemyExplosion(
+                bonusShip.getPositionX() + bonusShip.getWidth() / 2,
+                bonusShip.getPositionY() + bonusShip.getHeight() / 2);
     }
 
     /**
@@ -1418,6 +1458,13 @@ public class GameScreen extends Screen {
 			// hear a blocked hit only when the timed shield was the one that
 			// blocked it.
 			status.announceDamageBlocked(damage);
+			return false;
+		}
+		if (this.modifiers.invincible()) {
+			if (status.isShieldActive()) {
+				status.announceDamageBlocked(damage);
+				AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+			}
 			return false;
 		}
 		// PlayerStatus owns the timed shield, so its answer decides whether
@@ -2006,6 +2053,12 @@ public class GameScreen extends Screen {
                 for (EnemyShip enemyShip : this.enemyShipFormation)
                     if (!enemyShip.isDestroyed()
                             && checkCollision(fragment, enemyShip)) {
+                        used = true;
+                        // Story grunts normally have one HP. A scaled grunt may survive the fragment.
+                        if (this.modifiers.enemyHpMultiplier() > 1.0 && enemyShip.getHealth() > 1) {
+                            enemyShip.hit();
+                            break;
+                        }
                         this.score += enemyShip.getPointValue();
                         floatingScoreHud.show(enemyShip);
                         this.shipsDestroyed++;
@@ -2018,20 +2071,13 @@ public class GameScreen extends Screen {
                                 enemyShip.getPositionY()
                                         + enemyShip.getHeight() / 2);
                         tryDropGrenade(enemyShip);
-                        used = true;
                         break;
                     }
 
                 EnemyShip bonusShip = this.bonusEnemyManager.getShip();
                 if (!used && this.bonusEnemyManager.isActive()
                         && checkCollision(fragment, bonusShip)) {
-                    recordEnemyDefeat(bonusShip);
-                    floatingScoreHud.show(bonusShip);
-                    this.score += this.bonusEnemyManager.destroy();
-                    this.shipsDestroyed++;
-                    this.particleSystem.spawnEnemyExplosion(
-                            bonusShip.getPositionX() + bonusShip.getWidth() / 2,
-                            bonusShip.getPositionY() + bonusShip.getHeight() / 2);
+                    hitBonusShip(bonusShip);
                     used = true;
                 }
             }

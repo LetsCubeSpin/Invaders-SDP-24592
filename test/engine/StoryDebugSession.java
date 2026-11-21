@@ -41,9 +41,8 @@ final class StoryDebugSession implements AutoCloseable {
                 "-Djava.util.prefs.PreferencesFactory=shop.PreviewPreferencesFactory",
                 "-Duser.home=" + directory, "-Dinvaders.storageDir=" + directory,
                 "-Djava.io.tmpdir=" + directory, "-Dfile.encoding=UTF-8",
-                "-cp", childClasspath(directory), StoryDebugLauncher.class.getName(),
-                selection.route().name(), Integer.toString(selection.stage()),
-                selection.difficulty().name(), selection.ship().name()));
+                "-cp", childClasspath(directory), StoryDebugLauncher.class.getName()));
+        command.addAll(selection.arguments());
         return command;
     }
 
