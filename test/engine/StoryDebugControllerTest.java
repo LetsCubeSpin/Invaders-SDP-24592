@@ -3,6 +3,10 @@ package engine;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,6 +21,9 @@ import entity.ShipType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.opentest4j.AssertionFailedError;
 import screen.GameScreen;
 import story.StoryRoute;
 
@@ -138,7 +145,7 @@ class StoryDebugControllerTest {
                 List<String> command = fixtureCommand(session, choice, evidence, "write", status);
                 Path log = dir.resolve("child.log");
                 int exit = session.runCommand(command, ProcessBuilder.Redirect.to(log.toFile()));
-                assertEquals(status, exit, Files.readString(log));
+                assertChildExit(status, exit, log);
                 assertTrue(Files.exists(sessionPath.resolve("scores")));
             }
             assertFalse(Files.exists(sessionPath));
@@ -149,6 +156,51 @@ class StoryDebugControllerTest {
         }
         for (Path file : normalFiles) assertEquals("normal-sentinel", Files.readString(file));
         try (var paths = Files.list(root)) { assertEquals(0, paths.count()); }
+    }
+
+    private static void assertChildExit(int expected, int actual, Path log) {
+        assertEquals(expected, actual, () -> readChildLog(log));
+    }
+
+    private static String readChildLog(Path log) {
+        try {
+            byte[] bytes = Files.readAllBytes(log);
+            try {
+                return StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+            } catch (CharacterCodingException invalidUtf8) {
+                return new String(bytes, Charset.forName("MS949"));
+            }
+        } catch (IOException | SecurityException error) {
+            return "Could not read " + log + ": " + error;
+        }
+    }
+
+    @Test
+    void matchingExitAcceptsInvalidUtf8(@TempDir Path dir) throws IOException {
+        Path log = dir.resolve("child.log");
+        Files.write(log, new byte[] {(byte) 0xff});
+        assertChildExit(0, 0, log);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UTF-8", "MS949"})
+    void exitMismatchIncludesDecodedLog(String encoding, @TempDir Path dir) throws IOException {
+        Path log = dir.resolve("child.log");
+        String message = "11월 전투 종료";
+        Files.write(log, message.getBytes(Charset.forName(encoding)));
+        AssertionFailedError failure = assertThrows(AssertionFailedError.class, () -> assertChildExit(0, 7, log));
+        assertTrue(failure.getMessage().contains(message));
+        assertEquals(0, failure.getExpected().getValue());
+        assertEquals(7, failure.getActual().getValue());
+    }
+
+    @Test
+    void exitMismatchSurvivesMissingLog(@TempDir Path dir) {
+        Path log = dir.resolve("missing.log");
+        AssertionFailedError failure = assertThrows(AssertionFailedError.class, () -> assertChildExit(7, 0, log));
+        assertTrue(failure.getMessage().contains(log.toString()));
+        assertEquals(7, failure.getExpected().getValue());
+        assertEquals(0, failure.getActual().getValue());
     }
 
     @Test
