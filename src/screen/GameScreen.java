@@ -1802,7 +1802,8 @@ public class GameScreen extends Screen {
 		if (this.modifiers.invincible()) {
 			if (status.isShieldActive()) {
 				status.announceDamageBlocked(damage);
-				AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+				if (playBlockSound)
+					AudioManager.playSFX(SHIELD_BLOCK_SOUND);
 			}
 			return false;
 		}
