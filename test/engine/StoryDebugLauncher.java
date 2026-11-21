@@ -5,7 +5,7 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
-import java.util.concurrent.FutureTask;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.prefs.Preferences;
@@ -15,7 +15,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
-import javax.swing.SwingUtilities;
 
 import audio.AudioManager;
 import entity.ShipType;
@@ -25,7 +24,7 @@ import story.PlaceholderStoryScenes;
 import story.StoryProgress;
 import story.StoryRoute;
 
-/** Development entry point, excluded from the application jar. One JVM plays one stage. */
+/** Development launcher UI and isolated battle entry point, excluded from the application jar. */
 public final class StoryDebugLauncher {
     private StoryDebugLauncher() { }
 
@@ -41,34 +40,40 @@ public final class StoryDebugLauncher {
     }
 
     public static void main(String[] args) throws Exception {
-        requireDebugSession();
-        StoryDebugSelection choice;
-        if (args.length == 0) {
-            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(() -> choose(defaultSelection()));
-            SwingUtilities.invokeAndWait(dialog);
-            choice = dialog.get();
-            if (choice == null) return;
-        } else {
-            choice = StoryDebugSelection.parse(args);
-        }
-        System.out.println(choice.describe());
-        Frame frame = new Frame(448, 520);
-        try {
-            frame.setTitle("Story debug | " + choice.route() + " | Stage " + choice.stage());
-            Core.getDrawManager().setFrame(frame);
-            frame.setScreen(createScreen(choice, frame.getWidth(), frame.getHeight()));
-        } finally {
-            AudioManager.stopBGM();
-            frame.dispose();
+        StoryDebugController.main(args);
+    }
+
+    /** Child JVM entry point. The supervisor owns selection, replay, and session cleanup. */
+    static final class Battle {
+        public static void main(String[] args) throws Exception {
+            requireDebugSession();
+            StoryDebugSelection choice = StoryDebugSelection.parse(args);
+            System.out.println(choice.describe());
+            Frame frame = new Frame(448, 520);
+            int outcome;
+            try {
+                frame.setTitle("Story debug | " + choice.route() + " | Stage " + choice.stage());
+                Core.getDrawManager().setFrame(frame);
+                outcome = frame.setScreen(createScreen(choice, frame.getWidth(), frame.getHeight(),
+                        new StoryDebugBattleControls(frame)));
+            } finally {
+                AudioManager.stopBGM();
+                frame.dispose();
+            }
+            if (outcome == GameScreen.RETURN_TO_STORY_DEBUG) System.exit(outcome);
         }
     }
 
     static GameScreen createScreen(StoryDebugSelection choice, int width, int height) {
+        return createScreen(choice, width, height, null);
+    }
+
+    static GameScreen createScreen(StoryDebugSelection choice, int width, int height, BooleanSupplier returnToLauncher) {
         requireDebugSession();
         GameState state = new GameState(choice.stage(), 0, choice.modifiers().startingLives(), 0, 0);
         return GameScreen.forStoryDebugStage(state, choice.progress(),
                 settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
-                width, height, 60, choice.modifiers());
+                width, height, 60, choice.modifiers(), returnToLauncher);
     }
 
     static StoryDebugSelection defaultSelection() {
