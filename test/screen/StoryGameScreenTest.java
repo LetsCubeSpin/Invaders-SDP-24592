@@ -148,6 +148,118 @@ class StoryGameScreenTest {
     }
 
     @Test
+    void stageOneWaitsForThePilotLineAndThenStartsAtOnce() {
+        GameScreen screen = story(1, StoryRoute.HYBRID);
+        // story() has already initialized the screen, which sets the delay.
+        assertFalse(screen.inputDelay.checkFinished());
+        long now = System.currentTimeMillis();
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now);
+        // Space while typing shows the whole line but does not start yet.
+        screen.updateStoryIntro(true, now + 100);
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now + 150);
+        // Space once the line is complete starts the stage with no countdown.
+        screen.updateStoryIntro(true, now + 200);
+        assertFalse(screen.isStoryIntroHolding());
+    }
+
+    @Test
+    void stagesWithoutALineShowTheTitleThenStartAtOnce() {
+        GameScreen screen = story(2, StoryRoute.HYBRID);
+        long now = System.currentTimeMillis();
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now + 500);
+        assertTrue(screen.isStoryIntroHolding());
+        screen.updateStoryIntro(false, now + 2000);
+        assertFalse(screen.isStoryIntroHolding());
+    }
+
+    /** Clears the stage and starts the question, ready to choose. */
+    private static GameScreen choosing(final int stage, final int shipX)
+            throws Exception {
+        GameScreen screen = story(stage, StoryRoute.HYBRID);
+        screen.setStoryChoiceEnabled(true);
+        write(screen, "stageCleared", true);
+        write(screen, "levelFinished", true);
+        ((Ship) read(screen, "ship")).setPositionX(shipX);
+        // Typing starts, then Space finishes it, then Space starts choosing.
+        assertTrue(screen.updateStoryQuestion(0, false, false, false, false));
+        screen.updateStoryQuestion(10, true, false, false, false);
+        screen.updateStoryQuestion(20, false, false, false, false);
+        screen.updateStoryQuestion(30, true, false, false, false);
+        screen.updateStoryQuestion(40, false, false, false, false);
+        return screen;
+    }
+
+    private static long flyForward(final GameScreen screen) {
+        long now = 50;
+        for (int frame = 0; frame < 400 && screen.getStoryChoice() < 0;
+                frame++, now += 16)
+            screen.updateStoryQuestion(now, false, true, false, false);
+        return now;
+    }
+
+    @Test
+    void flyingIntoTheLeftHalfChoosesZero() throws Exception {
+        GameScreen screen = choosing(1, 60);
+        flyForward(screen);
+        assertEquals(0, screen.getStoryChoice());
+    }
+
+    @Test
+    void flyingIntoTheRightHalfChoosesOne() throws Exception {
+        GameScreen screen = choosing(1, 340);
+        flyForward(screen);
+        assertEquals(1, screen.getStoryChoice());
+    }
+
+    @Test
+    void secondQuestionIsAskedAfterTheStageThreeBoss() throws Exception {
+        GameScreen screen = choosing(3, 340);
+        flyForward(screen);
+        assertEquals(1, screen.getStoryChoice());
+    }
+
+    @Test
+    void forwardOnlyWorksWhileChoosing() throws Exception {
+        GameScreen screen = story(1, StoryRoute.HYBRID);
+        screen.setStoryChoiceEnabled(true);
+        write(screen, "stageCleared", true);
+        write(screen, "levelFinished", true);
+        Ship ship = (Ship) read(screen, "ship");
+        int y = ship.getPositionY();
+        // Still typing the question, so the forward key does nothing.
+        screen.updateStoryQuestion(0, false, true, false, false);
+        screen.updateStoryQuestion(16, false, true, false, false);
+        assertEquals(y, ship.getPositionY());
+        assertEquals(-1, screen.getStoryChoice());
+    }
+
+    @Test
+    void theChosenHalfStaysBrieflyThenTheScreenCloses() throws Exception {
+        GameScreen screen = choosing(1, 60);
+        long now = flyForward(screen);
+        assertTrue(screen.updateStoryQuestion(now + 100, false, false, false,
+                false));
+        assertFalse(screen.updateStoryQuestion(now + 2000, false, false,
+                false, false));
+    }
+
+    @Test
+    void noQuestionWhenItIsOffOrTheStageHasNone() throws Exception {
+        GameScreen off = story(1, StoryRoute.HYBRID);
+        write(off, "stageCleared", true);
+        assertFalse(off.updateStoryQuestion(0, false, false, false, false));
+
+        GameScreen noQuestion = story(2, StoryRoute.HYBRID);
+        noQuestion.setStoryChoiceEnabled(true);
+        write(noQuestion, "stageCleared", true);
+        assertFalse(noQuestion.updateStoryQuestion(0, false, false, false,
+                false));
+    }
+
+    @Test
     void onlyStagesThreeAndSevenHaveABoss() throws Exception {
         for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
             Boss boss = boss(story(stage, StoryRoute.HYBRID));
@@ -344,6 +456,22 @@ class StoryGameScreenTest {
                 Field field = type.getDeclaredField(name);
                 field.setAccessible(true);
                 return field.get(target);
+            } catch (NoSuchFieldException missing) {
+                type = type.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(name);
+    }
+
+    private static void write(final Object target, final String name,
+            final Object value) throws Exception {
+        Class<?> type = target.getClass();
+        while (type != null) {
+            try {
+                Field field = type.getDeclaredField(name);
+                field.setAccessible(true);
+                field.set(target, value);
+                return;
             } catch (NoSuchFieldException missing) {
                 type = type.getSuperclass();
             }

@@ -48,8 +48,11 @@ import records.RunSession;
 import records.RecordsService;
 import records.Achievement;
 import story.StoryProgress;
+import story.StoryQuestion;
 import story.StoryStage;
+import story.StoryScript;
 import story.StoryStageData;
+import story.Typewriter;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
 import event.GameplayEventIds;
@@ -216,6 +219,41 @@ public class GameScreen extends Screen {
     private boolean bonusLife;
     /** Last countdown number that played a sound. */
     private int lastCountdown = -1;
+
+    /** Parts of a story stage start, which replaces the countdown. */
+    private enum StoryIntro { NONE, DIALOGUE, TITLE, GO }
+
+    /** How long the level title shows when a story stage has no line. */
+    private static final int STORY_TITLE_MILLIS = 1500;
+    /** How long "GO!" stays on screen while the stage already runs. */
+    private static final int STORY_GO_MILLIS = 900;
+    /** Typing speed of the pilot's line in characters per second. */
+    private static final double STORY_CHARS_PER_SECOND = 30;
+
+    private StoryIntro storyIntro = StoryIntro.NONE;
+
+    /** Parts of the question asked after a cleared story stage. */
+    private enum StoryQuestionPhase { NONE, TYPING, CHOOSING, DONE }
+
+    /** Pixels per frame the ship flies forward while a choice is made. */
+    private static final int STORY_FORWARD_SPEED = 3;
+    /** How long the chosen half stays shown before the screen closes. */
+    private static final int STORY_CHOICE_HOLD_MILLIS = 800;
+
+    private boolean storyChoiceEnabled;
+    private StoryProgress storyProgress;
+    private StoryQuestion storyQuestion;
+    private StoryQuestionPhase questionPhase = StoryQuestionPhase.NONE;
+    private Typewriter questionTypewriter;
+    /** Starts true so a Space held while the last enemy fell is ignored. */
+    private boolean questionSpaceWasDown = true;
+    private int storyChoice = -1;
+    private long choiceMadeMillis;
+    private Typewriter introTypewriter;
+    private long introStartMillis;
+    private long goStartMillis;
+    /** Starts true so a Space held from the previous screen is ignored. */
+    private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
     private Achievement visibleAchievement;
@@ -540,7 +578,221 @@ public class GameScreen extends Screen {
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
 				? progress.bossForStage(stageNumber) : null;
+		screen.startStoryIntro(stageNumber);
+		screen.storyProgress = progress;
 		return screen;
+	}
+
+	/**
+	 * Replaces the countdown of a story stage. The stage waits while the pilot
+	 * says the stage's line, or for a moment on the level title when there is
+	 * no line, and then starts at once with "GO!".
+	 */
+	private void startStoryIntro(final int stage) {
+		String line = StoryScript.stageIntroLine(stage);
+		if (line != null) {
+			this.storyIntro = StoryIntro.DIALOGUE;
+			this.introTypewriter = new Typewriter(line,
+					STORY_CHARS_PER_SECOND);
+		} else {
+			this.storyIntro = StoryIntro.TITLE;
+		}
+	}
+
+	/**
+	 * Holds the stage, like the countdown does, until the story intro ends.
+	 * It runs after the screen's own input delay is set.
+	 */
+	private void holdForStoryIntro() {
+		if (!isStoryIntroHolding())
+			return;
+		this.inputDelay = Core.getCooldown(Integer.MAX_VALUE);
+		this.inputDelay.reset();
+		this.introStartMillis = System.currentTimeMillis();
+	}
+
+	/**
+	 * Advances the story stage start.
+	 *
+	 * @param spaceDown
+	 *            Whether Space is held down.
+	 * @param now
+	 *            Current time in milliseconds.
+	 */
+	void updateStoryIntro(final boolean spaceDown, final long now) {
+		if (this.storyIntro == StoryIntro.NONE)
+			return;
+		boolean spacePressed = spaceDown && !this.introSpaceWasDown;
+		this.introSpaceWasDown = spaceDown;
+		switch (this.storyIntro) {
+		case DIALOGUE:
+			this.introTypewriter.start(now);
+			if (spacePressed) {
+				if (this.introTypewriter.isDone(now))
+					beginStoryStage(now);
+				else
+					this.introTypewriter.finish();
+			}
+			break;
+		case TITLE:
+			if (now - this.introStartMillis >= STORY_TITLE_MILLIS)
+				beginStoryStage(now);
+			break;
+		case GO:
+			if (now - this.goStartMillis >= STORY_GO_MILLIS)
+				this.storyIntro = StoryIntro.NONE;
+			break;
+		default:
+			break;
+		}
+	}
+
+	/** Starts the stage right away and shows "GO!" for a moment. */
+	private void beginStoryStage(final long now) {
+		this.inputDelay = Core.getCooldown(0);
+		this.storyIntro = StoryIntro.GO;
+		this.goStartMillis = now;
+		AudioManager.playSFX("audio/sfx/countdown_go.wav");
+	}
+
+	/**
+	 * Lets the player answer the story question that follows the stage by
+	 * flying the ship into one half of the banner line. Off by default, in
+	 * which case the stage simply ends and the story scenes ask the question.
+	 *
+	 * @param enabled
+	 *            Whether the question is asked on this screen.
+	 */
+	public void setStoryChoiceEnabled(final boolean enabled) {
+		this.storyChoiceEnabled = enabled;
+	}
+
+	/** @return Choice made on this screen, 0 or 1, or -1 when none was made. */
+	public int getStoryChoice() {
+		return this.storyChoice;
+	}
+
+	/**
+	 * Runs the story question after the stage is cleared: the text is typed
+	 * out, Space starts the choosing, and flying the ship up into the left or
+	 * right half of the banner line picks choice 0 or 1.
+	 *
+	 * @return Whether the question still needs the screen.
+	 */
+	boolean updateStoryQuestion(final long now, final boolean spaceDown,
+			final boolean forwardDown, final boolean leftDown,
+			final boolean rightDown) {
+		boolean spacePressed = spaceDown && !this.questionSpaceWasDown;
+		this.questionSpaceWasDown = spaceDown;
+		if (!this.storyChoiceEnabled || !this.stageCleared
+				|| this.storyProgress == null)
+			return false;
+
+		if (this.questionPhase == StoryQuestionPhase.NONE) {
+			int firstChoice = this.level == StoryProgress.FIRST_QUESTION_STAGE
+					? 0 : this.storyProgress.getFirstChoice();
+			this.storyQuestion = StoryScript.question(this.level, firstChoice);
+			if (this.storyQuestion == null)
+				return false;
+			this.questionPhase = StoryQuestionPhase.TYPING;
+			this.questionTypewriter = new Typewriter(
+					this.storyQuestion.getText(), STORY_CHARS_PER_SECOND);
+			this.questionTypewriter.start(now);
+			return true;
+		}
+
+		switch (this.questionPhase) {
+		case TYPING:
+			if (spacePressed) {
+				if (this.questionTypewriter.isDone(now)) {
+					this.questionPhase = StoryQuestionPhase.CHOOSING;
+					AudioManager.playSFX("audio/sfx/menu_select.wav");
+				} else
+					this.questionTypewriter.finish();
+			}
+			return true;
+		case CHOOSING:
+			flyShipToChoose(now, forwardDown, leftDown, rightDown);
+			return true;
+		case DONE:
+			return now - this.choiceMadeMillis < STORY_CHOICE_HOLD_MILLIS;
+		default:
+			return false;
+		}
+	}
+
+	/** Moves the ship while choosing, and picks the half it flies into. */
+	private void flyShipToChoose(final long now, final boolean forwardDown,
+			final boolean leftDown, final boolean rightDown) {
+		boolean isRightBorder = this.ship.getPositionX()
+				+ this.ship.getWidth() + this.ship.getSpeed() > this.width - 1;
+		boolean isLeftBorder = this.ship.getPositionX()
+				- this.ship.getSpeed() < 1;
+		if (rightDown && !isRightBorder)
+			this.ship.moveRight();
+		if (leftDown && !isLeftBorder)
+			this.ship.moveLeft();
+		clampShipPosition();
+		// Forward only works while choosing.
+		if (forwardDown)
+			this.ship.setPositionY(
+					this.ship.getPositionY() - STORY_FORWARD_SPEED);
+		if (this.ship.getPositionY() <= storyChoiceLineY()) {
+			this.storyChoice = shipSide();
+			this.questionPhase = StoryQuestionPhase.DONE;
+			this.choiceMadeMillis = now;
+			AudioManager.playSFX("audio/sfx/menu_select.wav");
+		}
+	}
+
+	/** Height of the lower line of the banner, the line that is split. */
+	private int storyChoiceLineY() {
+		return this.height / 2 + this.height / 12;
+	}
+
+	/** @return 0 when the ship is over the left half, 1 over the right. */
+	private int shipSide() {
+		int center = this.ship.getPositionX() + this.ship.getWidth() / 2;
+		return center < this.width / 2 ? 0 : 1;
+	}
+
+	private void drawStoryQuestion() {
+		long now = System.currentTimeMillis();
+		if (this.questionPhase == StoryQuestionPhase.TYPING) {
+			drawManager.drawStoryQuestionBox(this,
+					this.questionTypewriter.getText(),
+					this.questionTypewriter.visibleLength(now),
+					this.questionTypewriter.isDone(now), now);
+		} else if (this.questionPhase == StoryQuestionPhase.CHOOSING
+				|| this.questionPhase == StoryQuestionPhase.DONE) {
+			drawManager.drawStoryChoices(this,
+					new String[] { this.storyQuestion.getTitle(0),
+							this.storyQuestion.getTitle(1) },
+					new String[] { this.storyQuestion.getDetail(0),
+							this.storyQuestion.getDetail(1) },
+					shipSide(), this.storyChoice, now);
+		}
+	}
+
+	/** @return Whether a story stage is still in its dialogue or title part. */
+	boolean isStoryIntroHolding() {
+		return this.storyIntro == StoryIntro.DIALOGUE
+				|| this.storyIntro == StoryIntro.TITLE;
+	}
+
+	private void drawStoryIntro() {
+		long now = System.currentTimeMillis();
+		drawManager.drawCountDown(this, this.level,
+				this.storyIntro == StoryIntro.GO ? 0 : 4, this.bonusLife);
+		drawManager.drawHorizontalLine(this, this.height / 2 - this.height
+				/ 12);
+		drawManager.drawHorizontalLine(this, this.height / 2 + this.height
+				/ 12);
+		if (this.storyIntro == StoryIntro.DIALOGUE)
+			drawManager.drawStoryDialogue(this, StoryScript.PILOT_NAME,
+					this.introTypewriter.getText(),
+					this.introTypewriter.visibleLength(now),
+					this.introTypewriter.isDone(now), now);
 	}
 
 	private EnemyShipFormation createFormation() {
@@ -708,6 +960,7 @@ public class GameScreen extends Screen {
         this.gameStartTime = System.currentTimeMillis();
         this.inputDelay = Core.getCooldown(INPUT_DELAY);
         this.inputDelay.reset();
+        holdForStoryIntro();
 
 		if (this.bonusLife) {
 			AudioManager.playSFX("audio/sfx/bonus_life.wav");
@@ -753,6 +1006,8 @@ public class GameScreen extends Screen {
 	 */
 	protected final void update() {
 		super.update();
+		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
+				System.currentTimeMillis());
 		if (this.recordsService != null) {
 			long now = System.currentTimeMillis();
 			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
@@ -954,8 +1209,17 @@ public class GameScreen extends Screen {
 
         advanceStageIfReady();
 
-        if (this.levelFinished && this.screenFinishedCooldown.checkFinished())
-            this.isRunning = false;
+        if (this.levelFinished && this.screenFinishedCooldown.checkFinished()) {
+            boolean waiting = updateStoryQuestion(System.currentTimeMillis(),
+                    inputManager.isKeyDown(KeyEvent.VK_SPACE),
+                    inputManager.isKeyDown(KeyEvent.VK_UP),
+                    inputManager.isKeyDown(
+                            ControlsConfig.getKey(ControlsConfig.LEFT)),
+                    inputManager.isKeyDown(
+                            ControlsConfig.getKey(ControlsConfig.RIGHT)));
+            if (!waiting)
+                this.isRunning = false;
+        }
     }
 
     /**
@@ -1169,8 +1433,10 @@ public class GameScreen extends Screen {
 
         drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
-        // Countdown to game start.
-        if (!this.inputDelay.checkFinished()) {
+        // Countdown to game start, or the story stage start instead.
+        if (this.storyIntro != StoryIntro.NONE) {
+            drawStoryIntro();
+        } else if (!this.inputDelay.checkFinished()) {
 			int countdown = (int) ((INPUT_DELAY
 					- (System.currentTimeMillis()
 					- this.gameStartTime)) / 1000);
@@ -1182,6 +1448,8 @@ public class GameScreen extends Screen {
 			drawManager.drawHorizontalLine(this, this.height / 2 + this.height
 					/ 12);
         }
+        if (this.questionPhase != StoryQuestionPhase.NONE)
+            drawStoryQuestion();
         drawManager.drawParticles(this.particleSystem);
 
         if (this.visibleAchievement != null)
