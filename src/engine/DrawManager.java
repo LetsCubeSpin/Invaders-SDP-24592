@@ -2098,8 +2098,47 @@ public final class DrawManager {
         drawCenteredRegularString(screen, "Arrows / Space / Esc", screen.getHeight() - 45);
     }
 
+    /** Draw the countdown behind gameplay sprites using the game's pixel font. */
+    public void drawTimeAttackCountdown(final Screen screen, final int seconds, final float opacity) {
+        boolean finalCountdown = seconds <= 10;
+        String label = finalCountdown ? seconds + "S" : seconds + "S LEFT!";
+        Graphics2D overlay = (Graphics2D) backBufferGraphics.create();
+        try {
+            overlay.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+            overlay.setFont(fontBig.deriveFont(finalCountdown ? 96f : 40f));
+            overlay.setComposite(java.awt.AlphaComposite.SrcOver.derive(0.32f * opacity));
+            overlay.setColor(finalCountdown ? new Color(255, 105, 105) : Color.WHITE);
+            FontMetrics metrics = overlay.getFontMetrics();
+            int x = (screen.getWidth() - metrics.stringWidth(label)) / 2;
+            int y = (screen.getHeight() + metrics.getAscent() - metrics.getDescent()) / 2;
+            overlay.drawString(label, x, y);
+        } finally {
+            overlay.dispose();
+        }
+    }
+
+    public void drawTimeAttackHud(final int seconds, final boolean red) {
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(red ? Color.RED : Color.WHITE);
+        String label = "TIME " + seconds + "s";
+        backBufferGraphics.drawString(label, 10, 25);
+    }
+
+    public void drawTimeAttackResult(final Screen screen, final int clearedStages,
+            final int totalStages, final int score) {
+        boolean cleared = clearedStages == totalStages;
+        backBufferGraphics.setColor(cleared ? Color.GREEN : Color.RED);
+        drawCenteredBigString(screen, cleared ? "TIME ATTACK CLEAR" : "GAME OVER", 125);
+        backBufferGraphics.setColor(Color.WHITE);
+        if (!cleared) drawCenteredRegularString(screen, "TIME UP", 175);
+        drawCenteredRegularString(screen, "Stages cleared: " + clearedStages + "/" + totalStages, 230);
+        drawCenteredRegularString(screen, "Score: " + score, 270);
+        drawCenteredRegularString(screen, "SPACE: Retry   ESC: Back", screen.getHeight() - 70);
+    }
+
     public void drawGameModeMenu(final Screen screen, final int option) {
-        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Custom Level", "Back" };
+        String[] labels = { "Endless Mode", "Campaign Mode", "Story Mode", "Custom Level", "Time Attack", "Back" };
 
         backBufferGraphics.setFont(fontBig);
         backBufferGraphics.setColor(Color.GREEN);

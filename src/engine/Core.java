@@ -32,6 +32,7 @@ import screen.SettingsScreen;
 import screen.ShipColorScreen;
 import screen.ControlsSettingsScreen;
 import screen.StoryNarrationScreen;
+import screen.TimeAttackResultScreen;
 import story.DialogueStoryScenes;
 import story.PlaceholderStoryScenes;
 import story.StoryProgress;
@@ -148,6 +149,9 @@ public final class Core {
 				customLevels.run();
 				returnCode = 14;
 				break;
+            case GameModeScreen.START_TIME_ATTACK:
+                returnCode = playTimeAttack(width, height);
+                break;
 			case 2:
 				// The selected ship decides how many lives the run starts with.
 				LOGGER.info("Selected ship: " + selectedShip.getName());
@@ -297,6 +301,25 @@ public final class Core {
 				frame.getHeight(), FPS, StoryScript.OPENING_NARRATION);
 		frame.setScreen(currentScreen);
 	}
+
+    private static int playTimeAttack(final int width, final int height) {
+        GameState state = new GameState(1, 0, ShipType.STANDARD.getMaxLives(), 0, 0);
+        int cleared = 0;
+        for (int stage = 1; stage <= TimeAttackResultScreen.STAGE_COUNT; stage++) {
+            GameScreen screen = GameScreen.forTimeAttack(new GameState(stage,
+                    state.getScore(), ShipType.STANDARD.getMaxLives(),
+                    state.getBulletsShot(), state.getShipsDestroyed()),
+                    applyDifficulty(CampaignStageData.getStageSettings(stage)), width, height, FPS);
+            currentScreen = screen;
+            frame.setScreen(screen);
+            if (Thread.currentThread().isInterrupted()) return 0;
+            state = screen.getGameState();
+            if (!screen.isStageCleared()) break;
+            cleared++;
+        }
+        currentScreen = new TimeAttackResultScreen(width, height, FPS, cleared, state.getScore());
+        return frame.setScreen(currentScreen);
+    }
 
 	/**
 	 * Plays story mode: the opening, the seven story stages with a question

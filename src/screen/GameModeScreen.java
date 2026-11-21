@@ -8,8 +8,8 @@ import engine.Core;
 public class GameModeScreen extends Screen { // Implementation of the game mode selection screen.
 
     private static final int SELECTION_TIME = 200;
-    /** Choices of the mode step: 0 Endless, 1 Campaign, 2 Story, 3 Custom, 4 Back. */
-    static final int MODE_CHOICES = 5;
+    /** Choices of the mode step: 0 Endless, 1 Campaign, 2 Story, 3 Custom, 4 Time Attack, 5 Back. */
+    static final int MODE_CHOICES = 6;
     /** Choices of the player step: 0 1P, 1 2P, 2 Back. */
     static final int PLAYER_CHOICES = 3;
     /** Mode index of story mode, which is played by one player. */
@@ -17,7 +17,9 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
     /** Mode index of custom levels, which bypass player selection. */
     static final int CUSTOM_MODE = 3;
     /** Mode index of Back on the mode step. */
-    static final int MODE_BACK = 4;
+    static final int MODE_BACK = 5;
+    static final int TIME_ATTACK_MODE = 4;
+    public static final int START_TIME_ATTACK = 17;
 
     private int selected;
     private Cooldown selectionCooldown;
@@ -73,8 +75,9 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
                         this.returnCode = 1;
                         this.isRunning = false;
                         AudioManager.playSFX("audio/sfx/menu_back.wav");
-                    } else if (this.selected == STORY_MODE || this.selected == CUSTOM_MODE) {
-                        // Story and custom levels bypass the player-count selection.
+                    } else if (this.selected == STORY_MODE || this.selected == CUSTOM_MODE
+                            || this.selected == TIME_ATTACK_MODE) {
+                        // Single-player modes bypass the player-count selection.
                         this.returnCode = returnCodeFor(this.selected);
                         this.isRunning = false;
                         AudioManager.playSFX("audio/sfx/menu_select.wav");
@@ -137,7 +140,7 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
     }
 
     /**
-     * @param mode Mode index: 0 Endless, 1 Campaign, 2 Story, 3 Custom.
+     * @param mode Mode index: 0 Endless, 1 Campaign, 2 Story, 3 Custom, 4 Time Attack.
      * @return Code Core uses to start the mode.
      */
     static int returnCodeFor(final int mode) {
@@ -150,6 +153,8 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
             return 15;
         case CUSTOM_MODE:
             return 16;
+        case TIME_ATTACK_MODE:
+            return START_TIME_ATTACK;
         default:
             throw new IllegalArgumentException("Unknown game mode: " + mode);
         }
