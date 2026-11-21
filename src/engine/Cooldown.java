@@ -1,5 +1,8 @@
 package engine;
 
+import java.util.Objects;
+import java.util.function.LongSupplier;
+
 /**
  * Imposes a cooldown period between two actions.
  *
@@ -16,6 +19,8 @@ public class Cooldown {
 	private int duration;
 	/** Beginning time. */
 	private long time;
+	/** Clock source in milliseconds. */
+	private final LongSupplier clock;
 
 	/**
 	 * Constructor, established the time until the action can be performed
@@ -27,6 +32,20 @@ public class Cooldown {
 	 *             If the cooldown duration is negative.
 	 */
 	protected Cooldown(final int milliseconds) {
+		this(milliseconds, System::currentTimeMillis);
+	}
+
+	/**
+	 * Constructor with a custom clock source in milliseconds.
+	 *
+	 * @param milliseconds
+	 *            Time until cooldown period is finished.
+	 * @param clock
+	 *            Clock source in milliseconds.
+	 * @throws IllegalArgumentException
+	 *             If the cooldown duration is negative.
+	 */
+	public Cooldown(final int milliseconds, final LongSupplier clock) {
 		if (milliseconds < 0)
 			throw new IllegalArgumentException(
 					"Cooldown duration must not be negative.");
@@ -34,6 +53,7 @@ public class Cooldown {
 		this.variance = 0;
 		this.duration = milliseconds;
 		this.time = 0;
+		this.clock = Objects.requireNonNull(clock, "clock");
 	}
 
 	/**
@@ -49,6 +69,24 @@ public class Cooldown {
 	 *             not less than the duration, or would exceed the integer range.
 	 */
 	protected Cooldown(final int milliseconds, final int variance) {
+		this(milliseconds, variance, System::currentTimeMillis);
+	}
+
+	/**
+	 * Constructor with a variation of +/- variance and a custom clock source.
+	 *
+	 * @param milliseconds
+	 *            Base time until cooldown period is finished.
+	 * @param variance
+	 *            Maximum variation on either side of the base duration.
+	 * @param clock
+	 *            Clock source in milliseconds.
+	 * @throws IllegalArgumentException
+	 *             If the duration is negative, the variance is negative,
+	 *             not less than the duration, or would exceed the integer range.
+	 */
+	public Cooldown(final int milliseconds, final int variance,
+					final LongSupplier clock) {
 		if (milliseconds < 0)
 			throw new IllegalArgumentException(
 					"Cooldown duration must not be negative.");
@@ -61,6 +99,7 @@ public class Cooldown {
 		this.variance = variance;
 		this.duration = milliseconds;
 		this.time = 0;
+		this.clock = Objects.requireNonNull(clock, "clock");
 	}
 
 	/**
@@ -70,7 +109,7 @@ public class Cooldown {
 	 */
 	public final boolean checkFinished() {
 		if ((this.time == 0)
-				|| this.time + this.duration < System.currentTimeMillis())
+				|| this.time + this.duration < this.clock.getAsLong())
 			return true;
 		return false;
 	}
@@ -104,7 +143,7 @@ public class Cooldown {
 	 * Restarts the cooldown.
 	 */
 	public final void reset() {
-		this.time = System.currentTimeMillis();
+		this.time = this.clock.getAsLong();
 		if (this.variance != 0)
 			this.duration = calculateDuration(this.milliseconds, this.variance,
 					Math.random());
@@ -120,7 +159,7 @@ public class Cooldown {
 	 *         milliseconds + variance.
 	 */
 	static int calculateDuration(final int milliseconds, final int variance,
-			final double randomValue) {
+								 final double randomValue) {
 		long range = 2L * variance + 1L;
 		long offset = (long) (randomValue * range);
 		if (offset >= range)

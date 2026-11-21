@@ -7,6 +7,7 @@ import engine.Cooldown;
 import engine.Core;
 import engine.DifficultyAdjustWhilePlaying;
 import entity.BossBullet;
+import entity.item.OrbitalAnnihilator;
 
 /**
  * Boss special attack (PRD 2.5). Each boss has one.
@@ -117,6 +118,16 @@ public abstract class SpecialAttack {
     public int getBuffMilliseconds() {
         return 0;
     }
+
+	/** @return How long a beam special attack stays active, in milliseconds. */
+	public int getBeamMilliseconds() {
+		return 0;
+	}
+
+	/** @return Width of a beam special attack in pixels. */
+	public int getBeamWidth() {
+		return 0;
+	}
 
     /**
      * Many bullets at the same time in every direction. The ring turns a
@@ -244,8 +255,8 @@ public abstract class SpecialAttack {
          *            How long the effect lasts.
          */
         public RapidFire(final int cooldownMilliseconds,
-                final int windupMilliseconds, final double intervalMultiplier,
-                final int durationMilliseconds) {
+                         final int windupMilliseconds, final double intervalMultiplier,
+                         final int durationMilliseconds) {
             super("rapid_fire", cooldownMilliseconds, windupMilliseconds);
             if (intervalMultiplier <= 0 || intervalMultiplier > 1)
                 throw new IllegalArgumentException(
@@ -271,4 +282,50 @@ public abstract class SpecialAttack {
             return this.durationMilliseconds;
         }
     }
+
+	/**
+	 * Fires a vertical piercing laser beam downward after a charge warning,
+	 * mirroring {@link OrbitalAnnihilator}.
+	 */
+	public static final class OrbitalLaser extends SpecialAttack {
+
+		/** How long the laser beam stays active, in milliseconds. */
+		private final int beamDurationMilliseconds;
+		/** Width of the laser beam in pixels. */
+		private final int beamWidth;
+
+		public OrbitalLaser(final int cooldownMilliseconds) {
+			this(cooldownMilliseconds, OrbitalAnnihilator.CHARGE_DURATION,
+					OrbitalAnnihilator.BEAM_DURATION,
+					OrbitalAnnihilator.BEAM_WIDTH);
+		}
+
+		public OrbitalLaser(final int cooldownMilliseconds,
+							final int windupMilliseconds,
+							final int beamDurationMilliseconds, final int beamWidth) {
+			super("orbital_laser", cooldownMilliseconds, windupMilliseconds);
+			if (beamDurationMilliseconds <= 0 || beamWidth <= 0)
+				throw new IllegalArgumentException(
+						"Laser duration and width must be positive.");
+			this.beamDurationMilliseconds = beamDurationMilliseconds;
+			this.beamWidth = beamWidth;
+		}
+
+		@Override
+		protected List<BossBullet> perform(final int originX,
+										   final int originY, final int targetX, final int targetY,
+										   final int damage) {
+			return new ArrayList<BossBullet>();
+		}
+
+		@Override
+		public int getBeamMilliseconds() {
+			return this.beamDurationMilliseconds;
+		}
+
+		@Override
+		public int getBeamWidth() {
+			return this.beamWidth;
+		}
+	}
 }

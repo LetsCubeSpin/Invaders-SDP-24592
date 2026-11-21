@@ -1586,6 +1586,52 @@ public final class DrawManager {
         backBufferGraphics.drawOval(x, y, width, height);
     }
 
+	/**
+	 * Draws OBELISK's downward Orbital Annihilator laser warning and beam.
+	 *
+	 * @param boss
+	 *            Firing boss entity.
+	 * @param beamWidth
+	 *            Width of the active beam in pixels.
+	 * @param bottomY
+	 *            Bottom Y coordinate of the play area.
+	 * @param firing
+	 *            True while firing, false while charging.
+	 * @param chargeProgress
+	 *            Charge progress in [0, 1].
+	 */
+	public void drawBossLaser(final Entity boss, final int beamWidth,
+							  final int bottomY, final boolean firing,
+							  final float chargeProgress) {
+		int centerX = boss.getPositionX() + boss.getWidth() / 2;
+		int startY = boss.getPositionY() + boss.getHeight();
+		int beamHeight = Math.max(0, bottomY - startY);
+		int beamX = centerX - beamWidth / 2;
+
+		if (firing) {
+			backBufferGraphics.setColor(new Color(255, 0, 0, 120));
+			backBufferGraphics.fillRect(beamX - 4, startY, beamWidth + 8,
+					beamHeight);
+
+			backBufferGraphics.setColor(Color.RED);
+			backBufferGraphics.fillRect(beamX, startY, beamWidth, beamHeight);
+
+			backBufferGraphics.setColor(Color.WHITE);
+			backBufferGraphics.fillRect(centerX - beamWidth / 4, startY,
+					beamWidth / 2, beamHeight);
+		} else {
+			backBufferGraphics.setColor(new Color(255, 0, 0, 90));
+			backBufferGraphics.fillRect(centerX - 1, startY, 2, beamHeight);
+
+			int radius = 2 + (int) (chargeProgress * beamWidth / 2);
+			boolean flicker = ((int) (chargeProgress * 20)) % 2 == 0;
+
+			backBufferGraphics.setColor(flicker ? Color.WHITE : Color.RED);
+			backBufferGraphics.fillOval(centerX - radius, startY - radius,
+					radius * 2, radius * 2);
+		}
+	}
+
     private String getKeyDisplayText(final int keyCode) {
         switch (keyCode) {
             case java.awt.event.KeyEvent.VK_LEFT:
