@@ -20,6 +20,7 @@ import engine.Core;
 import engine.GameSettings;
 import engine.GameState;
 import engine.GameplayConfig;
+import engine.StoryDebugModifiers;
 import engine.ControlsConfig;
 import engine.LevelGameplayAdapter;
 import level.LevelDefinition;
@@ -47,8 +48,11 @@ import records.RunSession;
 import records.RecordsService;
 import records.Achievement;
 import story.StoryProgress;
+import story.StoryQuestion;
 import story.StoryStage;
+import story.StoryScript;
 import story.StoryStageData;
+import story.Typewriter;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
 import event.GameplayEventIds;
@@ -180,6 +184,7 @@ public class GameScreen extends Screen {
 	private int currentWave;
 	/** Story stage being played; null outside story mode. */
 	private StoryStage storyStage;
+	private final StoryDebugModifiers modifiers;
 	/** Boss of the story stage; null when the stage has no boss. */
 	private Boss.BossType storyBoss;
     /** Current difficulty level number. */
@@ -224,6 +229,41 @@ public class GameScreen extends Screen {
     private boolean bonusLife;
     /** Last countdown number that played a sound. */
     private int lastCountdown = -1;
+
+    /** Parts of a story stage start, which replaces the countdown. */
+    private enum StoryIntro { NONE, DIALOGUE, TITLE, GO }
+
+    /** How long the level title shows when a story stage has no line. */
+    private static final int STORY_TITLE_MILLIS = 1500;
+    /** How long "GO!" stays on screen while the stage already runs. */
+    private static final int STORY_GO_MILLIS = 900;
+    /** Typing speed of the pilot's line in characters per second. */
+    private static final double STORY_CHARS_PER_SECOND = 30;
+
+    private StoryIntro storyIntro = StoryIntro.NONE;
+
+    /** Parts of the question asked after a cleared story stage. */
+    private enum StoryQuestionPhase { NONE, TYPING, CHOOSING, DONE }
+
+    /** Pixels per frame the ship flies forward while a choice is made. */
+    private static final int STORY_FORWARD_SPEED = 3;
+    /** How long the chosen half stays shown before the screen closes. */
+    private static final int STORY_CHOICE_HOLD_MILLIS = 800;
+
+    private boolean storyChoiceEnabled;
+    private StoryProgress storyProgress;
+    private StoryQuestion storyQuestion;
+    private StoryQuestionPhase questionPhase = StoryQuestionPhase.NONE;
+    private Typewriter questionTypewriter;
+    /** Starts true so a Space held while the last enemy fell is ignored. */
+    private boolean questionSpaceWasDown = true;
+    private int storyChoice = -1;
+    private long choiceMadeMillis;
+    private Typewriter introTypewriter;
+    private long introStartMillis;
+    private long goStartMillis;
+    /** Starts true so a Space held from the previous screen is ignored. */
+    private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
     private Achievement visibleAchievement;
@@ -417,7 +457,15 @@ public class GameScreen extends Screen {
             final boolean bonusLife, final int width, final int height, final int fps,
             final ShipType shipType, final RunSession runSession,
             final int playerCount) {
+        this(gameState, waves, bonusLife, width, height, fps, shipType, runSession, playerCount, null);
+    }
+
+    private GameScreen(final GameState gameState, final List<GameSettings> waves,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession, final int playerCount,
+            final StoryDebugModifiers debug) {
         super(width, height, fps);
+        this.modifiers = debug == null ? StoryDebugModifiers.defaults() : debug;
 		if (playerCount != 1 && playerCount != 2)
 			throw new IllegalArgumentException("Player count must be 1 or 2.");
 		this.playerCount = playerCount;
@@ -448,6 +496,10 @@ public class GameScreen extends Screen {
 				: this.shipType.getMaxLives();
 		int initialLives = this.playerCount == 2 ? 1
 				: Math.min(gameState.getLivesRemaining(), maxLives);
+		if (debug != null) {
+			maxLives = debug.startingLives();
+			initialLives = maxLives;
+		}
 		this.playerStatus = new PlayerStatus(initialLives, maxLives,
 				this.shipType.isShieldCapable());
 		this.sharedLives = this.playerCount == 2
@@ -502,6 +554,24 @@ public class GameScreen extends Screen {
 			final boolean bonusLife, final int width, final int height,
 			final int fps, final ShipType shipType,
 			final RunSession runSession) {
+		return createStoryStage(gameState, progress, difficulty, bonusLife,
+				width, height, fps, shipType, runSession, null);
+	}
+
+	/** Starts one STANDARD Story battle with a fresh life pool and no run session. */
+	public static GameScreen forStoryDebugStage(final GameState gameState,
+			final StoryProgress progress, final UnaryOperator<GameSettings> difficulty,
+			final int width, final int height, final int fps, final StoryDebugModifiers modifiers) {
+		if (modifiers == null)
+			throw new IllegalArgumentException("Debug modifiers must not be null.");
+		return createStoryStage(gameState, progress, difficulty, false,
+				width, height, fps, ShipType.STANDARD, null, modifiers);
+	}
+
+	private static GameScreen createStoryStage(final GameState gameState, final StoryProgress progress,
+			final UnaryOperator<GameSettings> difficulty, final boolean bonusLife, final int width,
+			final int height, final int fps, final ShipType shipType, final RunSession runSession,
+			final StoryDebugModifiers debug) {
 		if (difficulty == null)
 			throw new IllegalArgumentException("difficulty must not be null.");
 		int stageNumber = gameState.getLevel();
@@ -513,18 +583,231 @@ public class GameScreen extends Screen {
 
 		GameScreen screen = new GameScreen(gameState,
 				Collections.nCopies(stage.getWaveCount(), settings), bonusLife,
-				width, height, fps, shipType, runSession);
+				width, height, fps, shipType, runSession, 1, debug);
 		screen.customWaves = storyWaves;
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
 				? progress.bossForStage(stageNumber) : null;
+		screen.startStoryIntro(stageNumber);
+		screen.storyProgress = progress;
 		return screen;
 	}
 
+	/**
+	 * Replaces the countdown of a story stage. The stage waits while the pilot
+	 * says the stage's line, or for a moment on the level title when there is
+	 * no line, and then starts at once with "GO!".
+	 */
+	private void startStoryIntro(final int stage) {
+		String line = StoryScript.stageIntroLine(stage);
+		if (line != null) {
+			this.storyIntro = StoryIntro.DIALOGUE;
+			this.introTypewriter = new Typewriter(line,
+					STORY_CHARS_PER_SECOND);
+		} else {
+			this.storyIntro = StoryIntro.TITLE;
+		}
+	}
+
+	/**
+	 * Holds the stage, like the countdown does, until the story intro ends.
+	 * It runs after the screen's own input delay is set.
+	 */
+	private void holdForStoryIntro() {
+		if (!isStoryIntroHolding())
+			return;
+		this.inputDelay = Core.getCooldown(Integer.MAX_VALUE);
+		this.inputDelay.reset();
+		this.introStartMillis = System.currentTimeMillis();
+	}
+
+	/**
+	 * Advances the story stage start.
+	 *
+	 * @param spaceDown
+	 *            Whether Space is held down.
+	 * @param now
+	 *            Current time in milliseconds.
+	 */
+	void updateStoryIntro(final boolean spaceDown, final long now) {
+		if (this.storyIntro == StoryIntro.NONE)
+			return;
+		boolean spacePressed = spaceDown && !this.introSpaceWasDown;
+		this.introSpaceWasDown = spaceDown;
+		switch (this.storyIntro) {
+		case DIALOGUE:
+			this.introTypewriter.start(now);
+			if (spacePressed) {
+				if (this.introTypewriter.isDone(now))
+					beginStoryStage(now);
+				else
+					this.introTypewriter.finish();
+			}
+			break;
+		case TITLE:
+			if (now - this.introStartMillis >= STORY_TITLE_MILLIS)
+				beginStoryStage(now);
+			break;
+		case GO:
+			if (now - this.goStartMillis >= STORY_GO_MILLIS)
+				this.storyIntro = StoryIntro.NONE;
+			break;
+		default:
+			break;
+		}
+	}
+
+	/** Starts the stage right away and shows "GO!" for a moment. */
+	private void beginStoryStage(final long now) {
+		this.inputDelay = Core.getCooldown(0);
+		this.storyIntro = StoryIntro.GO;
+		this.goStartMillis = now;
+		AudioManager.playSFX("audio/sfx/countdown_go.wav");
+	}
+
+	/**
+	 * Lets the player answer the story question that follows the stage by
+	 * flying the ship into one half of the banner line. Off by default, in
+	 * which case the stage simply ends and the story scenes ask the question.
+	 *
+	 * @param enabled
+	 *            Whether the question is asked on this screen.
+	 */
+	public void setStoryChoiceEnabled(final boolean enabled) {
+		this.storyChoiceEnabled = enabled;
+	}
+
+	/** @return Choice made on this screen, 0 or 1, or -1 when none was made. */
+	public int getStoryChoice() {
+		return this.storyChoice;
+	}
+
+	/**
+	 * Runs the story question after the stage is cleared: the text is typed
+	 * out, Space starts the choosing, and flying the ship up into the left or
+	 * right half of the banner line picks choice 0 or 1.
+	 *
+	 * @return Whether the question still needs the screen.
+	 */
+	boolean updateStoryQuestion(final long now, final boolean spaceDown,
+			final boolean forwardDown, final boolean leftDown,
+			final boolean rightDown) {
+		boolean spacePressed = spaceDown && !this.questionSpaceWasDown;
+		this.questionSpaceWasDown = spaceDown;
+		if (!this.storyChoiceEnabled || !this.stageCleared
+				|| this.storyProgress == null)
+			return false;
+
+		if (this.questionPhase == StoryQuestionPhase.NONE) {
+			int firstChoice = this.level == StoryProgress.FIRST_QUESTION_STAGE
+					? 0 : this.storyProgress.getFirstChoice();
+			this.storyQuestion = StoryScript.question(this.level, firstChoice);
+			if (this.storyQuestion == null)
+				return false;
+			this.questionPhase = StoryQuestionPhase.TYPING;
+			this.questionTypewriter = new Typewriter(
+					this.storyQuestion.getText(), STORY_CHARS_PER_SECOND);
+			this.questionTypewriter.start(now);
+			return true;
+		}
+
+		switch (this.questionPhase) {
+		case TYPING:
+			if (spacePressed) {
+				if (this.questionTypewriter.isDone(now)) {
+					this.questionPhase = StoryQuestionPhase.CHOOSING;
+					AudioManager.playSFX("audio/sfx/menu_select.wav");
+				} else
+					this.questionTypewriter.finish();
+			}
+			return true;
+		case CHOOSING:
+			flyShipToChoose(now, forwardDown, leftDown, rightDown);
+			return true;
+		case DONE:
+			return now - this.choiceMadeMillis < STORY_CHOICE_HOLD_MILLIS;
+		default:
+			return false;
+		}
+	}
+
+	/** Moves the ship while choosing, and picks the half it flies into. */
+	private void flyShipToChoose(final long now, final boolean forwardDown,
+			final boolean leftDown, final boolean rightDown) {
+		boolean isRightBorder = this.ship.getPositionX()
+				+ this.ship.getWidth() + this.ship.getSpeed() > this.width - 1;
+		boolean isLeftBorder = this.ship.getPositionX()
+				- this.ship.getSpeed() < 1;
+		if (rightDown && !isRightBorder)
+			this.ship.moveRight();
+		if (leftDown && !isLeftBorder)
+			this.ship.moveLeft();
+		clampShipPosition();
+		// Forward only works while choosing.
+		if (forwardDown)
+			this.ship.setPositionY(
+					this.ship.getPositionY() - STORY_FORWARD_SPEED);
+		if (this.ship.getPositionY() <= storyChoiceLineY()) {
+			this.storyChoice = shipSide();
+			this.questionPhase = StoryQuestionPhase.DONE;
+			this.choiceMadeMillis = now;
+			AudioManager.playSFX("audio/sfx/menu_select.wav");
+		}
+	}
+
+	/** Height of the lower line of the banner, the line that is split. */
+	private int storyChoiceLineY() {
+		return this.height / 2 + this.height / 12;
+	}
+
+	/** @return 0 when the ship is over the left half, 1 over the right. */
+	private int shipSide() {
+		int center = this.ship.getPositionX() + this.ship.getWidth() / 2;
+		return center < this.width / 2 ? 0 : 1;
+	}
+
+	private void drawStoryQuestion() {
+		long now = System.currentTimeMillis();
+		if (this.questionPhase == StoryQuestionPhase.TYPING) {
+			drawManager.drawStoryQuestionBox(this,
+					this.questionTypewriter.getText(),
+					this.questionTypewriter.visibleLength(now),
+					this.questionTypewriter.isDone(now), now);
+		} else if (this.questionPhase == StoryQuestionPhase.CHOOSING
+				|| this.questionPhase == StoryQuestionPhase.DONE) {
+			drawManager.drawStoryChoices(this,
+					new String[] { this.storyQuestion.getTitle(0),
+							this.storyQuestion.getTitle(1) },
+					new String[] { this.storyQuestion.getDetail(0),
+							this.storyQuestion.getDetail(1) },
+					shipSide(), this.storyChoice, now);
+		}
+	}
+
+	/** @return Whether a story stage is still in its dialogue or title part. */
+	boolean isStoryIntroHolding() {
+		return this.storyIntro == StoryIntro.DIALOGUE
+				|| this.storyIntro == StoryIntro.TITLE;
+	}
+
+	private void drawStoryIntro() {
+		long now = System.currentTimeMillis();
+		drawManager.drawCountDown(this, this.level,
+				this.storyIntro == StoryIntro.GO ? 0 : 4, this.bonusLife);
+		drawManager.drawHorizontalLine(this, this.height / 2 - this.height
+				/ 12);
+		drawManager.drawHorizontalLine(this, this.height / 2 + this.height
+				/ 12);
+		if (this.storyIntro == StoryIntro.DIALOGUE)
+			drawManager.drawStoryDialogue(this, StoryScript.PILOT_NAME,
+					this.introTypewriter.getText(),
+					this.introTypewriter.visibleLength(now),
+					this.introTypewriter.isDone(now), now);
+	}
+
 	private EnemyShipFormation createFormation() {
-		EnemyShipFormation formation = this.customWaves == null
-				? new EnemyShipFormation(this.gameSettings, this.level)
-				: new EnemyShipFormation(this.gameSettings, this.level, this.customWaves.get(this.currentWave));
+		EnemyShipFormation formation = new EnemyShipFormation(this.gameSettings, this.level,
+				this.customWaves == null ? null : this.customWaves.get(this.currentWave), this.modifiers);
 		formation.attach(this);
 		return formation;
 	}
@@ -647,7 +930,7 @@ public class GameScreen extends Screen {
         this.fragments = new HashSet<GrenadeFragment>();
         this.grenadeDropsThisLevel = 0;
 
-		this.bonusEnemyManager = new BonusEnemyManager();
+		this.bonusEnemyManager = new BonusEnemyManager(this.modifiers);
 		this.screenFinishedCooldown = Core.getCooldown(SCREEN_CHANGE_INTERVAL);
         this.bullets = new HashSet<Bullet>();
 		this.fallingObstacles = new HashSet<FallingObstacle>();
@@ -680,13 +963,14 @@ public class GameScreen extends Screen {
 			this.bossManager.spawn(new BossSpawnRequest(
 					bossType,
 					this.width / 2 - Boss.WIDTH / 2, 78,
-					this.level, 0));
+					this.level, 0), this.modifiers);
 		this.bossExplosionCooldown = Core.getCooldown(BOSS_EXPLOSION_TIME);
 
         // Special input delay / countdown.
         this.gameStartTime = System.currentTimeMillis();
         this.inputDelay = Core.getCooldown(INPUT_DELAY);
         this.inputDelay.reset();
+        holdForStoryIntro();
 
 		if (this.bonusLife) {
 			AudioManager.playSFX("audio/sfx/bonus_life.wav");
@@ -732,6 +1016,8 @@ public class GameScreen extends Screen {
 	 */
 	protected final void update() {
 		super.update();
+		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
+				System.currentTimeMillis());
 		if (this.recordsService != null) {
 			long now = System.currentTimeMillis();
 			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
@@ -843,7 +1129,7 @@ public class GameScreen extends Screen {
 
                 for (BossAttackSystem.SummonRequest req : summons) {
                     EnemyShip minion = EnemyShip.createByType(
-                            req.getEnemyType(), req.getPositionX(), req.getPositionY());
+                            req.getEnemyType(), req.getPositionX(), req.getPositionY(), this.modifiers.scaleHp(1));
                     Cooldown shootCooldown = this.enemyShipFormation.createShooterCooldown();
                     shootCooldown.reset();
                     minion.setShootingCooldown(shootCooldown);
@@ -854,7 +1140,7 @@ public class GameScreen extends Screen {
             for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
                 EnemyShip minion = it.next();
                 minion.update();
-                minion.move(0, 2);
+                minion.moveScaled(0, 2, this.modifiers.enemySpeedMultiplier());
 
                 Ship target = chooseRandomLivingTargetShip();
                 if (target != null && minion.canShoot()) {
@@ -933,8 +1219,17 @@ public class GameScreen extends Screen {
 
         advanceStageIfReady();
 
-        if (this.levelFinished && this.screenFinishedCooldown.checkFinished())
-            this.isRunning = false;
+        if (this.levelFinished && this.screenFinishedCooldown.checkFinished()) {
+            boolean waiting = updateStoryQuestion(System.currentTimeMillis(),
+                    inputManager.isKeyDown(KeyEvent.VK_SPACE),
+                    inputManager.isKeyDown(KeyEvent.VK_UP),
+                    inputManager.isKeyDown(
+                            ControlsConfig.getKey(ControlsConfig.LEFT)),
+                    inputManager.isKeyDown(
+                            ControlsConfig.getKey(ControlsConfig.RIGHT)));
+            if (!waiting)
+                this.isRunning = false;
+        }
     }
 
     /**
@@ -1141,7 +1436,10 @@ public class GameScreen extends Screen {
 
 		// Interface.
 		drawManager.drawScore(this, this.score);
-		drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
+		if (this.maxSharedLives > this.shipType.getMaxLives())
+			drawManager.drawLifeCount(getLivesRemaining(), this.maxSharedLives);
+		else
+			drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
 		drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
 
 		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
@@ -1161,8 +1459,10 @@ public class GameScreen extends Screen {
 
         drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
-        // Countdown to game start.
-        if (!this.inputDelay.checkFinished()) {
+        // Countdown to game start, or the story stage start instead.
+        if (this.storyIntro != StoryIntro.NONE) {
+            drawStoryIntro();
+        } else if (!this.inputDelay.checkFinished()) {
 			int countdown = (int) ((INPUT_DELAY
 					- (System.currentTimeMillis()
 					- this.gameStartTime)) / 1000);
@@ -1174,6 +1474,8 @@ public class GameScreen extends Screen {
 			drawManager.drawHorizontalLine(this, this.height / 2 + this.height
 					/ 12);
         }
+        if (this.questionPhase != StoryQuestionPhase.NONE)
+            drawStoryQuestion();
         drawManager.drawParticles(this.particleSystem);
 
         if (this.visibleAchievement != null)
@@ -1339,13 +1641,7 @@ public class GameScreen extends Screen {
                 EnemyShip bonusShip = this.bonusEnemyManager.getShip();
                 if (!recyclable.contains(bullet) && this.bonusEnemyManager.isActive()
                         && checkCollision(bullet, bonusShip)) {
-                    recordEnemyDefeat(bonusShip);
-                    floatingScoreHud.show(bonusShip);
-                    this.score += this.bonusEnemyManager.destroy();
-                    this.shipsDestroyed++;
-                    this.particleSystem.spawnEnemyExplosion(
-                            bonusShip.getPositionX() + bonusShip.getWidth() / 2,
-                            bonusShip.getPositionY() + bonusShip.getHeight() / 2);
+                    hitBonusShip(bonusShip);
                     recyclable.add(bullet);
                 }
 
@@ -1434,6 +1730,17 @@ public class GameScreen extends Screen {
 		this.lastLaserShieldBlockSfxMillis = now;
 		return true;
 	}
+    private void hitBonusShip(final EnemyShip bonusShip) {
+        if (!this.bonusEnemyManager.hit())
+            return;
+        recordEnemyDefeat(bonusShip);
+        floatingScoreHud.show(bonusShip);
+        this.score += bonusShip.getPointValue();
+        this.shipsDestroyed++;
+        this.particleSystem.spawnEnemyExplosion(
+                bonusShip.getPositionX() + bonusShip.getWidth() / 2,
+                bonusShip.getPositionY() + bonusShip.getHeight() / 2);
+    }
 
     /**
 	 * Applies one hit to the player. Every source of damage goes through this
@@ -1490,6 +1797,13 @@ public class GameScreen extends Screen {
 			// hear a blocked hit only when the timed shield was the one that
 			// blocked it.
 			status.announceDamageBlocked(damage);
+			return false;
+		}
+		if (this.modifiers.invincible()) {
+			if (status.isShieldActive()) {
+				status.announceDamageBlocked(damage);
+				AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+			}
 			return false;
 		}
 		// PlayerStatus owns the timed shield, so its answer decides whether
@@ -2087,6 +2401,12 @@ public class GameScreen extends Screen {
                 for (EnemyShip enemyShip : this.enemyShipFormation)
                     if (!enemyShip.isDestroyed()
                             && checkCollision(fragment, enemyShip)) {
+                        used = true;
+                        // Story grunts normally have one HP. A scaled grunt may survive the fragment.
+                        if (this.modifiers.enemyHpMultiplier() > 1.0 && enemyShip.getHealth() > 1) {
+                            enemyShip.hit();
+                            break;
+                        }
                         this.score += enemyShip.getPointValue();
                         floatingScoreHud.show(enemyShip);
                         this.shipsDestroyed++;
@@ -2099,20 +2419,13 @@ public class GameScreen extends Screen {
                                 enemyShip.getPositionY()
                                         + enemyShip.getHeight() / 2);
                         tryDropGrenade(enemyShip);
-                        used = true;
                         break;
                     }
 
                 EnemyShip bonusShip = this.bonusEnemyManager.getShip();
                 if (!used && this.bonusEnemyManager.isActive()
                         && checkCollision(fragment, bonusShip)) {
-                    recordEnemyDefeat(bonusShip);
-                    floatingScoreHud.show(bonusShip);
-                    this.score += this.bonusEnemyManager.destroy();
-                    this.shipsDestroyed++;
-                    this.particleSystem.spawnEnemyExplosion(
-                            bonusShip.getPositionX() + bonusShip.getWidth() / 2,
-                            bonusShip.getPositionY() + bonusShip.getHeight() / 2);
+                    hitBonusShip(bonusShip);
                     used = true;
                 }
             }

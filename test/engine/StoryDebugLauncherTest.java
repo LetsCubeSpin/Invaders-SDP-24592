@@ -20,6 +20,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
+
 import audio.AudioManager;
 import boss.BossManager;
 import entity.Boss;
@@ -80,6 +86,80 @@ class StoryDebugLauncherTest {
                 {"TRUCE", "3", "", "STANDARD"}, {"TRUCE", "3", "EASY", null}, {"TRUCE", "3", "EASY", "UNKNOWN"}}) {
             assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(invalid));
         }
+    }
+
+    @Test
+    void changeSelectionPrefillsEveryControlAndPreviewsTheEditedBattle() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var previous = new StoryDebugSelection(StoryRoute.TRUCE, 7, StoryDebugSelection.Difficulty.EASY,
+                    ShipType.STANDARD, new StoryDebugModifiers(true, 15, 0.75, 4.0));
+            var picker = StoryDebugLauncher.picker(previous);
+            assertEquals(previous, picker.selection().get());
+            JPanel fields = (JPanel) picker.panel().getComponent(0);
+            select(fields, "Story route", StoryRoute.HYBRID);
+            select(fields, "Stage", 3);
+            select(fields, "Invincible", "OFF");
+            select(fields, "Starting lives", 1);
+            select(fields, "Enemy HP multiplier", 2.0);
+            select(fields, "Enemy speed multiplier", 0.25);
+            var changed = new StoryDebugSelection(StoryRoute.HYBRID, 3, StoryDebugSelection.Difficulty.EASY,
+                    ShipType.STANDARD, new StoryDebugModifiers(false, 1, 2.0, 0.25));
+            assertEquals(changed, picker.selection().get());
+            assertEquals(changed.describe(), ((JTextArea) picker.panel().getComponent(1)).getText());
+        });
+    }
+
+    private static void select(JPanel fields, String name, Object value) {
+        for (var component : fields.getComponents()) {
+            if (component instanceof JLabel label && name.equals(label.getText())) {
+                ((JComboBox<?>) label.getLabelFor()).setSelectedItem(value);
+                return;
+            }
+        }
+        fail("Missing control: " + name);
+    }
+
+    @Test
+    void acceptsLegacyArgumentsAndIndependentNamedOverrides() {
+        String[] original = {"TRUCE", "7", "EASY", "STANDARD"};
+        assertEquals(StoryDebugModifiers.defaults(), StoryDebugSelection.parse(original).modifiers());
+        List<String> args = new ArrayList<>(List.of(original));
+        args.addAll(List.of("--enemy-speed-multiplier", "1.75"));
+        var partial = StoryDebugSelection.parse(args.toArray(String[]::new));
+        assertEquals(new StoryDebugModifiers(false, ShipType.STANDARD.getMaxLives(), 1.0, 1.75), partial.modifiers());
+        args.addAll(List.of("--starting-lives", "99", "--enemy-hp-multiplier", ".25", "--invincible", "on"));
+        var choice = StoryDebugSelection.parse(args.toArray(String[]::new));
+        assertEquals(new StoryDebugModifiers(true, 99, 0.25, 1.75), choice.modifiers());
+        assertEquals(choice, StoryDebugSelection.parse(choice.arguments().toArray(String[]::new)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"--invincible yes", "--invincible", "--starting-lives 0", "--starting-lives 100",
+            "--starting-lives 1.25", "--enemy-hp-multiplier NaN", "--enemy-hp-multiplier Infinity",
+            "--enemy-hp-multiplier 0.249", "--enemy-speed-multiplier 4.001", "--enemy-speed-multiplier ABC",
+            "--starting-lives 15 --starting-lives 9", "--unknown 3"})
+    void rejectsInvalidModifierArguments(String options) {
+        var args = new ArrayList<>(List.of("HOMECOMING", "3", "EASY", "STANDARD"));
+        args.addAll(List.of(options.split(" ")));
+        assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(args.toArray(String[]::new)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"NORMAL", "HARD"})
+    void rejectsRemovedDifficultiesWithSupportedValue(String difficulty) {
+        String[] fields = {"TRUCE", "7", difficulty, "STANDARD"};
+        var failure = assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(fields));
+        assertTrue(failure.getMessage().contains(difficulty));
+        assertTrue(failure.getMessage().contains("EASY"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SPEEDSTER", "TANK"})
+    void rejectsRemovedShipsWithSupportedValue(String ship) {
+        String[] fields = {"TRUCE", "7", "EASY", ship};
+        var failure = assertThrows(IllegalArgumentException.class, () -> StoryDebugSelection.parse(fields));
+        assertTrue(failure.getMessage().contains(ship));
+        assertTrue(failure.getMessage().contains("STANDARD"));
     }
 
     @Test
@@ -219,6 +299,7 @@ class StoryDebugLauncherTest {
         assertEquals(GameplayConfig.EASY, GameplayConfig.getDifficulty());
         assertNull(Core.getRecordsService());
         AudioManager.setMuted(true);
+        int initializedStages = 0;
         for (StoryRoute route : StoryRoute.values()) {
             for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
                 for (var difficulty : StoryDebugSelection.Difficulty.values()) {
@@ -226,6 +307,7 @@ class StoryDebugLauncherTest {
                         var choice = new StoryDebugSelection(route, stage, difficulty, ship);
                         GameScreen screen = StoryDebugLauncher.createScreen(choice, 448, 520);
                         screen.initialize();
+                        initializedStages++;
                         assertNull(screen.getActiveRunId());
                         assertEquals(stage, screen.getGameState().getLevel());
                         assertEquals(ship, ((Ship) field(screen, "ship")).getShipType());
@@ -265,12 +347,14 @@ class StoryDebugLauncherTest {
                 }
             }
         }
-        System.out.println("PASS: 28 actual Story initializations, all non-boss waves, isolated restart.");
+        assertEquals(28, initializedStages);
+        System.out.println("PASS: " + initializedStages + " actual Story initializations, all non-boss waves, isolated restart.");
         AudioManager.stopBGM();
     }
 
     private static void checkLoadoutParity() throws Exception {
         AudioManager.setMuted(true);
+        int comparisons = 0;
         for (StoryRoute route : StoryRoute.values()) {
             for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++) {
                 for (ShipType type : ShipType.values()) {
@@ -290,11 +374,13 @@ class StoryDebugLauncherTest {
                     Ship expected = (Ship) field(normal, "ship");
                     assertEquals(expected.getCurrentBulletType(), actual.getCurrentBulletType(), choice.toString());
                     assertEquals(expected.getGrenadeCount(), actual.getGrenadeCount(), choice.toString());
+                    comparisons++;
                 }
             }
         }
+        assertEquals(28, comparisons);
         // Parity is distinct from satisfying weaponForStage/givesGrenadesOnStage; those integrations remain pending.
-        System.out.println("PASS: 84 Debug/normal Story starting-equipment comparisons.");
+        System.out.println("PASS: " + comparisons + " Debug/normal Story starting-equipment comparisons.");
         AudioManager.stopBGM();
     }
 

@@ -7,12 +7,15 @@ import engine.DrawManager.SpriteType;
 import engine.GameSettings;
 import engine.GameState;
 import engine.InputManager;
+import engine.StoryDebugModifiers;
 import entity.Boss;
 import entity.BossBullet;
 import entity.Bullet;
 import entity.BulletPool;
 import entity.EnemyShip;
 import entity.EnemyType;
+import entity.FallingObstacle;
+import entity.PlayerStatusEvent;
 import entity.Ship;
 import entity.ShipType;
 import entity.ZigzagEnemyShip;
@@ -39,7 +42,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import records.RunSession;
+import story.StoryProgress;
+import vfx.ParticleSystem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -72,6 +78,75 @@ class GameplayEventPublishingTest {
         System.arraycopy(savedKeys, 0, keys, 0, keys.length);
         AudioManager.stopBGM();
         AudioManager.setMuted(wasMuted);
+    }
+
+    // ---------------------------------------------------------- Story debug
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void storyInvincibilityStopsEachDamageSourceButStillAppliesObstacleSlow() throws Exception {
+        for (boolean invincible : new boolean[] {true, false}) {
+            for (PlayerHitSource source : List.of(PlayerHitSource.ENEMY_BULLET,
+                    PlayerHitSource.BOSS_BULLET, PlayerHitSource.ENEMY_COLLISION)) {
+                GameScreen game = GameScreen.forStoryDebugStage(new GameState(1, 0, 1, 0, 0),
+                        new StoryProgress(), settings -> settings, 448, 520, 60,
+                        new StoryDebugModifiers(invincible, 1, 1, 1));
+                game.initialize();
+                // A real debug stage has no records session. Give the hit publisher an ID
+                // here so the ON/OFF comparison actually exercises its publish condition.
+                set(game, "runSession", new RunSession("damage-source"));
+                set(game, "inputDelay", Core.getCooldown(0));
+                Seen<PlayerHitEvent> hits = watch(game.getGameplayEvents(), PlayerHitEvent.class);
+                Seen<PlayerStatusEvent> status = watch(game.getGameplayEvents(), PlayerStatusEvent.class);
+                Ship ship = game.getPlayerShip(0);
+                int x = ship.getPositionX(), y = ship.getPositionY();
+                switch (source) {
+                    case ENEMY_BULLET -> enemyBullets(game).add(
+                            BulletPool.getBullet(x + 2, y + 2, 4, Bullet.Owner.ENEMY));
+                    case BOSS_BULLET -> bossBullets(game).add(
+                            new BossBullet(x + ship.getWidth() / 2.0, y + 2, 0, 0, 2, false));
+                    case ENEMY_COLLISION -> summonedEnemies(game).add(EnemyShip.createByType(EnemyType.A, x, y));
+                    default -> throw new AssertionError(source);
+                }
+                game.update();
+                assertEquals(invincible ? 1 : 0, game.getGameState().getLivesRemaining(), source.name());
+                assertEquals(!invincible, ship.isDestroyed());
+                assertEquals(!invincible, get(game, "levelFinished"));
+                assertFalse(game.isStageCleared());
+                ParticleSystem particles = (ParticleSystem) get(game, "particleSystem");
+                assertEquals(!invincible, particles.getParticles().stream().anyMatch(p -> p.getSize() == 3),
+                        "player explosion");
+                assertEquals(invincible ? 0 : 1, hits.size());
+                assertEquals(invincible ? 0 : 1, status.events.stream()
+                        .filter(event -> event.getType() == PlayerStatusEvent.Type.DAMAGE_TAKEN).count());
+                if (invincible) {
+                    ((Set<FallingObstacle>) get(game, "fallingObstacles")).add(new FallingObstacle(x, y));
+                    call(game, "manageFallingObstacleCollisions");
+                    assertTrue(game.getPlayerStatus().isSlowActive());
+                } else {
+                    assertEquals(source, hits.get(0).getSource());
+                }
+            }
+        }
+    }
+
+    @Test
+    void shieldBlockedEventsStillDistinguishShieldsFromStoryInvincibility() throws Exception {
+        GameScreen game = GameScreen.forStoryDebugStage(new GameState(1, 0, 1, 0, 0),
+                new StoryProgress(), settings -> settings, 448, 520, 60, new StoryDebugModifiers(true, 1, 1, 1));
+        game.initialize();
+        Seen<PlayerStatusEvent> status = watch(game.getGameplayEvents(), PlayerStatusEvent.class);
+        assertFalse(game.damagePlayer(1, "unshielded"));
+        assertEquals(0, status.size());
+        game.getPlayerShip(0).setShieldActive(true);
+        assertFalse(game.damagePlayer(1, "energy shield"));
+        assertEquals(PlayerStatusEvent.Type.DAMAGE_BLOCKED, status.get(0).getType());
+        game.getPlayerShip(0).setShieldActive(false);
+        assertTrue(game.getPlayerStatus().activateShield());
+        assertFalse(game.damagePlayer(1, "timed shield"));
+        assertEquals(PlayerStatusEvent.Type.DAMAGE_BLOCKED, status.get(2).getType());
+        assertTrue(game.getPlayerStatus().isShieldActive());
+        assertEquals(1, game.getPlayerStatus().getLives());
     }
 
     // ------------------------------------------------------------ Campaign

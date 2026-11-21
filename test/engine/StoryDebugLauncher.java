@@ -4,8 +4,10 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.event.ActionListener;
 import java.util.concurrent.FutureTask;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.prefs.Preferences;
 
 import javax.swing.JComboBox;
@@ -42,7 +44,7 @@ public final class StoryDebugLauncher {
         requireDebugSession();
         StoryDebugSelection choice;
         if (args.length == 0) {
-            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(StoryDebugLauncher::choose);
+            FutureTask<StoryDebugSelection> dialog = new FutureTask<>(() -> choose(defaultSelection()));
             SwingUtilities.invokeAndWait(dialog);
             choice = dialog.get();
             if (choice == null) return;
@@ -63,28 +65,55 @@ public final class StoryDebugLauncher {
 
     static GameScreen createScreen(StoryDebugSelection choice, int width, int height) {
         requireDebugSession();
-        GameState state = new GameState(choice.stage(), 0, choice.ship().getMaxLives(), 0, 0);
-        return GameScreen.forStoryStage(state, choice.progress(),
+        GameState state = new GameState(choice.stage(), 0, choice.modifiers().startingLives(), 0, 0);
+        return GameScreen.forStoryDebugStage(state, choice.progress(),
                 settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
-                false, width, height, 60, choice.ship(), null);
+                width, height, 60, choice.modifiers());
     }
 
-    private static StoryDebugSelection choose() {
+    static StoryDebugSelection defaultSelection() {
+        return new StoryDebugSelection(new PlaceholderStoryScenes().getRoute(), 1,
+                StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD);
+    }
+
+    record Picker(JPanel panel, Supplier<StoryDebugSelection> selection) { }
+
+    static StoryDebugSelection choose(StoryDebugSelection previous) {
+        Picker picker = picker(previous);
+        Object[] buttons = {"Start stage", "Cancel"};
+        int result = JOptionPane.showOptionDialog(null, picker.panel(), "LAST LINE | Story debug",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, buttons, buttons[0]);
+        return result == 0 ? picker.selection().get() : null;
+    }
+
+    static Picker picker(StoryDebugSelection previous) {
         JPanel fields = new JPanel(new GridLayout(0, 2, 8, 6));
         JComboBox<StoryRoute> route = addField(fields, "Story route", StoryRoute.values());
-        route.setSelectedItem(new PlaceholderStoryScenes().getRoute());
+        route.setSelectedItem(previous.route());
         Integer[] stages = new Integer[StoryProgress.TOTAL_STAGES];
         for (int i = 0; i < stages.length; i++) stages[i] = i + 1;
         JComboBox<Integer> stage = addField(fields, "Stage", stages);
-        JComboBox<StoryDebugSelection.Difficulty> difficulty = addField(fields, "Difficulty",
-                StoryDebugSelection.Difficulty.values());
-        difficulty.setSelectedItem(StoryDebugSelection.Difficulty.EASY);
-        JComboBox<ShipType> ship = addField(fields, "Ship", ShipType.values());
-        ship.setSelectedItem(ShipType.STANDARD);
+        stage.setSelectedItem(previous.stage());
+        fields.add(new JLabel("Difficulty"));
+        fields.add(new JLabel(StoryDebugSelection.Difficulty.EASY.name()));
+        fields.add(new JLabel("Ship"));
+        fields.add(new JLabel(ShipType.STANDARD.name()));
+
+        StoryDebugModifiers previousModifiers = previous.modifiers();
+        JComboBox<String> invincible = addField(fields, "Invincible", new String[]{"OFF", "ON"});
+        invincible.setSelectedIndex(previousModifiers.invincible() ? 1 : 0);
+        Integer[] livesRange = IntStream.rangeClosed(StoryDebugModifiers.MIN_LIVES, StoryDebugModifiers.MAX_LIVES)
+                .boxed().toArray(Integer[]::new);
+        JComboBox<Integer> lives = addField(fields, "Starting lives", livesRange);
+        lives.setSelectedItem(previousModifiers.startingLives());
+        JComboBox<Double> hp = addMultiplier(fields, "Enemy HP multiplier", previousModifiers.enemyHpMultiplier());
+        JComboBox<Double> speed = addMultiplier(fields, "Enemy speed multiplier", previousModifiers.enemySpeedMultiplier());
 
         Supplier<StoryDebugSelection> selection = () -> new StoryDebugSelection(
                 route.getItemAt(route.getSelectedIndex()), stage.getItemAt(stage.getSelectedIndex()),
-                difficulty.getItemAt(difficulty.getSelectedIndex()), ship.getItemAt(ship.getSelectedIndex()));
+                StoryDebugSelection.Difficulty.EASY, ShipType.STANDARD,
+                new StoryDebugModifiers(invincible.getSelectedIndex() == 1, lives.getItemAt(lives.getSelectedIndex()),
+                        hp.getItemAt(hp.getSelectedIndex()), speed.getItemAt(speed.getSelectedIndex())));
         JTextArea preview = new JTextArea();
         preview.setEditable(false);
         preview.setFocusable(false);
@@ -92,17 +121,24 @@ public final class StoryDebugLauncher {
         preview.setForeground(Color.GREEN);
         preview.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         preview.setBorder(javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        for (JComboBox<?> field : new JComboBox<?>[] {route, stage, difficulty, ship}) {
-            field.addActionListener(event -> preview.setText(selection.get().describe()));
-        }
+        ActionListener refresh = event -> preview.setText(selection.get().describe());
+        for (JComboBox<?> field : new JComboBox<?>[]{route, stage, invincible, lives, hp, speed})
+            field.addActionListener(refresh);
         preview.setText(selection.get().describe());
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.add(fields, BorderLayout.CENTER);
         panel.add(preview, BorderLayout.SOUTH);
-        Object[] buttons = {"Start stage", "Cancel"};
-        int result = JOptionPane.showOptionDialog(null, panel, "LAST LINE | Story debug",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, buttons, buttons[0]);
-        return result == 0 ? selection.get() : null;
+        return new Picker(panel, selection);
+    }
+
+    private static JComboBox<Double> addMultiplier(JPanel panel, String name, double previous) {
+        JComboBox<Double> field = addField(panel, name, new Double[]{0.25, 0.5, 1.0, 2.0, 4.0});
+        field.setSelectedItem(previous);
+        if (!Double.valueOf(previous).equals(field.getSelectedItem())) {
+            field.addItem(previous);
+            field.setSelectedItem(previous);
+        }
+        return field;
     }
 
     private static <T> JComboBox<T> addField(JPanel panel, String name, T[] values) {

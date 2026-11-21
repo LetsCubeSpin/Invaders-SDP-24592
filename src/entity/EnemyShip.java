@@ -29,6 +29,9 @@ public class EnemyShip extends Entity {
 	private Cooldown animationCooldown;
 	/** Checks if the ship has been hit by a bullet. */
 	private boolean isDestroyed;
+	/** Subpixel motion for individually moving enemies. */
+	private double remainderX;
+	private double remainderY;
 	/** Values of the ship, in points, when destroyed. */
 	private int pointValue;
 	/** Cooldown between this ship's shots. Null if the ship cannot shoot. */
@@ -92,8 +95,15 @@ public class EnemyShip extends Entity {
 	 * known starting properties.
 	 */
 	public EnemyShip() {
-		 // super(-32, 60, 16 * 2, 7 * 2, Color.RED);
+		this(1);
+	}
+
+	/** Creates a bonus enemy with the battle's effective health. */
+	EnemyShip(final int health) {
 		super(-32, 60, 16 * 2, 7 * 2, GameColors.ENEMY_SPECIAL);
+		if (health <= 0)
+			throw new IllegalArgumentException("health must be positive");
+		this.health = health;
 		this.spriteType = SpriteType.EnemyShipSpecial;
 		this.isDestroyed = false;
 		this.pointValue = BONUS_TYPE_POINTS;
@@ -171,6 +181,17 @@ public class EnemyShip extends Entity {
 	public final void move(final int distanceX, final int distanceY) {
 		this.positionX += distanceX;
 		this.positionY += distanceY;
+	}
+
+	/** Moves a bonus ship or summon, keeping fractional pixels for the next frame. */
+	public final void moveScaled(final int dx, final int dy, final double multiplier) {
+		this.remainderX += dx * multiplier;
+		this.remainderY += dy * multiplier;
+		int stepX = (int) this.remainderX;
+		int stepY = (int) this.remainderY;
+		move(stepX, stepY);
+		this.remainderX -= stepX;
+		this.remainderY -= stepY;
 	}
 
 	/**

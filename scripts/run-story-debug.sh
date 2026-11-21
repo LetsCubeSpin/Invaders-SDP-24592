@@ -4,8 +4,12 @@ set -eu
 
 usage() {
     printf '%s\n' 'Usage: sh scripts/run-story-debug.sh [--jdk-root JDK_HOME]' \
-        '       [--route ROUTE --stage 1..7 --difficulty DIFFICULTY --ship SHIP]' \
-        'Omit all four selections to open the picker. Requires JDK 17+ and a desktop session.'
+        '       [--route ROUTE --stage 1..7 --difficulty EASY --ship STANDARD]' \
+        '       [--invincible ON|OFF] [--starting-lives 1..99]' \
+        '       [--enemy-hp-multiplier 0.25..4] [--enemy-speed-multiplier 0.25..4]' \
+        'Omit all four selections for repeat testing; supply all four for one stage only.' \
+        'Combat modifiers require all four selections.' \
+        'Requires JDK 17+ and a desktop session.'
 }
 fail() { printf '%s\n' "$*" >&2; exit 2; }
 newline='
@@ -14,11 +18,12 @@ case "$0${PATH:-}" in *"$newline"*) fail 'Newlines in script or PATH names are n
 
 jdk_root=${JAVA_HOME:-}
 route= stage= difficulty= ship= seen= selections=0
+invincible= starting_lives= enemy_hp= enemy_speed=
 while [ "$#" -gt 0 ]; do
     option=$1
     case "$option" in
         --help|-h) usage; exit 0 ;;
-        --jdk-root|--route|--stage|--difficulty|--ship)
+        --jdk-root|--route|--stage|--difficulty|--ship|--invincible|--starting-lives|--enemy-hp-multiplier|--enemy-speed-multiplier)
             [ "$#" -ge 2 ] && [ -n "$2" ] || fail "Missing value for $option."
             case " $seen " in *" $option "*) fail "Duplicate option: $option." ;; esac
             seen="$seen $option"
@@ -28,6 +33,10 @@ while [ "$#" -gt 0 ]; do
                 --stage) stage=$2; selections=$((selections + 1)) ;;
                 --difficulty) difficulty=$2; selections=$((selections + 1)) ;;
                 --ship) ship=$2; selections=$((selections + 1)) ;;
+                --invincible) invincible=$2 ;;
+                --starting-lives) starting_lives=$2 ;;
+                --enemy-hp-multiplier) enemy_hp=$2 ;;
+                --enemy-speed-multiplier) enemy_speed=$2 ;;
             esac
             shift 2 ;;
         *) fail "Unknown option: $option. Use --help for usage." ;;
@@ -40,8 +49,10 @@ if [ "$selections" -ne 0 ]; then
     ship=$(printf '%s' "$ship" | LC_ALL=C tr '[:lower:]' '[:upper:]')
     case "$route" in HYBRID|HUMAN_VICTORY|HOMECOMING|TRUCE) ;; *) fail 'Invalid route.' ;; esac
     case "$stage" in [1-7]) ;; *) fail 'Stage must be an integer from 1 to 7.' ;; esac
-    case "$difficulty" in EASY) ;; *) fail 'Invalid difficulty.' ;; esac
-    case "$ship" in STANDARD) ;; *) fail 'Invalid ship.' ;; esac
+    [ "$difficulty" = EASY ] || fail 'Difficulty must be EASY.'
+    [ "$ship" = STANDARD ] || fail 'Ship must be STANDARD.'
+elif [ -n "$invincible$starting_lives$enemy_hp$enemy_speed" ]; then
+    fail 'Combat modifiers require all four selections.'
 fi
 
 # Prefix relative paths before cd so a name beginning with '-' is never an option.
@@ -79,7 +90,7 @@ fi
 major=$(printf '%s\n' "$version" | sed -n 's/^javac \([0-9][0-9]*\).*/\1/p')
 case "$major" in ''|*[!0-9]*) fail 'Cannot determine the JDK version.' ;; esac
 [ "$major" -ge 17 ] || fail 'JDK 17 or later is required.'
-[ -f "$repo/test/engine/StoryDebugLauncher.java" ] && [ -d "$repo/res" ] || fail 'Incomplete project checkout.'
+[ -f "$repo/test/engine/StoryDebugController.java" ] && [ -d "$repo/res" ] || fail 'Incomplete project checkout.'
 
 temp_root=$(physical_dir "${TMPDIR:-/tmp}") || fail 'TMPDIR must name an existing writable directory.'
 session=$(mktemp -d "${temp_root%/}/invaders-story-debug.XXXXXXXXXX") || exit 1
@@ -112,16 +123,22 @@ mkdir "$session/classes"
 # Relative class/source paths also support ':' in the checkout or TMPDIR name.
 # rm removes this symlink, never the project's resource directory.
 ln -s "$repo/res" "$session/resources"
+printf '%s\n' 'Compiling Story debug launcher...'
 if (cd "$repo" && "$compiler" --release 17 -encoding UTF-8 -d "$session/classes" \
-        -sourcepath 'src:test' test/engine/StoryDebugLauncher.java); then :; else
+        -sourcepath 'src:test' test/engine/StoryDebugController.java); then :; else
     status=$?; printf '%s\n' "javac failed ($status)." >&2; exit "$status"
 fi
 set --
 if [ "$selections" -eq 4 ]; then set -- "$route" "$stage" "$difficulty" "$ship"; fi
+[ -z "$invincible" ] || set -- "$@" --invincible "$invincible"
+[ -z "$starting_lives" ] || set -- "$@" --starting-lives "$starting_lives"
+[ -z "$enemy_hp" ] || set -- "$@" --enemy-hp-multiplier "$enemy_hp"
+[ -z "$enemy_speed" ] || set -- "$@" --enemy-speed-multiplier "$enemy_speed"
+printf '%s\n' 'Starting Story debug launcher...'
 if (cd "$session" && "$java" '-Dinvaders.storyDebug=true' \
         '-Djava.util.prefs.PreferencesFactory=shop.PreviewPreferencesFactory' \
         "-Duser.home=$session" "-Dinvaders.storageDir=$session" \
-        -Dfile.encoding=UTF-8 -cp 'classes:resources' engine.StoryDebugLauncher "$@"); then
+        -Dfile.encoding=UTF-8 -cp 'classes:resources' engine.StoryDebugController "$@"); then
     exit 0
 else
     status=$?; printf '%s\n' "Story debug failed ($status)." >&2; exit "$status"

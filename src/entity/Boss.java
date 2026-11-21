@@ -3,6 +3,7 @@ package entity;
 import java.awt.Color;
 
 import engine.DrawManager.SpriteType;
+import engine.StoryDebugModifiers;
 
 /**
  * Implements the boss, a strong enemy that moves left and right
@@ -89,6 +90,8 @@ public class Boss extends Entity {
     private int currentHealth;
     /** Horizontal speed in pixels per frame. */
     private int speed;
+    private final double movementMultiplier;
+    private double movementTicks;
     /** Moving direction: 1 is right, -1 is left. */
     private int direction;
     /** Current state of the boss. */
@@ -109,12 +112,19 @@ public class Boss extends Entity {
      *            Kind of boss to create.
      */
     public Boss(final int positionX, final int positionY, final BossType type) {
+        this(positionX, positionY, type, StoryDebugModifiers.defaults());
+    }
+
+    /** Scales only this boss's maximum health and movement. */
+    public Boss(final int positionX, final int positionY, final BossType type,
+            final StoryDebugModifiers modifiers) {
         // Temporarily reuses the bonus ship sprite (16 x 7 cells, 2px each).
         super(positionX, positionY, WIDTH, HEIGHT, Color.MAGENTA);
         this.spriteType = SpriteType.EnemyShipSpecial;
 
         this.type = type;
-        this.maxHealth = type.getMaxHealth();
+        this.maxHealth = modifiers.scaleHp(type.getMaxHealth());
+        this.movementMultiplier = modifiers.enemySpeedMultiplier();
         this.currentHealth = this.maxHealth;
         this.speed = type.getSpeed();
         this.direction = 1;
@@ -139,6 +149,15 @@ public class Boss extends Entity {
         if (this.state == State.HIT)
             this.state = State.MOVING;
 
+        // Keep fractional frames and run each original boundary check, even at 4x.
+        this.movementTicks += this.movementMultiplier;
+        while (this.movementTicks >= 1.0) {
+            moveOneTick(leftLimit, rightLimit);
+            this.movementTicks -= 1.0;
+        }
+    }
+
+    private void moveOneTick(final int leftLimit, final int rightLimit) {
         this.positionX += this.speed * this.direction;
 
         if (this.positionX < leftLimit) {

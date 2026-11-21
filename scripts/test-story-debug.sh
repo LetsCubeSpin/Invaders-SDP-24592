@@ -29,6 +29,7 @@ logs=$work/logs
 mkdir -p "$project/scripts" "$project/src" "$project/res" "$project/test/engine" "$jdk/bin" "$sessions" "$logs"
 cp "$repo/scripts/run-story-debug.sh" "$project/scripts/"
 cp "$repo/test/engine/StoryDebugLauncher.java" "$project/test/engine/"
+cp "$repo/test/engine/StoryDebugController.java" "$project/test/engine/"
 printf 'keep project resources\n' > "$project/res/sentinel"
 resource_hash=$(cksum < "$project/res/sentinel")
 launcher=$project/scripts/run-story-debug.sh
@@ -53,7 +54,7 @@ printf '%s\n' "$session" > "$TEST_LOG_DIR/session"
 [ "$3" = "-Duser.home=$session" ] || exit 94
 [ "$4" = "-Dinvaders.storageDir=$session" ] || exit 95
 [ "$6" = -cp ] && [ "$7" = 'classes:resources' ] || exit 96
-[ "$8" = engine.StoryDebugLauncher ] || exit 97
+[ "$8" = engine.StoryDebugController ] || exit 97
 [ -d classes ] && [ -L resources ] && [ -f resources/sentinel ] || exit 98
 if [ "${MOCK_REPLACE_SESSION:-0}" = 1 ]; then
     mv "$session" "$session.saved"
@@ -83,16 +84,32 @@ run_case 'four selections and explicit JDK' 0 --jdk-root "$jdk" --route truce --
 printf 'TRUCE\n7\nEASY\nSTANDARD\n' > "$logs/expected"
 tail -n 4 "$logs/java.args" > "$logs/selection"
 cmp "$logs/expected" "$logs/selection" || die 'selection argument boundaries changed'
+run_case 'explicit modifier arguments' 0 --route truce --stage 7 --difficulty easy --ship standard \
+    --enemy-speed-multiplier 0.5 --starting-lives 15 --invincible ON --enemy-hp-multiplier 2.0
+printf '%s\n' TRUCE 7 EASY STANDARD --invincible ON --starting-lives 15 --enemy-hp-multiplier 2.0 --enemy-speed-multiplier 0.5 > "$logs/expected"
+tail -n +9 "$logs/java.args" > "$logs/selection"
+cmp "$logs/expected" "$logs/selection" || die 'wrong modifier values or argument boundaries'
 grep -Fx 'src:test' "$logs/compiler.args" >/dev/null || die 'wrong Unix source path'
-grep -Fx 'test/engine/StoryDebugLauncher.java' "$logs/compiler.args" >/dev/null || die 'wrong shared entry point'
+grep -Fx 'test/engine/StoryDebugController.java' "$logs/compiler.args" >/dev/null || die 'wrong shared entry point'
 run_case 'partial selections' 2 --route TRUCE
 run_case 'missing option value' 2 --jdk-root
 run_case 'empty selection value' 2 --route ''
 run_case 'unknown flag' 2 --unsupported
 run_case 'duplicate selection' 2 --route TRUCE --route TRUCE
+run_case 'modifier without selections' 2 --invincible ON
+run_case 'duplicate modifier' 2 --starting-lives 15 --starting-lives 1
+run_case 'missing modifier value' 2 --enemy-hp-multiplier
 run_case 'invalid route' 2 --route 'TRUCE; touch injected' --stage 7 --difficulty EASY --ship STANDARD
 run_case 'invalid difficulty' 2 --route TRUCE --stage 7 --difficulty IMPOSSIBLE --ship STANDARD
 run_case 'invalid ship' 2 --route TRUCE --stage 7 --difficulty EASY --ship UNKNOWN
+for difficulty in NORMAL HARD; do
+    run_case "retired difficulty $difficulty" 2 --route TRUCE --stage 7 --difficulty "$difficulty" --ship STANDARD
+    grep -Fx 'Difficulty must be EASY.' "$logs/output" >/dev/null || die 'missing supported difficulty'
+done
+for ship in SPEEDSTER TANK; do
+    run_case "retired ship $ship" 2 --route TRUCE --stage 7 --difficulty EASY --ship "$ship"
+    grep -Fx 'Ship must be STANDARD.' "$logs/output" >/dev/null || die 'missing supported ship'
+done
 for stage in 0 8 3.5 -1 '1; exit 0'; do
     run_case "invalid stage $stage" 2 --route TRUCE --stage "$stage" --difficulty EASY --ship STANDARD
 done
@@ -135,6 +152,13 @@ launcher=$project/scripts/run-story-debug.sh
 run_case 'real JDK direct mode fails headlessly and cleans' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD
 grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'runtime failed before the GUI boundary'
 grep -F 'Route TRUCE   |   Stage 7   |   EASY   |   STANDARD' "$logs/output" >/dev/null || die 'shared Java selection did not run'
+run_case 'real JDK modified direct mode reaches GUI' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD \
+    --starting-lives 15 --enemy-hp-multiplier 2.0 --invincible ON --enemy-speed-multiplier 0.5
+grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'modified launch failed before GUI'
+grep -F 'Invincible: ON   Starting lives: 15' "$logs/output" >/dev/null || die 'wrong player modifiers'
+grep -F 'Enemy HP: 2.0x   Enemy speed: 0.5x' "$logs/output" >/dev/null || die 'wrong enemy modifiers'
+run_case 'real JDK rejects out-of-range multiplier' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD --enemy-speed-multiplier 4.01
+grep -F 'Enemy speed multiplier must be between 0.25 and 4.0.' "$logs/output" >/dev/null || die 'modifier was not rejected during parsing'
 run_case 'real JDK picker fails headlessly and cleans' 1
 grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'picker did not reach the GUI boundary'
 launcher=$project/scripts/run-story-debug.sh
