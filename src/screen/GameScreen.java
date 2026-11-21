@@ -52,6 +52,7 @@ import story.StoryQuestion;
 import story.StoryStage;
 import story.StoryScript;
 import story.StoryStageData;
+import event.BulletHitEvent;
 import story.Typewriter;
 import event.DefeatedEnemyType;
 import event.EnemyDefeatedEvent;
@@ -471,6 +472,8 @@ public class GameScreen extends Screen {
 		this.playerCount = playerCount;
 
 		this.runSession = runSession;
+		if (runSession != null)
+			runSession.listenTo(this.recordsEvents);
 		this.recordsService = Core.getRecordsService();
 		this.recordsEvents.subscribe(EnemyDefeatedEvent.class,
 				new GameplayEventListener<EnemyDefeatedEvent>() {
@@ -920,6 +923,10 @@ public class GameScreen extends Screen {
 		super.initialize();
 
 		enemyShipFormation = createFormation();
+		if (this.runSession != null) {
+			this.runSession.stageStarted(this.level);
+			this.runSession.waveStarted();
+		}
 
         this.itemManager = new ItemManager(this.height);
 		initializePlayerSlots();
@@ -1361,6 +1368,8 @@ public class GameScreen extends Screen {
 		this.currentWave++;
 		this.gameSettings = this.waves.get(this.currentWave);
 		this.enemyShipFormation = createFormation();
+		if (this.runSession != null)
+			this.runSession.waveStarted();
 		AudioManager.playSFX("audio/sfx/wave_transition.wav");
 		this.logger.info("Stage " + this.level + " wave " + (this.currentWave + 1) +
 				" of " + this.waves.size() + " started.");
@@ -1670,6 +1679,11 @@ public class GameScreen extends Screen {
                     damageBoss(getBossDamagePerBullet());
                     recyclable.add(bullet);
                 }
+
+                // Every target above recycles the bullet that hit it, and a
+                // bullet hits at most one target.
+                if (recyclable.contains(bullet))
+                    publishBulletHit();
             }
         }
         this.bullets.removeAll(recyclable);
@@ -2243,6 +2257,16 @@ public class GameScreen extends Screen {
         if (bulletCount <= 0 || this.runSession == null) return;
         this.recordsEvents.publish(new ShotFiredEvent(this.runSession.getRunId(),
                 GameplayEventIds.newId(SHOT_ID_KIND), bulletCount));
+    }
+
+    /** Kind that groups the bullet hit IDs. */
+    static final String BULLET_HIT_ID_KIND = "BULLET_HIT";
+
+    /** Sends one player bullet hitting an enemy ship, for accuracy statistics. */
+    private void publishBulletHit() {
+        if (this.runSession == null) return;
+        this.recordsEvents.publish(new BulletHitEvent(this.runSession.getRunId(),
+                GameplayEventIds.newId(BULLET_HIT_ID_KIND)));
     }
 
     /** Sends a hit that cost the player lives; shielded hits never get here. */

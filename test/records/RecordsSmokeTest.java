@@ -27,6 +27,13 @@ public final class RecordsSmokeTest {
         testLatestMainDefeatAdapter();
         testRecordsPageNavigationAndRender();
         testLatestMainMenuOrder();
+        testRunRecordModeAndStats();
+        testRunSessionStatistics();
+        testProfileVersionTwoRoundTrip();
+        testVersionOneProfileMigration();
+        testVersionOneBackupRecovery();
+        testInvalidVersionTwoProfiles();
+        testRunDetailLines();
         System.out.println("RecordsSmokeTest passed: "+checks+" checks.");
     }
 private static void testRunRecordValidation() {
@@ -164,6 +171,19 @@ private static void testFormatterOutput() {
 				"formatted duration");
 		assertContains(output, "Completion time: 987654321",
 				"formatted completion time");
+		assertContains(output, "Mode: Unknown", "formatted unknown mode");
+		String detailed = RunRecordFormatter.format(new RunRecord("run-detail",
+				RunMode.STORY, 800, 15, 12000, 987654321,
+				new RunStats(3, 7, 40, 10, 2, 1, 4)));
+		assertContains(detailed, "Mode: Story", "formatted mode");
+		assertContains(detailed, "Stage reached: 3", "formatted stage");
+		assertContains(detailed, "Waves reached: 7", "formatted waves");
+		assertContains(detailed, "Shots fired: 40", "formatted shots");
+		assertContains(detailed, "Hits: 10", "formatted hits");
+		assertContains(detailed, "Accuracy: 25.0%", "formatted accuracy");
+		assertContains(detailed, "Times hit: 2", "formatted times hit");
+		assertContains(detailed, "Bosses defeated: 1", "formatted bosses");
+		assertContains(detailed, "Items used: 4", "formatted items");
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
 				RunRecordFormatter.format(null);
@@ -479,6 +499,10 @@ private static void testRecordsPageNavigationAndRender() {
 			for (int i = 0; i < 10; i++)
 				service.completeRun(new RunRecord("render-" + i, 10000 + i * 100,
 						20 + i, 60000 + i * 1000, 1791850000000L + i));
+			service.completeRun(new RunRecord("render-story", RunMode.STORY, 30000, 64, 312000,
+					1791850000100L, new RunStats(7, 18, 1240, 731, 4, 3, 9)));
+			service.completeRun(new RunRecord("render-infinite", RunMode.INFINITE, 20000, 80, 240000,
+					1791850000101L, new RunStats(0, 0, 400, 96, 3, 0, 0)));
 			engine.InputManager input = engine.Core.getInputManager();
 			java.awt.Canvas source = new java.awt.Canvas();
 			for (int key : new int[] { java.awt.event.KeyEvent.VK_ESCAPE,
@@ -497,13 +521,47 @@ private static void testRecordsPageNavigationAndRender() {
 			screen.Screen page = new screen.Screen(432, 490, 60);
 			java.lang.reflect.Field buffer = engine.DrawManager.class.getDeclaredField("backBuffer");
 			buffer.setAccessible(true);
-			for (int tab = 0; tab < 2; tab++) {
+			String[] tabImages = { "records.png", "details-story.png", "achievements.png" };
+			for (int tab = 0; tab < tabImages.length; tab++) {
 				draw.initDrawing(page);
 				draw.drawRecordsPage(page, service, tab);
 				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
-						"png", directory.resolve(tab == 0 ? "records.png" : "achievements.png").toFile());
+						"png", directory.resolve(tabImages[tab]).toFile());
 				draw.completeDrawing(page);
 			}
+			// Rank 2 is the Infinite run and rank 3 a version 1 run.
+			String[] detailImages = { "details-infinite.png", "details-v1.png" };
+			for (int i = 0; i < detailImages.length; i++) {
+				draw.initDrawing(page);
+				draw.drawRecordsPage(page, service, screen.PlayerRecordsScreen.TAB_RUN_DETAILS, i + 1);
+				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
+						"png", directory.resolve(detailImages[i]).toFile());
+				draw.completeDrawing(page);
+			}
+			draw.initDrawing(page);
+			draw.drawRecordsPage(page, service, screen.PlayerRecordsScreen.TAB_RUN_DETAILS, 99);
+			draw.completeDrawing(page);
+
+			screen.PlayerRecordsScreen browser = new screen.PlayerRecordsScreen(432, 490, 60, service);
+			java.lang.reflect.Method changeTab = screen.PlayerRecordsScreen.class.getDeclaredMethod("changeTab", int.class);
+			java.lang.reflect.Method changeRun = screen.PlayerRecordsScreen.class.getDeclaredMethod("changeRun", int.class);
+			java.lang.reflect.Field tabField = screen.PlayerRecordsScreen.class.getDeclaredField("tab");
+			java.lang.reflect.Field runField = screen.PlayerRecordsScreen.class.getDeclaredField("selectedRun");
+			for (java.lang.reflect.AccessibleObject member : new java.lang.reflect.AccessibleObject[] {
+					changeTab, changeRun, tabField, runField })
+				member.setAccessible(true);
+			changeTab.invoke(browser, 1);
+			assertEquals(screen.PlayerRecordsScreen.TAB_RUN_DETAILS, tabField.getInt(browser), "Right opens run details");
+			changeTab.invoke(browser, 1);
+			assertEquals(screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS, tabField.getInt(browser), "Right then opens achievements");
+			changeTab.invoke(browser, 1);
+			assertEquals(screen.PlayerRecordsScreen.TAB_RUNS, tabField.getInt(browser), "tabs wrap around to the right");
+			changeTab.invoke(browser, -1);
+			assertEquals(screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS, tabField.getInt(browser), "tabs wrap around to the left");
+			changeRun.invoke(browser, -1);
+			assertEquals(9, runField.getInt(browser), "Up from the best run wraps to the last of the top ten");
+			changeRun.invoke(browser, 1);
+			assertEquals(0, runField.getInt(browser), "Down from the last run wraps to the best");
 			draw.initDrawing(page);
 			draw.drawAchievementResults(page, 10000, 0, 20, 0.5f, true,
 					new char[] { 'A', 'A', 'A' }, 0,
@@ -527,6 +585,264 @@ private static void testLatestMainMenuOrder() throws Exception {
     java.lang.reflect.Method previous = screen.TitleScreen.class.getDeclaredMethod("previousMenuItem"); previous.setAccessible(true);
     for (int expected : new int[]{3,9,4,0,2}) { next.invoke(menu); assertEquals(expected,code.getInt(menu),"forward menu includes High scores, Records, and Settings"); }
     for (int expected : new int[]{0,4,9,3,2}) { previous.invoke(menu); assertEquals(expected,code.getInt(menu),"reverse menu includes High scores, Records, and Settings"); }
+}
+private static void testRunRecordModeAndStats() {
+    RunRecord legacy = new RunRecord("legacy", 10, 2, 300, 4);
+    assertSame(RunMode.UNKNOWN, legacy.getMode(), "record without a mode is unknown");
+    assertSame(RunStats.EMPTY, legacy.getStats(), "record without stats has empty stats");
+    RunStats stats = new RunStats(4, 9, 50, 20, 3, 1, 2);
+    RunRecord full = new RunRecord("full", RunMode.CAMPAIGN, 10, 20, 300, 4, stats);
+    assertSame(RunMode.CAMPAIGN, full.getMode(), "mode is kept");
+    assertSame(stats, full.getStats(), "stats are kept");
+    assertTrue(Math.abs(stats.getAccuracy() - 0.4) < 1e-9, "accuracy is hits over shots");
+    assertTrue(new RunStats(0, 0, 0, 5, 0, 0, 0).getAccuracy() == 0, "no shots means no accuracy");
+    assertTrue(new RunStats(0, 0, 2, 5, 0, 0, 0).getAccuracy() == 1, "accuracy never passes 1");
+    assertFalse(RunMode.INFINITE.hasStages(), "infinite has no stages");
+    assertTrue(RunMode.CAMPAIGN.hasStages() && RunMode.STORY.hasStages(), "campaign and story have stages");
+    expectException(IllegalArgumentException.class, new CheckedAction() {
+        public void run() { new RunRecord("x", null, 0, 0, 0, 1, RunStats.EMPTY); }
+    }, "mode is required");
+    expectException(IllegalArgumentException.class, new CheckedAction() {
+        public void run() { new RunRecord("x", RunMode.STORY, 0, 0, 0, 1, null); }
+    }, "stats are required");
+    final int[] valid = {1, 1, 1, 1, 1, 1, 1};
+    for (int i = 0; i < valid.length; i++) {
+        final int[] values = valid.clone();
+        values[i] = -1;
+        expectException(IllegalArgumentException.class, new CheckedAction() {
+            public void run() { new RunStats(values[0], values[1], values[2], values[3], values[4], values[5], values[6]); }
+        }, "negative statistic " + i);
+    }
+}
+private static void testRunSessionStatistics() {
+    RunSession session = new RunSession("stats", RunMode.CAMPAIGN);
+    assertSame(RunMode.CAMPAIGN, session.getMode(), "session mode");
+    assertSame(RunMode.UNKNOWN, new RunSession("plain").getMode(), "session without a mode");
+    event.GameplayEventPublisher first = new event.GameplayEventPublisher();
+    session.listenTo(first);
+    session.stageStarted(1); session.waveStarted(); session.waveStarted();
+    first.publish(new event.ShotFiredEvent("stats", "shot-1", 3));
+    first.publish(new event.ShotFiredEvent("stats", "shot-1", 3));
+    first.publish(new event.ShotFiredEvent("stats", "shot-2", 1));
+    first.publish(new event.ShotFiredEvent("other-run", "shot-3", 5));
+    first.publish(new event.BulletHitEvent("stats", "bullet-hit-1"));
+    first.publish(new event.BulletHitEvent("stats", "bullet-hit-1"));
+    first.publish(new event.BulletHitEvent("stats", "bullet-hit-2"));
+    first.publish(new event.BulletHitEvent("other-run", "bullet-hit-3"));
+    first.publish(new event.EnemyDefeatedEvent("stats", "defeat-is-not-a-hit"));
+    first.publish(new event.BossDefeatedEvent("stats", "boss-1", event.DefeatedEnemyType.BOSS_A, 1000));
+    first.publish(new event.BossDefeatedEvent("stats", "boss-1", event.DefeatedEnemyType.BOSS_A, 1000));
+    first.publish(new event.PlayerHitEvent("stats", "hit-1", event.PlayerHitSource.ENEMY_BULLET, 1, 2));
+    first.publish(new event.ItemUsedEvent("stats", "item-1", event.UsedItemType.CLUSTER_GRENADE));
+    RunStats live = session.getStats();
+    assertEquals(4, live.getShotsFired(), "bullets add up once per shot event");
+    assertEquals(2, live.getHits(), "bullet hits count once each; defeats are not hits");
+    assertEquals(1, live.getBossesDefeated(), "boss defeats count once");
+    assertEquals(1, live.getTimesHit(), "player hits count");
+    assertEquals(1, live.getItemsUsed(), "item uses count");
+    assertTrue(Math.abs(session.getAccuracy() - 0.5) < 1e-9, "live accuracy for achievements");
+
+    // The next stage is a new screen with its own bus.
+    event.GameplayEventPublisher second = new event.GameplayEventPublisher();
+    session.listenTo(second);
+    session.stageStarted(2); session.waveStarted();
+    second.publish(new event.ShotFiredEvent("stats", "shot-4", 2));
+    second.publish(new event.ItemUsedEvent("stats", "item-2", event.UsedItemType.ENERGY_SHIELD));
+    RunRecord record = session.finish(500, 2, 99);
+    assertSame(RunMode.CAMPAIGN, record.getMode(), "record keeps the session mode");
+    assertEquals(2, record.getStats().getStageReached(), "highest stage reached");
+    assertEquals(3, record.getStats().getWavesReached(), "waves add up over the whole run");
+    assertEquals(6, record.getStats().getShotsFired(), "shots of every screen add up");
+    assertEquals(2, record.getStats().getItemsUsed(), "items of every screen add up");
+
+    second.publish(new event.ShotFiredEvent("stats", "shot-late", 9));
+    session.waveStarted(); session.stageStarted(5);
+    assertEquals(6, session.getStats().getShotsFired(), "finished run ignores late events");
+    assertEquals(3, session.getStats().getWavesReached(), "finished run ignores late waves");
+    assertSame(record, session.finish(0, 0, 1), "finish stays idempotent");
+    final RunSession invalid = new RunSession("invalid");
+    expectException(IllegalArgumentException.class, new CheckedAction() {
+        public void run() { invalid.stageStarted(0); }
+    }, "stage numbers start at 1");
+    expectException(IllegalArgumentException.class, new CheckedAction() {
+        public void run() { invalid.listenTo(null); }
+    }, "event bus is required");
+    expectException(IllegalArgumentException.class, new CheckedAction() {
+        public void run() { new RunSession("x", null); }
+    }, "session mode is required");
+}
+private static void assertSameRecord(final RunRecord expected, final RunRecord actual, final String message) {
+    assertEquals(expected.getRunId(), actual.getRunId(), message + " id");
+    assertSame(expected.getMode(), actual.getMode(), message + " mode");
+    assertEquals(expected.getScore(), actual.getScore(), message + " score");
+    assertEquals(expected.getEnemiesDefeated(), actual.getEnemiesDefeated(), message + " enemies");
+    assertEquals(expected.getActiveDurationMillis(), actual.getActiveDurationMillis(), message + " duration");
+    assertEquals(expected.getCompletionTimeMillis(), actual.getCompletionTimeMillis(), message + " completion");
+    RunStats e = expected.getStats(), a = actual.getStats();
+    assertEquals(e.getStageReached(), a.getStageReached(), message + " stage");
+    assertEquals(e.getWavesReached(), a.getWavesReached(), message + " waves");
+    assertEquals(e.getShotsFired(), a.getShotsFired(), message + " shots");
+    assertEquals(e.getHits(), a.getHits(), message + " hits");
+    assertEquals(e.getTimesHit(), a.getTimesHit(), message + " times hit");
+    assertEquals(e.getBossesDefeated(), a.getBossesDefeated(), message + " bosses");
+    assertEquals(e.getItemsUsed(), a.getItemsUsed(), message + " items");
+}
+private static String profileVersion(final Path file) throws IOException {
+    java.util.Properties properties = new java.util.Properties();
+    try (java.io.Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) { properties.load(reader); }
+    return properties.getProperty("version");
+}
+private static void testProfileVersionTwoRoundTrip() throws Exception {
+    Path profile = testDirectory("profile-v2").resolve("profile.properties");
+    RunRecord campaign = new RunRecord("v2-campaign", RunMode.CAMPAIGN, 900, 25, 61000, 5,
+            new RunStats(4, 11, 120, 25, 2, 1, 3));
+    RunRecord infinite = new RunRecord("v2-infinite", RunMode.INFINITE, 300, 9, 20000, 6,
+            new RunStats(0, 0, 45, 9, 3, 0, 0));
+    RecordsService service = new RecordsService(profile);
+    service.completeRun(campaign); service.completeRun(infinite);
+    service.close();
+    assertTrue(service.getSaveError() == null, "v2 profile writes successfully");
+    assertEquals("2", profileVersion(profile), "profiles are written as version 2");
+    RecordsService restarted = new RecordsService(profile);
+    assertEquals(2, restarted.getRecordCount(), "v2 records restore after restart");
+    for (RunRecord restored : restarted.getTopRuns())
+        assertSameRecord(restored.getRunId().equals("v2-campaign") ? campaign : infinite, restored,
+                "restored " + restored.getRunId());
+    restarted.close();
+}
+private static final String VERSION_ONE_PROFILE = "version=1\n"
+        + "record.count=2\n"
+        + "record.0.id=old-a\nrecord.0.score=1500\nrecord.0.enemies=30\n"
+        + "record.0.duration=65000\nrecord.0.completed=1700000000000\n"
+        + "record.1.id=old-b\nrecord.1.score=-20\nrecord.1.enemies=0\n"
+        + "record.1.duration=0\nrecord.1.completed=1700000000001\n"
+        + "achievement.count=2\n"
+        + "achievement.0.id=first_run\nachievement.0.unlocked=1700000000000\n"
+        + "achievement.1.id=sixty_seconds\nachievement.1.unlocked=1700000000002\n"
+        + "ending.count=1\nending.0=ENDING2\n";
+private static void checkVersionOneContent(final ProfileSnapshot snapshot, final String message) {
+    assertEquals(2, snapshot.getRecords().size(), message + ": every v1 record is kept");
+    assertSameRecord(new RunRecord("old-a", 1500, 30, 65000, 1700000000000L),
+            snapshot.getRecords().get(0), message + ": old-a");
+    assertSameRecord(new RunRecord("old-b", -20, 0, 0, 1700000000001L),
+            snapshot.getRecords().get(1), message + ": old-b");
+    assertEquals(1700000000000L, snapshot.getUnlockTimes().get("first_run").longValue(),
+            message + ": achievements are kept");
+    assertEquals(1700000000002L, snapshot.getUnlockTimes().get("sixty_seconds").longValue(),
+            message + ": unlock time is kept");
+    assertTrue(snapshot.getSeenEndings().contains(story.Ending.ENDING2), message + ": endings are kept");
+}
+private static void testVersionOneProfileMigration() throws Exception {
+    Path profile = testDirectory("profile-v1").resolve("profile.properties");
+    byte[] versionOne = VERSION_ONE_PROFILE.getBytes(StandardCharsets.UTF_8);
+    Files.write(profile, versionOne);
+    ProfileStore store = new ProfileStore(profile);
+    checkVersionOneContent(store.load(), "v1 load");
+    assertTrue(store.getLoadWarning() == null, "a v1 profile is not treated as a recovery");
+    assertTrue(java.util.Arrays.equals(versionOne, Files.readAllBytes(profile)),
+            "loading alone leaves the v1 file untouched");
+
+    // One write converts the file; the v1 file it replaces becomes the backup.
+    ProfileSnapshot loaded = store.load();
+    store.write(loaded);
+    assertEquals("2", profileVersion(profile), "the first write converts the profile to version 2");
+    Path backup = profile.resolveSibling("profile.properties.bak");
+    assertTrue(java.util.Arrays.equals(versionOne, Files.readAllBytes(backup)),
+            "the v1 file is backed up, not quarantined");
+    try (java.nio.file.DirectoryStream<Path> corrupt =
+            Files.newDirectoryStream(profile.getParent(), "profile.properties.corrupt-*")) {
+        assertFalse(corrupt.iterator().hasNext(), "a valid v1 file is never quarantined");
+    }
+    checkVersionOneContent(new ProfileStore(backup).load(), "v1 backup");
+    checkVersionOneContent(new ProfileStore(profile).load(), "converted v2");
+
+    // The game itself, started on an unconverted v1 profile.
+    Path game = testDirectory("profile-v1-game").resolve("profile.properties");
+    Files.write(game, versionOne);
+    RecordsService service = new RecordsService(game);
+    assertFalse(service.isWritesBlocked(), "a v1 profile does not block writes");
+    assertEquals(2, service.getRecordCount(), "service keeps every v1 record");
+    assertEquals(1500, service.getHighestScore(), "v1 personal best still counts");
+    service.completeRun(new RunRecord("new-run", RunMode.STORY, 1600, 31, 70000, 1700000000003L,
+            new RunStats(2, 5, 60, 31, 1, 1, 2)));
+    service.close();
+    assertTrue(service.getSaveError() == null, "saving after a v1 load succeeds");
+    RecordsService restarted = new RecordsService(game);
+    assertEquals(3, restarted.getRecordCount(), "old and new runs survive a restart");
+    assertEquals(1600, restarted.getHighestScore(), "the new run counts after a restart");
+    restarted.close();
+    ProfileSnapshot converted = new ProfileStore(game).load();
+    checkVersionOneContent(new ProfileSnapshot(converted.getRecords().subList(0, 2),
+            converted.getUnlockTimes(), converted.getSeenEndings()), "game-converted v2");
+    RunRecord added = converted.getRecords().get(2);
+    assertSame(RunMode.STORY, added.getMode(), "new run keeps its mode beside v1 runs");
+    assertEquals(60, added.getStats().getShotsFired(), "new run keeps its stats beside v1 runs");
+}
+private static void testVersionOneBackupRecovery() throws Exception {
+    Path profile = testDirectory("profile-v1-backup").resolve("profile.properties");
+    Files.write(profile, VERSION_ONE_PROFILE.getBytes(StandardCharsets.UTF_8));
+    ProfileStore store = new ProfileStore(profile);
+    ProfileSnapshot loaded = store.load();
+    List<RunRecord> records = new ArrayList<RunRecord>(loaded.getRecords());
+    records.add(new RunRecord("newer", RunMode.CAMPAIGN, 5, 1, 100, 1700000000009L,
+            new RunStats(1, 1, 3, 1, 0, 0, 0)));
+    store.write(new ProfileSnapshot(records, loaded.getUnlockTimes(), loaded.getSeenEndings()));
+    Files.write(profile, "version=2\nrecord.count=oops\n".getBytes(StandardCharsets.UTF_8));
+
+    ProfileStore reopened = new ProfileStore(profile);
+    checkVersionOneContent(reopened.load(), "recovered from v1 backup");
+    assertTrue(reopened.getLoadWarning() != null, "recovery from a v1 backup is reported");
+    assertEquals("2", profileVersion(profile), "the recovered profile is rewritten as version 2");
+    checkVersionOneContent(new ProfileStore(profile).load(), "rewritten recovered profile");
+}
+private static void testRunDetailLines() {
+    List<String> story = RunRecordFormatter.detailLines(new RunRecord("d-story", RunMode.STORY, 1, 1, 1, 1,
+            new RunStats(3, 7, 40, 10, 2, 1, 4)));
+    assertEquals("Mode: Story|Stage reached: 3|Waves reached: 7|Shots fired: 40|Hits: 10|Accuracy: 25.0%"
+            + "|Times hit: 2|Bosses defeated: 1|Items used: 4", String.join("|", story), "story run details");
+    List<String> infinite = RunRecordFormatter.detailLines(new RunRecord("d-inf", RunMode.INFINITE, 1, 1, 1, 1,
+            new RunStats(0, 0, 8, 2, 1, 0, 0)));
+    assertEquals("Stage reached: -", infinite.get(1), "infinite has no stage");
+    assertEquals("Waves reached: -", infinite.get(2), "infinite has no waves");
+    assertEquals("Accuracy: 25.0%", infinite.get(5), "infinite accuracy");
+    List<String> legacy = RunRecordFormatter.detailLines(new RunRecord("d-v1", 1, 1, 1, 1));
+    assertEquals("Mode: Unknown", legacy.get(0), "v1 run mode");
+    assertContains(String.join(" ", legacy), "not recorded", "v1 run says its details were not recorded");
+    assertFalse(String.join(" ", legacy).contains("Shots"), "v1 run does not pretend to have zero statistics");
+}
+private static void testInvalidVersionTwoProfiles() throws Exception {
+    Path directory = testDirectory("profile-v2-invalid");
+    String header = "version=2\nrecord.count=1\nrecord.0.id=r\nrecord.0.score=1\nrecord.0.enemies=1\n"
+            + "record.0.duration=1\nrecord.0.completed=1\nachievement.count=0\n";
+    String stats = "record.0.stage=1\nrecord.0.waves=1\nrecord.0.shots=1\nrecord.0.hits=1\n"
+            + "record.0.timesHit=0\nrecord.0.bosses=0\nrecord.0.items=0\n";
+    String[] invalid = {
+        header + stats,
+        header + "record.0.mode=ARCADE\n" + stats,
+        header + "record.0.mode=STORY\n" + stats.replace("record.0.hits=1\n", ""),
+        header + "record.0.mode=STORY\n" + stats.replace("record.0.shots=1", "record.0.shots=-1"),
+        VERSION_ONE_PROFILE.replace("version=1", "version=3"),
+    };
+    String[] reason = {"missing mode", "unknown mode", "missing statistic", "negative statistic", "future version"};
+    for (int i = 0; i < invalid.length; i++) {
+        Path file = directory.resolve("invalid-" + i + ".properties");
+        final byte[] bytes = invalid[i].getBytes(StandardCharsets.UTF_8);
+        Files.write(file, bytes);
+        final ProfileStore store = new ProfileStore(file);
+        expectException(java.io.UncheckedIOException.class, new CheckedAction() {
+            public void run() {
+                try { store.load(); } catch (IOException e) { throw new java.io.UncheckedIOException(e); }
+            }
+        }, reason[i] + " is rejected");
+        RecordsService blocked = new RecordsService(file);
+        assertTrue(blocked.isWritesBlocked(), reason[i] + " blocks writes");
+        blocked.close();
+        assertTrue(java.util.Arrays.equals(bytes, Files.readAllBytes(file)), reason[i] + " file stays untouched");
+    }
+    Path valid = directory.resolve("valid.properties");
+    Files.write(valid, (header + "record.0.mode=UNKNOWN\n" + stats).getBytes(StandardCharsets.UTF_8));
+    assertSame(RunMode.UNKNOWN, new ProfileStore(valid).load().getRecords().get(0).getMode(),
+            "v2 accepts converted unknown-mode records");
 }
 	private static void assertTrue(final boolean actual,
 			final String message) {

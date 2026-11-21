@@ -19,9 +19,20 @@ import java.util.UUID;
 
 import story.Ending;
 
-/** Versioned UTF-8 profile storage with validation, backup, and atomic replace. */
+/**
+ * Versioned UTF-8 profile storage with validation, backup, and atomic replace.
+ *
+ * <p>Writes always use version 2. Version 1 profiles, saved before runs kept
+ * a mode and play statistics, still load: their records get the
+ * {@link RunMode#UNKNOWN} mode and {@link RunStats#EMPTY}. A version 1 file
+ * stays valid, so it is backed up as usual before the first version 2 write
+ * replaces it.</p>
+ */
 public final class ProfileStore {
-    private static final String VERSION = "1";
+    /** Version written by this class. */
+    private static final String VERSION = "2";
+    /** Version without the run mode and play statistics. */
+    private static final String VERSION_1 = "1";
     private final Path file;
     private final Path backup;
     private String loadWarning;
@@ -83,6 +94,15 @@ public final class ProfileStore {
             properties.setProperty(prefix + "enemies", Integer.toString(record.getEnemiesDefeated()));
             properties.setProperty(prefix + "duration", Long.toString(record.getActiveDurationMillis()));
             properties.setProperty(prefix + "completed", Long.toString(record.getCompletionTimeMillis()));
+            properties.setProperty(prefix + "mode", record.getMode().name());
+            RunStats stats = record.getStats();
+            properties.setProperty(prefix + "stage", Integer.toString(stats.getStageReached()));
+            properties.setProperty(prefix + "waves", Integer.toString(stats.getWavesReached()));
+            properties.setProperty(prefix + "shots", Integer.toString(stats.getShotsFired()));
+            properties.setProperty(prefix + "hits", Integer.toString(stats.getHits()));
+            properties.setProperty(prefix + "timesHit", Integer.toString(stats.getTimesHit()));
+            properties.setProperty(prefix + "bosses", Integer.toString(stats.getBossesDefeated()));
+            properties.setProperty(prefix + "items", Integer.toString(stats.getItemsUsed()));
         }
         properties.setProperty("achievement.count",
                 Integer.toString(snapshot.getUnlockTimes().size()));
@@ -155,7 +175,9 @@ public final class ProfileStore {
         } catch (IllegalArgumentException exception) {
             throw new IOException("Profile contains invalid properties.", exception);
         }
-        if (!VERSION.equals(properties.getProperty("version")))
+        String version = properties.getProperty("version");
+        boolean versionOne = VERSION_1.equals(version);
+        if (!versionOne && !VERSION.equals(version))
             throw new IOException("Unsupported profile version.");
         int recordCount = count(properties, "record.count", 100000);
         List<RunRecord> records = new ArrayList<RunRecord>();
@@ -166,11 +188,17 @@ public final class ProfileStore {
             if (ids.put(id, Boolean.TRUE) != null)
                 throw new IOException("Duplicate run ID in profile.");
             try {
-                records.add(new RunRecord(id,
-                        Integer.parseInt(required(properties, prefix + "score")),
-                        Integer.parseInt(required(properties, prefix + "enemies")),
-                        Long.parseLong(required(properties, prefix + "duration")),
-                        Long.parseLong(required(properties, prefix + "completed"))));
+                int score = Integer.parseInt(required(properties, prefix + "score"));
+                int enemies = Integer.parseInt(required(properties, prefix + "enemies"));
+                long duration = Long.parseLong(required(properties, prefix + "duration"));
+                long completed = Long.parseLong(required(properties, prefix + "completed"));
+                if (versionOne)
+                    records.add(new RunRecord(id, score, enemies, duration, completed));
+                else
+                    records.add(new RunRecord(id,
+                            RunMode.valueOf(required(properties, prefix + "mode")),
+                            score, enemies, duration, completed,
+                            readStats(properties, prefix)));
             } catch (IllegalArgumentException exception) {
                 throw new IOException("Invalid run record in profile.", exception);
             }
@@ -194,6 +222,19 @@ public final class ProfileStore {
             unlocked.put(id, Long.valueOf(time));
         }
         return new ProfileSnapshot(records, unlocked, readEndings(properties));
+    }
+
+    /** Reads the statistics a version 2 record stores. */
+    private static RunStats readStats(final Properties properties,
+            final String prefix) throws IOException {
+        return new RunStats(
+                Integer.parseInt(required(properties, prefix + "stage")),
+                Integer.parseInt(required(properties, prefix + "waves")),
+                Integer.parseInt(required(properties, prefix + "shots")),
+                Integer.parseInt(required(properties, prefix + "hits")),
+                Integer.parseInt(required(properties, prefix + "timesHit")),
+                Integer.parseInt(required(properties, prefix + "bosses")),
+                Integer.parseInt(required(properties, prefix + "items")));
     }
 
     /** Profiles saved before endings were stored have no ending entries. */

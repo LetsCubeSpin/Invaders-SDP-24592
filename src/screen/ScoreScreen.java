@@ -13,6 +13,7 @@ import engine.Score;
 import audio.AudioManager;
 import records.Achievement;
 import records.RecordsService;
+import records.RunStats;
 import java.util.ArrayList;
 
 /**
@@ -47,8 +48,8 @@ public class ScoreScreen extends Screen {
 	private int score;
 	/** Player lives left. */
 	private int livesRemaining;
-	/** Total bullets shot by the player. */
-	private int bulletsShot;
+	/** Bullets that hit an enemy ship divided by bullets fired, from 0 to 1. */
+	private double accuracy;
 	/** Total ships destroyed by the player. */
 	private int shipsDestroyed;
 	/** List of past high scores. */
@@ -71,7 +72,7 @@ public class ScoreScreen extends Screen {
 	 *            Screen height.
 	 * @param fps
 	 *            Frames per second, frame rate at which the game is run.
-	 * @param gameState
+	 * @param state
 	 *            Current game state.
 	 */
     public ScoreScreen(final int width, final int height, final int fps, final GameState state) {
@@ -85,9 +86,31 @@ public class ScoreScreen extends Screen {
             final GameState state, final List<Achievement> unlocks) {
         this(width,height,fps,state,false,unlocks);
     }
+    /**
+     * Without the run statistics, the accuracy shown is 0.
+     *
+     * <p>For tests only. A real run must pass its statistics to the
+     * constructor that takes {@link RunStats}; otherwise the score screen
+     * shows 0% accuracy without any error.</p>
+     */
     public ScoreScreen(final int width, final int height, final int fps,
             final GameState gameState, final boolean infiniteMode, final List<Achievement> unlocks) {
+        this(width,height,fps,gameState,infiniteMode,unlocks,RunStats.EMPTY);
+    }
+    /**
+     * Shows the results of a run.
+     *
+     * @param stats
+     *            Statistics of the run, whose accuracy is shown, so the
+     *            score screen and the saved record agree.
+     */
+    public ScoreScreen(final int width, final int height, final int fps,
+            final GameState gameState, final boolean infiniteMode, final List<Achievement> unlocks,
+            final RunStats stats) {
         super(width,height,fps);
+        if (stats == null)
+            throw new IllegalArgumentException("stats must not be null.");
+        this.accuracy = stats.getAccuracy();
         this.runUnlocks = new ArrayList<Achievement>(unlocks);
 
 		this.infiniteMode = infiniteMode;
@@ -99,7 +122,6 @@ public class ScoreScreen extends Screen {
                 && gameState.getLevel() > CampaignStageData.getTotalStages();
 		this.score = gameState.getScore();
 		this.livesRemaining = gameState.getLivesRemaining();
-		this.bulletsShot = gameState.getBulletsShot();
 		this.shipsDestroyed = gameState.getShipsDestroyed();
 		this.isNewRecord = false;
 		this.name = "AAA".toCharArray();
@@ -235,7 +257,7 @@ public class ScoreScreen extends Screen {
 	 */
 	private void draw() {
 		drawManager.initDrawing(this);
-        float accuracy = this.bulletsShot == 0 ? 1f : (float)this.shipsDestroyed / this.bulletsShot;
+        float accuracy = (float) this.accuracy;
         if (!this.runUnlocks.isEmpty()) {
             drawManager.drawAchievementResults(this,this.score,this.livesRemaining,
                     this.shipsDestroyed,accuracy,this.isNewRecord,this.name,this.nameCharSelected,

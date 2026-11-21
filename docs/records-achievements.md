@@ -5,7 +5,7 @@ The local implementation covers team requirements 3.1–3.7. Its initial integra
 ## Usage
 
 - On the title screen, use Up/Down to select **Records & Achievements**, then press Space to open it. Records uses screen code 9, preserving the Infinite Mode shortcut I and screen code 8.
-- Use Left/Right to switch between **Run Records** and **Achievements**. Press Escape or Space to return to the menu.
+- Use Left/Right to switch between **Run Records**, **Run Details** and **Achievements**. On **Run Details**, Up/Down selects one of the top ten runs and shows its mode and play statistics; Infinite runs show "-" for the stage and waves, and runs saved by version 1 profiles say their details were not recorded. Press Escape or Space to return to the menu.
 - When an achievement unlocks during gameplay, a notification appears at the top of the HUD for approximately three seconds. The results screen lists all achievements unlocked during that run.
 - The profile is stored at `.space-invaders/records-achievements.properties` under the user's home directory. Run records and achievement unlock times are saved together; personal bests are recalculated from the complete record history.
 
@@ -16,6 +16,25 @@ The profile uses a versioned UTF-8 Properties file. Writes run on a separate thr
 Abandoning a run does not create a completed-run record; achievements already unlocked are queued for saving immediately. Completed runs are saved asynchronously without blocking the results screen. Exiting through the menu, closing the window, or pressing Alt+F4 waits up to ten seconds for the background save queue. Timeouts or failures are reported. Forced process termination or power loss can still lose progress that has not yet been written.
 
 After backup recovery, the page and log report the recovery and warn that recent progress may have been lost. Backup updates also use a validated temporary file before replacement. If the backup cannot be updated, the current write is aborted and the existing valid primary profile is preserved.
+
+## Run Details (Profile Version 2)
+
+Each run record also keeps its game mode and play statistics:
+
+| Field | Source |
+| --- | --- |
+| `mode` | `CAMPAIGN`, `INFINITE` or `STORY`, set when Core starts the run. Custom levels leave no record. |
+| `stage` | Highest stage started. Always 0 in Infinite Mode, which has no stages. |
+| `waves` | Waves started over the whole run, across every stage. Always 0 in Infinite Mode. |
+| `shots` | Sum of the bullet counts of `ShotFiredEvent`. |
+| `hits` | Number of `BulletHitEvent`s: player bullets that hit an enemy ship (formation enemy, bonus ship, summoned minion or boss), whether or not the hit defeats it. Grenades are not bullets and send no hit. Accuracy is hits ÷ shots; a run without shots has 0% accuracy. |
+| `timesHit` | Number of `PlayerHitEvent`s. |
+| `bosses` | Number of `BossDefeatedEvent`s. |
+| `items` | Number of `ItemUsedEvent`s. |
+
+`RunSession.listenTo` subscribes the session to each screen's event bus and drops repeated deliveries of the same event ID. The counts can be read during play through `RunSession.getStats()` and `getAccuracy()`, so achievements such as an accuracy goal on a stage clear can use the same counts the record keeps.
+
+Profiles are written as version 2. A version 1 profile still loads without losing records, achievements or endings; its records get the `UNKNOWN` mode and 0 for every statistic. The version 1 file stays valid, so the first version 2 write backs it up to `.bak` instead of quarantining it, and a version 1 backup can still restore a corrupt version 2 profile. During development, note that every branch shares the profile in the home directory, and a branch without version 2 support cannot read a version 2 profile. If the profile was saved only once as version 2, that branch restores the version 1 `.bak`, so runs and achievements recorded since then are not shown there. After a second version 2 save the `.bak` is version 2 as well, so that branch shows an empty profile and blocks writes. In both cases no file is overwritten, the profile reads normally again on a branch with version 2 support, and each start on the older branch adds `.corrupt-<id>` copies next to the profile. This goes away once every branch includes version 2.
 
 ## Gameplay Integration and Shared Interfaces
 
@@ -32,7 +51,7 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\build.ps1
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\test-records.ps1
 ```
 
-The records tests cover field validation, active-time accounting, duplicate completion handling, boundary conditions for all five achievements, ranking order and the ten-entry limit, recovery after restart, backup-recovery warnings, preservation of original files when recovery is unavailable, protection of the valid primary profile when backup writes fail, and event handling after a run has closed.
+The records tests cover field validation, run modes and statistics collected from the gameplay events, version 2 persistence across restarts, loading and converting version 1 profiles without losing data, version 1 backups, active-time accounting, duplicate completion handling, boundary conditions for all five achievements, ranking order and the ten-entry limit, recovery after restart, backup-recovery warnings, preservation of original files when recovery is unavailable, protection of the valid primary profile when backup writes fail, and event handling after a run has closed.
 
 Verification on 2026-10-15: the build succeeded with 60 Java source files; 104 records checks, 35 gameplay integration checks, and the existing course wave-list checks passed. The added checks call the actual collision handlers and cover normal and special enemies across the three defeat paths, repeated calls, shield absorption, Infinite Mode defeats/escapes/collisions, exclusion of countdowns and ending animations, abandonment, the 60-second achievement trigger, natural-death records, the I shortcut, and replay in both modes.
 

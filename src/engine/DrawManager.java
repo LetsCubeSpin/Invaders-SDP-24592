@@ -18,12 +18,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import screen.PlayerRecordsScreen;
 import screen.Screen;
 import screen.ShipCustomization;
 import hud.FloatingScoreHud;
 import records.Achievement;
 import records.RecordsService;
 import records.RunRecord;
+import records.RunRecordFormatter;
 import java.text.DateFormat;
 import java.util.Date;
 import entity.Entity;
@@ -1984,16 +1986,34 @@ public final class DrawManager {
         return labels;
     }
 
+    /** Draws the records page with the best run selected on the details tab. */
     public void drawRecordsPage(final Screen screen,
             final RecordsService service, final int tab) {
+        drawRecordsPage(screen, service, tab, 0);
+    }
+
+    /**
+     * Draws one tab of the records page.
+     *
+     * @param tab
+     *            One of the PlayerRecordsScreen TAB_ constants.
+     * @param selectedRun
+     *            Rank, from 0, of the run shown on the details tab.
+     */
+    public void drawRecordsPage(final Screen screen,
+            final RecordsService service, final int tab, final int selectedRun) {
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredBigString(screen,
-                tab == 0 ? "Run Records" : "Achievements", screen.getHeight() / 9);
+        String title = tab == PlayerRecordsScreen.TAB_RUNS ? "Run Records"
+                : tab == PlayerRecordsScreen.TAB_RUN_DETAILS ? "Run Details"
+                : "Achievements";
+        drawCenteredBigString(screen, title, screen.getHeight() / 9);
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen,
                 "Left/Right: switch   Esc/Space: return", screen.getHeight() / 6);
         int y = screen.getHeight() / 6 + fontRegularMetrics.getHeight() * 2;
-        if (tab == 0) {
+        if (tab == PlayerRecordsScreen.TAB_RUN_DETAILS) {
+            drawRunDetails(screen, service.getTopRuns(), selectedRun, y);
+        } else if (tab == PlayerRecordsScreen.TAB_RUNS) {
             backBufferGraphics.setColor(Color.WHITE);
             drawCenteredRegularString(screen, "Personal bests", y);
             if (service.getRecordCount() == 0) {
@@ -2036,6 +2056,34 @@ public final class DrawManager {
                         : "Profile error - check game log");
         drawCenteredRegularString(screen, message,
                 screen.getHeight() - fontRegularMetrics.getHeight());
+    }
+
+    /** Draws every field of one top run, chosen with Up/Down. */
+    private void drawRunDetails(final Screen screen, final List<RunRecord> runs,
+            final int selectedRun, int y) {
+        int line = fontRegularMetrics.getHeight();
+        if (runs.isEmpty()) {
+            backBufferGraphics.setColor(Color.WHITE);
+            drawCenteredRegularString(screen, "No completed runs yet.", y);
+            return;
+        }
+        int rank = Math.max(0, Math.min(selectedRun, runs.size() - 1));
+        RunRecord run = runs.get(rank);
+        backBufferGraphics.setColor(Color.GRAY);
+        drawCenteredRegularString(screen, "Up/Down: select run", y);
+        y += line * 2;
+        backBufferGraphics.setColor(Color.GREEN);
+        drawCenteredRegularString(screen, "Run " + (rank + 1) + " of " + runs.size(), y);
+        y += line;
+        drawCenteredRegularString(screen, String.format("%d pts  %d enemies  %.1fs",
+                run.getScore(), run.getEnemiesDefeated(),
+                run.getActiveDurationMillis() / 1000.0), y);
+        y += line;
+        backBufferGraphics.setColor(Color.WHITE);
+        for (String detail : RunRecordFormatter.detailLines(run)) {
+            y += line;
+            drawCenteredRegularString(screen, detail, y);
+        }
     }
 
     /**
