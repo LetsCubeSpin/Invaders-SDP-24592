@@ -72,7 +72,7 @@ public class ScoreScreen extends Screen {
 	 *            Screen height.
 	 * @param fps
 	 *            Frames per second, frame rate at which the game is run.
-	 * @param gameState
+	 * @param state
 	 *            Current game state.
 	 */
     public ScoreScreen(final int width, final int height, final int fps, final GameState state) {
