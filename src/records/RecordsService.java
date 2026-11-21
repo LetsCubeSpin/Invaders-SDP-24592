@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,11 +25,11 @@ import story.Ending;
  * Coordinates run records, achievements, notifications, and local saving.
  *
  * <p>Achievements are checked from their definitions in {@link Achievement}.
- * A {@link Achievement.Scope#RUN} achievement is checked against the run
- * being played (enemies defeated and active seconds) and, when a run is
- * completed, against the best completed run. A
- * {@link Achievement.Scope#TOTAL} achievement is checked against the values
- * of every completed run added up, so abandoned runs never count.</p>
+ * Only completed runs that meet an achievement's requirements count towards
+ * it: a {@link Achievement.Scope#RUN} achievement uses the best of them and
+ * a {@link Achievement.Scope#TOTAL} one adds them up, so abandoned runs
+ * never count towards a total. RUN achievements that only use enemies
+ * defeated and active seconds are also checked during play.</p>
  */
 public final class RecordsService {
     private final ProfileStore store;
@@ -46,10 +47,11 @@ public final class RecordsService {
     private final Deque<AchievementUnlock> notifications = new ArrayDeque<AchievementUnlock>();
     private final List<AchievementUnlock> currentRunUnlocks = new ArrayList<AchievementUnlock>();
     private final Set<String> seenDefeatEvents = new HashSet<String>();
-    /** Values of every completed run added up, and the endings seen. */
-    private final StatTally totals = new StatTally();
-    /** Best value of each stat in one completed run. */
-    private final StatTally bestRun = new StatTally();
+    /**
+     * Progress of each achievement over the completed runs that count
+     * towards it: the best run for RUN, the sum for TOTAL.
+     */
+    private final Map<Achievement, Long> progress = new HashMap<Achievement, Long>();
     /** Values counted live in the run being played. */
     private StatTally activeRun = new StatTally();
     /** Highest score of the completed runs; meaningful once there are records. */
@@ -86,7 +88,7 @@ public final class RecordsService {
                 countRun(record);
             this.unlockTimes.putAll(snapshot.getUnlockTimes());
             this.seenEndings.addAll(snapshot.getSeenEndings());
-            this.totals.set(Stat.ENDINGS_SEEN, this.seenEndings.size());
+            countEndings();
         } catch (IOException exception) {
             this.writesBlocked = true;
             this.saveError = "Profile load failed; existing files are protected: "
@@ -120,7 +122,7 @@ public final class RecordsService {
             return false;
         this.activeRun.set(Stat.ENEMIES_DEFEATED,
                 this.activeRun.get(Stat.ENEMIES_DEFEATED) + 1);
-        check(Achievement.Scope.RUN, this.activeRun, System.currentTimeMillis());
+        checkLive(System.currentTimeMillis());
         return true;
     }
 
@@ -130,7 +132,7 @@ public final class RecordsService {
             return;
         this.activeRun.set(Stat.ACTIVE_SECONDS, Math.max(
                 this.activeRun.get(Stat.ACTIVE_SECONDS), durationMillis / 1000));
-        check(Achievement.Scope.RUN, this.activeRun, System.currentTimeMillis());
+        checkLive(System.currentTimeMillis());
     }
 
     /**
@@ -165,8 +167,8 @@ public final class RecordsService {
             throw new IllegalArgumentException("ending must not be null.");
         if (this.closed || !this.seenEndings.add(ending))
             return false;
-        this.totals.set(Stat.ENDINGS_SEEN, this.seenEndings.size());
-        check(Achievement.Scope.TOTAL, this.totals, System.currentTimeMillis());
+        countEndings();
+        checkProgress(System.currentTimeMillis());
         enqueueSave();
         return true;
     }
@@ -184,10 +186,9 @@ public final class RecordsService {
             return false;
         // Every save containing a completion achievement also contains its run.
         countRun(record);
-        // The best run, rather than this one, also unlocks a RUN achievement
-        // added after an earlier run already reached it.
-        check(Achievement.Scope.RUN, this.bestRun, record.getCompletionTimeMillis());
-        check(Achievement.Scope.TOTAL, this.totals, record.getCompletionTimeMillis());
+        // Progress covers every completed run, so a RUN achievement added
+        // after an earlier run already reached it also unlocks now.
+        checkProgress(record.getCompletionTimeMillis());
         if (record.getRunId().equals(this.activeRunId))
             this.activeRunId = null;
         enqueueSave();
@@ -202,17 +203,40 @@ public final class RecordsService {
                 : Math.max(this.highestScore, record.getScore());
         this.records.put(record.getRunId(), record);
         StatTally run = StatTally.ofRun(record, beatHighScore);
-        this.totals.add(run);
-        this.bestRun.max(run);
+        for (Achievement achievement : this.achievements) {
+            if (achievement.getStat().isProfileWide() || !achievement.counts(run))
+                continue;
+            long value = run.get(achievement.getStat());
+            long current = getProgress(achievement);
+            this.progress.put(achievement, Long.valueOf(
+                    achievement.getScope() == Achievement.Scope.RUN
+                            ? Math.max(current, value)
+                            : Long.MAX_VALUE - current < value ? Long.MAX_VALUE
+                                    : current + value));
+        }
     }
 
-    /** Unlocks every tier the values reach, for the achievements of one scope. */
-    private void check(final Achievement.Scope scope, final StatTally values,
-            final long timeMillis) {
+    /** Sets the progress of the achievements that count seen endings. */
+    private void countEndings() {
         for (Achievement achievement : this.achievements)
-            if (achievement.getScope() == scope)
+            if (achievement.getStat() == Stat.ENDINGS_SEEN)
+                this.progress.put(achievement,
+                        Long.valueOf(this.seenEndings.size()));
+    }
+
+    /** Unlocks every tier the progress of each achievement reaches. */
+    private void checkProgress(final long timeMillis) {
+        for (Achievement achievement : this.achievements)
+            reach(achievement, achievement.tiersReached(
+                    getProgress(achievement)), timeMillis);
+    }
+
+    /** Unlocks the tiers the run being played reaches, where known live. */
+    private void checkLive(final long timeMillis) {
+        for (Achievement achievement : this.achievements)
+            if (achievement.isCheckedLive() && achievement.counts(this.activeRun))
                 reach(achievement, achievement.tiersReached(
-                        values.get(achievement.getStat())), timeMillis);
+                        this.activeRun.get(achievement.getStat())), timeMillis);
     }
 
     /** Unlocks the first tiers of an achievement, lowest first. */
@@ -313,13 +337,13 @@ public final class RecordsService {
     }
 
     /**
-     * @return the current value of an achievement's stat: the best completed
-     *         run for a RUN achievement, every completed run added up for a
-     *         TOTAL one.
+     * @return the current value of an achievement's stat over the completed
+     *         runs that meet its requirements: the best run for a RUN
+     *         achievement, the sum for a TOTAL one.
      */
     public synchronized long getProgress(final Achievement achievement) {
-        return (achievement.getScope() == Achievement.Scope.RUN ? this.bestRun
-                : this.totals).get(achievement.getStat());
+        Long value = this.progress.get(achievement);
+        return value == null ? 0 : value.longValue();
     }
 
     /** @return what the records page shows for each achievement, in order. */

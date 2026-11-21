@@ -1,12 +1,23 @@
 package records;
 
-/** Mutable value of every {@link Stat}, kept by {@link RecordsService}. */
+/** Value of every {@link Stat} in one run, completed or being played. */
 final class StatTally {
     private final long[] values = new long[Stat.values().length];
+    /** Whether the run has {@link RunStats}; version 1 records do not. */
+    private final boolean hasRunStats;
+
+    /** A run being played, whose live values start at 0. */
+    StatTally() {
+        this(true);
+    }
+
+    private StatTally(final boolean hasRunStats) {
+        this.hasRunStats = hasRunStats;
+    }
 
     /** @return the values of one completed run. */
     static StatTally ofRun(final RunRecord run, final boolean beatHighScore) {
-        StatTally tally = new StatTally();
+        StatTally tally = new StatTally(run.getMode() != RunMode.UNKNOWN);
         for (Stat stat : Stat.values())
             tally.values[stat.ordinal()] = stat.ofRun(run, beatHighScore);
         return tally;
@@ -20,16 +31,8 @@ final class StatTally {
         this.values[stat.ordinal()] = Math.max(0, value);
     }
 
-    /** Adds every value of another tally, stopping at the largest long. */
-    void add(final StatTally other) {
-        for (int i = 0; i < this.values.length; i++)
-            this.values[i] = Long.MAX_VALUE - this.values[i] < other.values[i]
-                    ? Long.MAX_VALUE : this.values[i] + other.values[i];
-    }
-
-    /** Keeps the larger of each value. */
-    void max(final StatTally other) {
-        for (int i = 0; i < this.values.length; i++)
-            this.values[i] = Math.max(this.values[i], other.values[i]);
+    /** @return whether a value is known for this run, rather than missing. */
+    boolean has(final Stat stat) {
+        return this.hasRunStats || !stat.needsRunStats();
     }
 }

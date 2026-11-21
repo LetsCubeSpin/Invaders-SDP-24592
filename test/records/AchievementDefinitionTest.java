@@ -20,23 +20,26 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Progress, tiers and hidden achievements, and keeping the saved unlocks. */
+/**
+ * Progress, tiers, hidden achievements and requirements, the example
+ * achievements of the game, and keeping the saved unlocks.
+ */
 class AchievementDefinitionTest {
 
     @TempDir Path temp;
 
-    /** A TOTAL achievement with three tiers, like the game could define. */
-    private static final Achievement EXTERMINATOR = new Achievement("exterminator",
-            "Exterminator", "Defeat {target} enemies in total.",
-            Achievement.Scope.TOTAL, Stat.ENEMIES_DEFEATED, false, 100, 500, 1000);
+    /** A TOTAL achievement with three tiers. */
+    private static final Achievement KILLS = Achievement.define("kills",
+            "Exterminator", "Defeat {target} enemies in total.")
+            .total(Stat.ENEMIES_DEFEATED, 100, 500, 1000).build();
     /** A single-tier RUN achievement. */
-    private static final Achievement SHARPSHOOTER = new Achievement("sharpshooter",
-            "Sharpshooter", "Hit {target} bullets in one run.",
-            Achievement.Scope.RUN, Stat.BULLET_HITS, false, 20);
+    private static final Achievement HITS = Achievement.define("hits",
+            "Sharpshooter", "Hit {target} bullets in one run.")
+            .run(Stat.BULLET_HITS, 20).build();
     /** A hidden single-tier achievement. */
-    private static final Achievement PUNCHING_BAG = new Achievement("punching_bag",
-            "Punching Bag", "Get hit {target} times in one run.",
-            Achievement.Scope.RUN, Stat.TIMES_HIT, true, 3);
+    private static final Achievement PUNCHING_BAG = Achievement.define("punching_bag",
+            "Punching Bag", "Get hit {target} times in one run.")
+            .run(Stat.TIMES_HIT, 3).hidden().build();
 
     private Path profile() {
         return this.temp.resolve("profile.properties");
@@ -46,16 +49,21 @@ class AchievementDefinitionTest {
         return new RecordsService(profile(), Arrays.asList(achievements));
     }
 
+    /** A Campaign run with every bullet hitting and no life lost. */
     private static RunRecord run(final String id, final int enemies,
             final long completed) {
-        return new RunRecord(id, RunMode.CAMPAIGN, 100, enemies, 1000, completed,
-                RunStats.EMPTY);
+        return run(id, completed, enemies, 0, 0, 0);
     }
 
     private static RunRecord run(final String id, final long completed,
             final int hits, final int timesHit) {
-        return new RunRecord(id, RunMode.CAMPAIGN, 100, 0, 1000, completed,
-                new RunStats(1, 1, hits, hits, timesHit, 0, 0));
+        return run(id, completed, 0, hits, hits, timesHit);
+    }
+
+    private static RunRecord run(final String id, final long completed,
+            final int enemies, final int shots, final int hits, final int timesHit) {
+        return new RunRecord(id, RunMode.CAMPAIGN, 100, enemies, 1000, completed,
+                new RunStats(1, 1, shots, hits, timesHit, 0, 0));
     }
 
     private static AchievementStatus status(final RecordsService records,
@@ -71,13 +79,13 @@ class AchievementDefinitionTest {
 
         @Test
         void aTotalAchievementAddsUpEveryCompletedRun() {
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             try {
                 records.completeRun(run("a", 40, 1));
                 records.completeRun(run("b", 25, 2));
 
-                assertEquals(65, records.getProgress(EXTERMINATOR));
-                assertEquals("65/100", status(records, EXTERMINATOR).getProgressText());
+                assertEquals(65, records.getProgress(KILLS));
+                assertEquals("65/100", status(records, KILLS).getProgressText());
             } finally {
                 records.close();
             }
@@ -85,15 +93,15 @@ class AchievementDefinitionTest {
 
         @Test
         void anAbandonedRunDoesNotCountTowardsATotal() {
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             try {
                 records.startRun("abandoned");
                 for (int i = 0; i < 150; i++)
                     records.enemyDefeated("abandoned", "enemy-" + i);
                 records.abandonRun("abandoned");
 
-                assertEquals(0, records.getProgress(EXTERMINATOR));
-                assertNull(records.getUnlockTime(EXTERMINATOR));
+                assertEquals(0, records.getProgress(KILLS));
+                assertNull(records.getUnlockTime(KILLS));
             } finally {
                 records.close();
             }
@@ -101,14 +109,14 @@ class AchievementDefinitionTest {
 
         @Test
         void aRunAchievementShowsTheBestSingleRun() {
-            RecordsService records = service(SHARPSHOOTER);
+            RecordsService records = service(HITS);
             try {
                 records.completeRun(run("a", 1, 13, 0));
                 records.completeRun(run("b", 2, 9, 0));
 
-                assertEquals(13, records.getProgress(SHARPSHOOTER));
-                assertEquals("13/20", status(records, SHARPSHOOTER).getProgressText());
-                assertNull(records.getUnlockTime(SHARPSHOOTER), "13 + 9 is not one run");
+                assertEquals(13, records.getProgress(HITS));
+                assertEquals("13/20", status(records, HITS).getProgressText());
+                assertNull(records.getUnlockTime(HITS), "13 + 9 is not one run");
             } finally {
                 records.close();
             }
@@ -116,11 +124,11 @@ class AchievementDefinitionTest {
 
         @Test
         void progressIsCappedAtTheTargetOnceComplete() {
-            RecordsService records = service(SHARPSHOOTER);
+            RecordsService records = service(HITS);
             try {
                 records.completeRun(run("a", 5, 31, 0));
 
-                AchievementStatus status = status(records, SHARPSHOOTER);
+                AchievementStatus status = status(records, HITS);
                 assertTrue(status.isComplete());
                 assertEquals("20/20", status.getProgressText());
                 assertEquals(Long.valueOf(5), status.getLastUnlockTime());
@@ -131,15 +139,15 @@ class AchievementDefinitionTest {
 
         @Test
         void progressIsRebuiltFromTheSavedRunsAfterARestart() {
-            RecordsService records = service(EXTERMINATOR, SHARPSHOOTER);
+            RecordsService records = service(KILLS, HITS);
             records.completeRun(run("a", 1, 13, 0));
             records.completeRun(run("b", 70, 2));
             records.close();
 
-            RecordsService restarted = service(EXTERMINATOR, SHARPSHOOTER);
+            RecordsService restarted = service(KILLS, HITS);
             try {
-                assertEquals(70, restarted.getProgress(EXTERMINATOR));
-                assertEquals(13, restarted.getProgress(SHARPSHOOTER));
+                assertEquals(70, restarted.getProgress(KILLS));
+                assertEquals(13, restarted.getProgress(HITS));
             } finally {
                 restarted.close();
             }
@@ -151,12 +159,12 @@ class AchievementDefinitionTest {
             before.completeRun(run("old", 1, 25, 0));
             before.close();
 
-            RecordsService records = service(SHARPSHOOTER);
+            RecordsService records = service(HITS);
             try {
-                assertEquals("20/20", status(records, SHARPSHOOTER).getProgressText());
-                assertNull(records.getUnlockTime(SHARPSHOOTER), "no unlock while loading");
+                assertEquals("20/20", status(records, HITS).getProgressText());
+                assertNull(records.getUnlockTime(HITS), "no unlock while loading");
                 records.completeRun(run("next", 9, 0, 0));
-                assertEquals(Long.valueOf(9), records.getUnlockTime(SHARPSHOOTER));
+                assertEquals(Long.valueOf(9), records.getUnlockTime(HITS));
             } finally {
                 records.close();
             }
@@ -180,32 +188,32 @@ class AchievementDefinitionTest {
 
         @Test
         void tiersAreBronzeSilverAndGold() {
-            assertEquals(3, EXTERMINATOR.getTierCount());
-            assertEquals("Exterminator (Bronze)", EXTERMINATOR.getTitle(1));
-            assertEquals("Exterminator (Gold)", EXTERMINATOR.getTitle(3));
-            assertEquals("Defeat 500 enemies in total.", EXTERMINATOR.getCondition(2));
+            assertEquals(3, KILLS.getTierCount());
+            assertEquals("Exterminator (Bronze)", KILLS.getTitle(1));
+            assertEquals("Exterminator (Gold)", KILLS.getTitle(3));
+            assertEquals("Defeat 500 enemies in total.", KILLS.getCondition(2));
             assertEquals("Ace Pilot", Achievement.TWENTY_ENEMIES.getTitle(1),
                     "a single tier has no tier name");
         }
 
         @Test
         void tiersReachedCountsTheTargetsMet() {
-            assertEquals(0, EXTERMINATOR.tiersReached(99));
-            assertEquals(1, EXTERMINATOR.tiersReached(100));
-            assertEquals(2, EXTERMINATOR.tiersReached(999));
-            assertEquals(3, EXTERMINATOR.tiersReached(5000));
+            assertEquals(0, KILLS.tiersReached(99));
+            assertEquals(1, KILLS.tiersReached(100));
+            assertEquals(2, KILLS.tiersReached(999));
+            assertEquals(3, KILLS.tiersReached(5000));
         }
 
         @Test
         void onlyTheReachedTierUnlocksAndTheNextTargetIsShown() {
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             try {
                 records.completeRun(run("a", 120, 10));
 
-                assertEquals(1, records.getUnlockedTiers(EXTERMINATOR));
-                assertEquals(Long.valueOf(10), records.getUnlockTime(EXTERMINATOR, 1));
-                assertNull(records.getUnlockTime(EXTERMINATOR, 2));
-                AchievementStatus status = status(records, EXTERMINATOR);
+                assertEquals(1, records.getUnlockedTiers(KILLS));
+                assertEquals(Long.valueOf(10), records.getUnlockTime(KILLS, 1));
+                assertNull(records.getUnlockTime(KILLS, 2));
+                AchievementStatus status = status(records, KILLS);
                 assertEquals("Exterminator (Bronze)", status.getTitle());
                 assertEquals("Defeat 500 enemies in total.", status.getCondition());
                 assertEquals("120/500", status.getProgressText());
@@ -216,21 +224,21 @@ class AchievementDefinitionTest {
 
         @Test
         void skippingTiersUnlocksEachOneInOrder() {
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             try {
                 records.completeRun(run("a", 120, 10));
                 records.pollNotification();
                 records.startRun("b");
                 records.completeRun(run("b", 1000, 20));
 
-                assertEquals(new AchievementUnlock(EXTERMINATOR, 2), records.pollNotification());
-                assertEquals(new AchievementUnlock(EXTERMINATOR, 3), records.pollNotification());
+                assertEquals(new AchievementUnlock(KILLS, 2), records.pollNotification());
+                assertEquals(new AchievementUnlock(KILLS, 3), records.pollNotification());
                 assertNull(records.pollNotification());
-                assertEquals(Arrays.asList(new AchievementUnlock(EXTERMINATOR, 2),
-                        new AchievementUnlock(EXTERMINATOR, 3)), records.getCurrentRunUnlocks());
-                assertEquals("Exterminator (Gold)", status(records, EXTERMINATOR).getTitle());
-                assertEquals(Long.valueOf(20), records.getUnlockTime(EXTERMINATOR, 3));
-                assertEquals(Long.valueOf(10), records.getUnlockTime(EXTERMINATOR, 1),
+                assertEquals(Arrays.asList(new AchievementUnlock(KILLS, 2),
+                        new AchievementUnlock(KILLS, 3)), records.getCurrentRunUnlocks());
+                assertEquals("Exterminator (Gold)", status(records, KILLS).getTitle());
+                assertEquals(Long.valueOf(20), records.getUnlockTime(KILLS, 3));
+                assertEquals(Long.valueOf(10), records.getUnlockTime(KILLS, 1),
                         "an earlier tier keeps its time");
             } finally {
                 records.close();
@@ -239,18 +247,18 @@ class AchievementDefinitionTest {
 
         @Test
         void eachTierKeepsItsTimeAfterARestart() throws IOException {
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             records.completeRun(run("a", 120, 10));
             records.completeRun(run("b", 400, 20));
             records.close();
             String saved = new String(Files.readAllBytes(profile()), StandardCharsets.UTF_8);
             assertTrue(saved.contains("tier=2"), saved);
 
-            RecordsService restarted = service(EXTERMINATOR);
+            RecordsService restarted = service(KILLS);
             try {
-                assertEquals(2, restarted.getUnlockedTiers(EXTERMINATOR));
-                assertEquals(Long.valueOf(10), restarted.getUnlockTime(EXTERMINATOR, 1));
-                assertEquals(Long.valueOf(20), restarted.getUnlockTime(EXTERMINATOR, 2));
+                assertEquals(2, restarted.getUnlockedTiers(KILLS));
+                assertEquals(Long.valueOf(10), restarted.getUnlockTime(KILLS, 1));
+                assertEquals(Long.valueOf(20), restarted.getUnlockTime(KILLS, 2));
             } finally {
                 restarted.close();
             }
@@ -258,23 +266,22 @@ class AchievementDefinitionTest {
 
         @Test
         void invalidTargetsAreRejected() {
-            assertThrows(IllegalArgumentException.class, () -> new Achievement("a", "A", "c",
-                    Achievement.Scope.TOTAL, Stat.SCORE, false, 500, 100));
-            assertThrows(IllegalArgumentException.class, () -> new Achievement("a", "A", "c",
-                    Achievement.Scope.TOTAL, Stat.SCORE, false, 1, 2, 3, 4));
-            assertThrows(IllegalArgumentException.class, () -> new Achievement("a", "A", "c",
-                    Achievement.Scope.TOTAL, Stat.SCORE, false));
-            assertThrows(IllegalArgumentException.class, () -> new Achievement("a", "A", "c",
-                    Achievement.Scope.RUN, Stat.ENDINGS_SEEN, false, 1),
-                    "endings are not counted per run");
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .total(Stat.SCORE, 500, 100).build());
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .total(Stat.SCORE, 1, 2, 3, 4).build());
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .total(Stat.SCORE).build());
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .build(), "a definition must say what it measures");
         }
 
         @Test
         void aTierFieldOutsideTheTiersIsRejected() throws IOException {
             Files.write(profile(), ("version=2\nrecord.count=0\nachievement.count=1\n"
-                    + "achievement.0.id=exterminator\nachievement.0.tier=4\n"
+                    + "achievement.0.id=kills\nachievement.0.tier=4\n"
                     + "achievement.0.unlocked=5\n").getBytes(StandardCharsets.UTF_8));
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             try {
                 assertTrue(records.isWritesBlocked());
             } finally {
@@ -322,13 +329,184 @@ class AchievementDefinitionTest {
 
         @Test
         void aVisibleLockedAchievementShowsItsNameAndCondition() {
-            RecordsService records = service(SHARPSHOOTER);
+            RecordsService records = service(HITS);
             try {
-                AchievementStatus status = status(records, SHARPSHOOTER);
+                AchievementStatus status = status(records, HITS);
                 assertTrue(status.isRevealed());
                 assertEquals("Sharpshooter", status.getTitle());
                 assertEquals("Hit 20 bullets in one run.", status.getCondition());
                 assertEquals("0/20", status.getProgressText());
+            } finally {
+                records.close();
+            }
+        }
+    }
+
+    @Nested
+    class Requirements {
+
+        /** At most a value: enemies only count in a run without losing a life. */
+        private final Achievement cleanKills = Achievement.define("clean_kills",
+                "Clean Kills", "Defeat {target} enemies in one run without losing a life.")
+                .run(Stat.ENEMIES_DEFEATED, 30).atMost(Stat.TIMES_HIT, 0).build();
+        /** A requirement on a TOTAL achievement. */
+        private final Achievement cleanRuns = Achievement.define("clean_runs",
+                "Clean Record", "Complete {target} runs without losing a life.")
+                .total(Stat.RUNS_COMPLETED, 3).atMost(Stat.TIMES_HIT, 0).build();
+        /** Every value counted live, so it is checked during play. */
+        private final Achievement quickKills = Achievement.define("quick_kills",
+                "Blitz", "Defeat {target} enemies in the first 10 seconds.")
+                .run(Stat.ENEMIES_DEFEATED, 5).atMost(Stat.ACTIVE_SECONDS, 10).build();
+
+        @Test
+        void onlyRunsMeetingTheRequirementCount() {
+            RecordsService records = service(this.cleanKills);
+            try {
+                records.completeRun(run("hit", 1, 40, 0, 0, 1));
+                records.completeRun(run("clean", 2, 25, 0, 0, 0));
+
+                assertEquals("25/30", status(records, this.cleanKills).getProgressText(),
+                        "the 40-enemy run lost a life");
+                records.completeRun(run("cleaner", 3, 30, 0, 0, 0));
+                assertEquals(Long.valueOf(3), records.getUnlockTime(this.cleanKills));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void aTotalOnlyAddsUpRunsMeetingTheRequirement() {
+            RecordsService records = service(this.cleanRuns);
+            try {
+                records.completeRun(run("a", 1, 5, 0, 0, 0));
+                records.completeRun(run("b", 2, 5, 0, 0, 2));
+                records.completeRun(run("c", 3, 5, 0, 0, 0));
+
+                assertEquals("2/3", status(records, this.cleanRuns).getProgressText());
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void aRequirementNotCountedLiveWaitsForTheCompletedRun() {
+            RecordsService records = service(this.cleanKills);
+            try {
+                records.startRun("live");
+                for (int i = 0; i < 30; i++)
+                    records.enemyDefeated("live", "enemy-" + i);
+                assertNull(records.getUnlockTime(this.cleanKills),
+                        "lives lost are not known during play");
+
+                records.completeRun(run("live", 7, 30, 0, 0, 0));
+                assertEquals(Long.valueOf(7), records.getUnlockTime(this.cleanKills));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void requirementsOnLiveValuesAreCheckedDuringPlay() {
+            RecordsService records = service(this.quickKills);
+            try {
+                records.startRun("slow");
+                records.activeDuration("slow", 11000);
+                for (int i = 0; i < 5; i++)
+                    records.enemyDefeated("slow", "enemy-" + i);
+                assertNull(records.getUnlockTime(this.quickKills));
+
+                records.startRun("fast");
+                records.activeDuration("fast", 9000);
+                for (int i = 0; i < 5; i++)
+                    records.enemyDefeated("fast", "enemy-" + i);
+                assertNotNull(records.getUnlockTime(this.quickKills));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void aRunWithoutStatisticsNeverMeetsARequirementOnThem() {
+            RecordsService records = service(this.cleanKills);
+            try {
+                // Version 1 records stored no lives lost, which reads as 0.
+                records.completeRun(new RunRecord("v1", 100, 40, 1000, 1));
+
+                assertEquals(0, records.getProgress(this.cleanKills));
+                assertNull(records.getUnlockTime(this.cleanKills));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void invalidCombinationsAreRejected() {
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .total(Stat.ACCURACY_PERCENT, 80).build(), "accuracy does not add up");
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .run(Stat.ENDINGS_SEEN, 1).build(), "endings are not per run");
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .total(Stat.ENDINGS_SEEN, 4).atLeast(Stat.SCORE, 1).build(),
+                    "endings cannot be limited by runs");
+            assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
+                    .run(Stat.SCORE, 1).atMost(Stat.ENDINGS_SEEN, 1));
+        }
+    }
+
+    @Nested
+    class GameExamples {
+
+        private RecordsService game() {
+            return new RecordsService(profile());
+        }
+
+        @Test
+        void exterminatorHasBronzeSilverAndGoldOverEveryRun() {
+            RecordsService records = game();
+            try {
+                records.completeRun(run("a", 1, 60, 0, 0, 1));
+                records.completeRun(run("b", 2, 60, 0, 0, 1));
+                assertEquals("Exterminator (Bronze)",
+                        status(records, Achievement.EXTERMINATOR).getTitle());
+                assertEquals("120/500",
+                        status(records, Achievement.EXTERMINATOR).getProgressText());
+                records.completeRun(run("c", 3, 900, 0, 0, 1));
+                assertEquals(3, records.getUnlockedTiers(Achievement.EXTERMINATOR));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void sharpshooterNeedsEightyPercentWithFiftyShots() {
+            RecordsService records = game();
+            try {
+                records.completeRun(run("few-shots", 1, 1, 49, 49, 1));
+                records.completeRun(run("79-percent", 2, 1, 100, 79, 1));
+                assertNull(records.getUnlockTime(Achievement.SHARPSHOOTER));
+                assertEquals("79/80",
+                        status(records, Achievement.SHARPSHOOTER).getProgressText());
+
+                records.completeRun(run("80-percent", 3, 1, 50, 40, 1));
+                assertEquals(Long.valueOf(3), records.getUnlockTime(Achievement.SHARPSHOOTER));
+            } finally {
+                records.close();
+            }
+        }
+
+        @Test
+        void untouchableIsHiddenUntilARunEndsWithoutLosingALife() {
+            RecordsService records = game();
+            try {
+                records.completeRun(run("hit", 1, 10, 0, 0, 1));
+                AchievementStatus hidden = status(records, Achievement.UNTOUCHABLE);
+                assertEquals("???", hidden.getTitle());
+                assertEquals("???", hidden.getCondition());
+
+                records.completeRun(run("flawless", 2, 10, 0, 0, 0));
+                AchievementStatus revealed = status(records, Achievement.UNTOUCHABLE);
+                assertEquals("Untouchable", revealed.getTitle());
+                assertEquals(Long.valueOf(2), revealed.getLastUnlockTime());
             } finally {
                 records.close();
             }
@@ -368,10 +546,12 @@ class AchievementDefinitionTest {
                 for (int i = 0; i < LEGACY_IDS.length; i++)
                     assertEquals(Long.valueOf(1700000000000L + i),
                             records.getUnlockTime(Achievement.fromId(LEGACY_IDS[i])));
-                // A completed run saves the profile again; nothing new unlocks
-                // and nothing is notified for the old unlocks.
-                records.completeRun(run("new", 30, 1800000000000L));
-                assertTrue(records.getCurrentRunUnlocks().isEmpty());
+                // A completed run saves the profile again; the old unlocks
+                // keep their times and are not notified again.
+                records.completeRun(run("new", 1800000000000L, 30, 0, 0, 1));
+                for (AchievementUnlock unlock : records.getCurrentRunUnlocks())
+                    assertFalse(Arrays.asList(LEGACY_IDS).contains(
+                            unlock.getAchievement().getId()), unlock.toString());
             } finally {
                 records.close();
             }
@@ -395,7 +575,7 @@ class AchievementDefinitionTest {
                     + "achievement.0.id=from_another_branch\nachievement.0.unlocked=7\n"
                     + "achievement.1.id=from_another_branch\nachievement.1.tier=2\n"
                     + "achievement.1.unlocked=8\n").getBytes(StandardCharsets.UTF_8));
-            RecordsService records = service(EXTERMINATOR);
+            RecordsService records = service(KILLS);
             records.completeRun(run("a", 1, 9));
             records.close();
             assertFalse(records.isWritesBlocked());

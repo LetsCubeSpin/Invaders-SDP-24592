@@ -565,9 +565,9 @@ private static void testRecordsPageNavigationAndRender() {
 			// More achievements than fit: Up/Down scrolls and stops at either end.
 			List<Achievement> many = new ArrayList<Achievement>();
 			for (int i = 0; i < 14; i++)
-				many.add(new Achievement("many_" + i, "Achievement " + (i + 1),
-						"Defeat {target} enemies in total.", Achievement.Scope.TOTAL,
-						Stat.ENEMIES_DEFEATED, i % 4 == 3, 10 + i, 100 + i, 1000 + i));
+				many.add(Achievement.define("many_" + i, "Achievement " + (i + 1),
+						"Defeat {target} enemies in total.")
+						.total(Stat.ENEMIES_DEFEATED, 10 + i, 100 + i, 1000 + i).build());
 			RecordsService crowded = new RecordsService(
 					testDirectory("crowded-profile").resolve("profile.properties"), many);
 			try {

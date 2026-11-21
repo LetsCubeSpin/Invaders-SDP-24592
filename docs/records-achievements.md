@@ -38,18 +38,32 @@ Profiles are written as version 2. A version 1 profile still loads without losin
 
 ## Achievements
 
-Every achievement is defined in `records.Achievement`, and adding one means adding one constant there with `define` (or `defineHidden`); `RecordsService` checks, saves and lists it without other changes. A definition has:
+Every achievement is defined in `records.Achievement`, and adding one means adding one constant there; `RecordsService` checks, saves and lists it without other changes. For example:
+
+```java
+public static final Achievement SHARPSHOOTER = add(define("sharpshooter",
+        "Sharpshooter", "Finish a run with {target}% accuracy (50+ shots).")
+        .run(Stat.ACCURACY_PERCENT, 80)
+        .atLeast(Stat.SHOTS_FIRED, 50));
+```
+
+A definition has:
 
 | Part | Meaning |
 | --- | --- |
 | ID | Saved in the profile. Never change the ID of an existing achievement. |
 | Name and condition | `{target}` in the condition is replaced by the target of the tier shown. |
-| Scope | `RUN`: one completed run must reach the target; enemies defeated and active seconds are also checked during play. `TOTAL`: the values of every completed run add up over the whole game. Abandoned runs never count towards a total. |
-| Stat | The value compared with the targets (`records.Stat`): enemies, active seconds, score, high scores beaten, stage, waves, shots, bullet hits, times hit, bosses, items, completed runs, or endings seen (`TOTAL` only). A new kind of value is added there. |
+| Scope | `run(...)`: one completed run must reach the target. `total(...)`: the values of every counted run add up over the whole game. Abandoned runs never count towards a total. |
+| Stat | The value compared with the targets (`records.Stat`): enemies, active seconds, score, high scores beaten, stage, waves, shots, bullet hits, accuracy percent, times hit, bosses, items, completed runs, or endings seen. Stage and accuracy are for `run` only, and endings seen for `total` without requirements. A new kind of value is added there. |
 | Targets | One to three increasing targets. With more than one they are the Bronze, Silver and Gold tiers, each unlocked and timed separately. |
-| Hidden | The name and condition show as `???`, without progress, until the first tier unlocks. |
+| Requirements | `atLeast(stat, n)` and `atMost(stat, n)` limit which runs count, for conditions such as "without losing a life" (`atMost(Stat.TIMES_HIT, 0)`) or "with at least 50 shots". Runs saved by version 1 profiles have no play statistics, so they never meet a requirement on them. |
+| Hidden | `.hidden()`: the name and condition show as `???`, without progress, until the first tier unlocks. |
 
-The records page shows a `RUN` achievement's progress from the best completed run, and a `TOTAL` one's from every completed run added up. Both are rebuilt from the saved runs, so progress is not stored separately. When a run is completed, `RUN` achievements are checked against the best completed run, so a newly added achievement that an earlier run already reached unlocks then.
+A `run` achievement whose stat and requirements only use enemies defeated and active seconds is also checked during play, as Ace Pilot is; any other achievement is checked when a run is completed.
+
+Three examples show the parts: **Exterminator** has tiers for 100, 500 and 1000 enemies over every completed run, **Sharpshooter** needs 80% accuracy in a run with at least 50 shots, and the hidden **Untouchable** needs a completed run without losing a life.
+
+The records page shows a `run` achievement's progress from the best counted run, and a `total` one's from every counted run added up. Both are rebuilt from the saved runs, so progress is not stored separately. When a run is completed, `run` achievements are checked against the best counted run, so a newly added achievement that an earlier run already reached unlocks then.
 
 The existing six achievements (First Flight, First Contact, Ace Pilot, Still Flying, Top That and Every Ending) are single-tier definitions with their original IDs and conditions, so their unlock states and times load unchanged. Each saved achievement entry is one tier: an entry without a `tier` field is the first tier, so profiles saved before tiers existed load as they are, and single-tier achievements are still saved without one. Achievement IDs the build does not define are kept and saved again instead of rejecting the profile, so a profile written by a branch with more achievements still loads.
 
@@ -68,7 +82,7 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\build.ps1
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\test-records.ps1
 ```
 
-The records tests cover field validation, run modes and statistics collected from the gameplay events, version 2 persistence across restarts, loading and converting version 1 profiles without losing data, version 1 backups, active-time accounting, duplicate completion handling, boundary conditions for the existing achievements, achievement progress, tiers, hidden entries and kept unlock times (`AchievementDefinitionTest`), scrolling the achievement list, ranking order and the ten-entry limit, recovery after restart, backup-recovery warnings, preservation of original files when recovery is unavailable, protection of the valid primary profile when backup writes fail, and event handling after a run has closed.
+The records tests cover field validation, run modes and statistics collected from the gameplay events, version 2 persistence across restarts, loading and converting version 1 profiles without losing data, version 1 backups, active-time accounting, duplicate completion handling, boundary conditions for the existing achievements, achievement progress, tiers, hidden entries, requirements, the example achievements and kept unlock times (`AchievementDefinitionTest`), scrolling the achievement list, ranking order and the ten-entry limit, recovery after restart, backup-recovery warnings, preservation of original files when recovery is unavailable, protection of the valid primary profile when backup writes fail, and event handling after a run has closed.
 
 Verification on 2026-10-15: the build succeeded with 60 Java source files; 104 records checks, 35 gameplay integration checks, and the existing course wave-list checks passed. The added checks call the actual collision handlers and cover normal and special enemies across the three defeat paths, repeated calls, shield absorption, Infinite Mode defeats/escapes/collisions, exclusion of countdowns and ending animations, abandonment, the 60-second achievement trigger, natural-death records, the I shortcut, and replay in both modes.
 
