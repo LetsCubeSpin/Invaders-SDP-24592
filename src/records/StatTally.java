@@ -1,26 +1,46 @@
 package records;
 
-/** Value of every {@link Stat} in one run, completed or being played. */
+import java.util.EnumSet;
+import java.util.Set;
+
+/** Value of every {@link Stat} in one run or stage. */
 final class StatTally {
     private final long[] values = new long[Stat.values().length];
-    /** Whether the run has {@link RunStats}; version 1 records do not. */
-    private final boolean hasRunStats;
+    /** Values known for this run or stage; the others are missing, not 0. */
+    private final Set<Stat> known;
 
     /** A run being played, whose live values start at 0. */
     StatTally() {
-        this(true);
+        this(EnumSet.allOf(Stat.class));
     }
 
-    private StatTally(final boolean hasRunStats) {
-        this.hasRunStats = hasRunStats;
+    private StatTally(final Set<Stat> known) {
+        this.known = known;
     }
 
-    /** @return the values of one completed run. */
+    /**
+     * @return the values of one completed run. A version 1 record has no
+     *         {@link RunStats}, so those values are missing.
+     */
     static StatTally ofRun(final RunRecord run, final boolean beatHighScore) {
-        StatTally tally = new StatTally(run.getMode() != RunMode.UNKNOWN);
+        Set<Stat> known = EnumSet.noneOf(Stat.class);
         for (Stat stat : Stat.values())
+            if (stat.isPerRun() && (run.getMode() != RunMode.UNKNOWN
+                    || !stat.needsRunStats()))
+                known.add(stat);
+        StatTally tally = new StatTally(known);
+        for (Stat stat : known)
             tally.values[stat.ordinal()] = stat.ofRun(run, beatHighScore);
         return tally;
+    }
+
+    /** @return an empty tally of one stage, to fill with {@link #set}. */
+    static StatTally forStage() {
+        Set<Stat> known = EnumSet.noneOf(Stat.class);
+        for (Stat stat : Stat.values())
+            if (stat.isPerStage())
+                known.add(stat);
+        return new StatTally(known);
     }
 
     long get(final Stat stat) {
@@ -31,8 +51,8 @@ final class StatTally {
         this.values[stat.ordinal()] = Math.max(0, value);
     }
 
-    /** @return whether a value is known for this run, rather than missing. */
+    /** @return whether a value is known, rather than missing. */
     boolean has(final Stat stat) {
-        return this.hasRunStats || !stat.needsRunStats();
+        return this.known.contains(stat);
     }
 }

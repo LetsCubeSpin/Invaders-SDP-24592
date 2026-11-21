@@ -483,6 +483,14 @@ public class GameScreen extends Screen {
 							event.getEventId());
 			}
 		});
+		// Stage achievements read the values of this stage from the session.
+		this.recordsEvents.subscribe(LevelCompletedEvent.class,
+				new GameplayEventListener<LevelCompletedEvent>() {
+			public void onEvent(final LevelCompletedEvent event) {
+				if (recordsService != null && GameScreen.this.runSession != null)
+					recordsService.stageCleared(GameScreen.this.runSession);
+			}
+		});
 
 		if (shipType == null)
 			throw new IllegalArgumentException("Ship type cannot be null.");

@@ -25,6 +25,7 @@ public final class RecordsSmokeTest {
         testWriteFailureAndLifecycle();
         testCompletionThresholdBoundary();
         testLatestMainDefeatAdapter();
+        testStageClearAdapter();
         testRecordsPageNavigationAndRender();
         testLatestMainMenuOrder();
         testRunRecordModeAndStats();
@@ -485,6 +486,35 @@ private static void testLatestMainDefeatAdapter() throws Exception {
         defeated.invoke(game,new entity.EnemyShip());
         assertTrue(service.getUnlockTime(Achievement.TWENTY_ENEMIES)!=null,"shared publisher forwards twentieth distinct defeat");
     } finally { global.set(null,previous); service.close(); }
+}
+private static void testStageClearAdapter() throws Exception {
+    java.lang.reflect.Field global = engine.Core.class.getDeclaredField("recordsService");
+    global.setAccessible(true); Object previous = global.get(null);
+    java.lang.reflect.Field bus = screen.GameScreen.class.getDeclaredField("recordsEvents");
+    bus.setAccessible(true);
+    try {
+        for (boolean hit : new boolean[] { true, false }) {
+            RecordsService service = new RecordsService(testDirectory("stage-clear-" + hit)
+                    .resolve("profile.properties"));
+            global.set(null, service);
+            try {
+                service.startRun("stage-run");
+                RunSession session = new RunSession("stage-run", RunMode.CAMPAIGN);
+                screen.GameScreen game = new screen.GameScreen(new engine.GameState(1,0,3,0,0),
+                        new engine.GameSettings(2,2,40,1000),false,432,490,60,session);
+                session.stageStarted(1);
+                event.GameplayEventPublisher events = (event.GameplayEventPublisher) bus.get(game);
+                if (hit)
+                    events.publish(new event.PlayerHitEvent("stage-run", "hit-1",
+                            event.PlayerHitSource.ENEMY_BULLET, 1, 2));
+                events.publish(new event.LevelCompletedEvent(1, engine.GameplayConfig.EASY));
+                assertTrue(hit == (service.getUnlockTime(Achievement.UNTOUCHABLE) == null),
+                        "a stage clear on the screen's bus checks stage achievements, hit=" + hit);
+            } finally {
+                service.close();
+            }
+        }
+    } finally { global.set(null, previous); }
 }
 private static void testRecordsPageNavigationAndRender() {
 		RecordsService service = null;

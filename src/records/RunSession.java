@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import event.BossDefeatedEvent;
 import event.BulletHitEvent;
 import event.DeduplicatingListener;
+import event.EnemyDefeatedEvent;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
 import event.ItemUsedEvent;
@@ -40,6 +41,17 @@ public final class RunSession {
 	private int bossesDefeated;
 	/** Items used. */
 	private int itemsUsed;
+	/** Enemies defeated; only used for the values of a stage. */
+	private int enemiesDefeated;
+	/** Number of the stage being played, or 0 before the first. */
+	private int currentStage;
+	/**
+	 * Counts when the current stage started: shots, hits, times hit,
+	 * bosses, items, enemies and waves, in that order.
+	 */
+	private final int[] stageStartCounts = new int[7];
+	/** Active duration in nanoseconds when the current stage started. */
+	private long stageStartNanos;
 	/** Accumulated active duration in nanoseconds. */
 	private long activeDurationNanos;
 	/** Start time of the current active segment. */
@@ -125,6 +137,14 @@ public final class RunSession {
 					bossesDefeated = addCount(bossesDefeated, 1);
 			}
 		}));
+		events.subscribe(EnemyDefeatedEvent.class,
+				new DeduplicatingListener<EnemyDefeatedEvent>(
+						new GameplayEventListener<EnemyDefeatedEvent>() {
+			public void onEvent(final EnemyDefeatedEvent event) {
+				if (accepts(event.getRunId()))
+					enemiesDefeated = addCount(enemiesDefeated, 1);
+			}
+		}));
 		events.subscribe(ItemUsedEvent.class,
 				new DeduplicatingListener<ItemUsedEvent>(
 						new GameplayEventListener<ItemUsedEvent>() {
@@ -146,7 +166,8 @@ public final class RunSession {
 	}
 
 	/**
-	 * Records that a stage of the run started. Ignored after the run finished.
+	 * Records that a stage of the run started; {@link #getStageValues}
+	 * counts from here. Ignored after the run finished.
 	 *
 	 * @param stage
 	 *            1-based stage number.
@@ -154,8 +175,53 @@ public final class RunSession {
 	public void stageStarted(final int stage) {
 		if (stage < 1)
 			throw new IllegalArgumentException("stage must be 1 or greater.");
-		if (this.completedRecord == null)
-			this.stageReached = Math.max(this.stageReached, stage);
+		if (this.completedRecord != null)
+			return;
+		this.stageReached = Math.max(this.stageReached, stage);
+		this.currentStage = stage;
+		int[] counts = stageCounts();
+		System.arraycopy(counts, 0, this.stageStartCounts, 0, counts.length);
+		this.stageStartNanos = this.activeDurationNanos;
+	}
+
+	private int[] stageCounts() {
+		return new int[] { this.shotsFired, this.hits, this.timesHit,
+				this.bossesDefeated, this.itemsUsed, this.enemiesDefeated,
+				this.wavesReached };
+	}
+
+	/**
+	 * Values of the stage being played, counted since {@link #stageStarted};
+	 * read when the stage is cleared.
+	 *
+	 * @param nowNanos
+	 *            Monotonic time, normally from System.nanoTime().
+	 * @return the values of the current stage.
+	 */
+	StatTally getStageValues(final long nowNanos) {
+		int[] counts = stageCounts();
+		int[] start = this.stageStartCounts;
+		long nanos = this.activeDurationNanos;
+		if (this.active) {
+			long elapsed = nowNanos - this.activeSegmentStartNanos;
+			if (elapsed > 0 && Long.MAX_VALUE - nanos >= elapsed)
+				nanos += elapsed;
+		}
+		StatTally stage = StatTally.forStage();
+		stage.set(Stat.SHOTS_FIRED, counts[0] - start[0]);
+		stage.set(Stat.BULLET_HITS, counts[1] - start[1]);
+		stage.set(Stat.ACCURACY_PERCENT, Stat.accuracyPercent(
+				counts[1] - start[1], counts[0] - start[0]));
+		stage.set(Stat.TIMES_HIT, counts[2] - start[2]);
+		stage.set(Stat.BOSSES_DEFEATED, counts[3] - start[3]);
+		stage.set(Stat.ITEMS_USED, counts[4] - start[4]);
+		stage.set(Stat.ENEMIES_DEFEATED, counts[5] - start[5]);
+		stage.set(Stat.WAVES_REACHED, counts[6] - start[6]);
+		stage.set(Stat.ACTIVE_SECONDS,
+				TimeUnit.NANOSECONDS.toSeconds(nanos - this.stageStartNanos));
+		stage.set(Stat.STAGE_REACHED, this.currentStage);
+		stage.set(Stat.STAGES_CLEARED, 1);
+		return stage;
 	}
 
 	/** Records that a wave started; waves add up over the whole run. */

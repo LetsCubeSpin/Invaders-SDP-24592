@@ -79,10 +79,11 @@ public final class AchievementStatus {
 
     /**
      * @return progress such as "13/20" towards the next tier, capped at the
-     *         target, or an empty string while hidden.
+     *         target, or an empty string while hidden and for a STAGE
+     *         achievement, whose stage values are not saved.
      */
     public String getProgressText() {
-        if (!isRevealed())
+        if (!isRevealed() || this.achievement.getScope() == Achievement.Scope.STAGE)
             return "";
         long target = getTarget();
         return Math.min(this.progress, target) + "/" + target;

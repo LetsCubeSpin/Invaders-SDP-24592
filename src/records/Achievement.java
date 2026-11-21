@@ -16,20 +16,28 @@ import story.Ending;
  * needs a value no achievement counts yet, add that value to {@link Stat}
  * as well.</p>
  *
- * <p>A definition names the {@link Stat} it measures, whether one run or
- * the whole game counts ({@link Scope}), and one to three targets; with
- * more than one, they are the Bronze, Silver and Gold tiers. Requirements
- * ({@link Builder#atLeast}, {@link Builder#atMost}) limit which runs count,
- * for conditions such as "without losing a life" or "with 80% accuracy".
- * A hidden achievement shows as "???" until it unlocks.</p>
+ * <p>A definition names the {@link Stat} it measures, whether one stage,
+ * one run or the whole game counts ({@link Scope}), and one to three
+ * targets; with more than one, they are the Bronze, Silver and Gold tiers.
+ * Requirements ({@link Builder#atLeast}, {@link Builder#atMost}) limit
+ * which stages or runs count, for conditions such as "without losing a
+ * life" or "with 80% accuracy". A hidden achievement shows as "???" until
+ * it unlocks.</p>
  *
  * <p>Never change the ID of an existing achievement: saved unlock times are
  * stored under it.</p>
  */
 public final class Achievement {
 
-    /** Whether the target must be reached in one run or over the whole game. */
+    /** Whether the target must be reached in one stage, one run or the whole game. */
     public enum Scope {
+        /**
+         * One cleared Campaign or Story stage must reach the target, with
+         * the values counted from the start of that stage. Checked as soon
+         * as the stage is cleared. Stage values are not saved, so the
+         * records page shows no progress for these.
+         */
+        STAGE,
         /**
          * One completed run must reach the target. Achievements that only
          * use enemies defeated and active seconds are also checked while
@@ -85,12 +93,11 @@ public final class Achievement {
             "Sharpshooter", "Finish a run with {target}% accuracy (50+ shots).")
             .run(Stat.ACCURACY_PERCENT, 80)
             .atLeast(Stat.SHOTS_FIRED, 50));
-    /** Hidden, with a requirement: a completed run that never cost a life. */
+    /** Hidden, for one stage: a cleared stage that never cost a life. */
     public static final Achievement UNTOUCHABLE = add(define("untouchable",
-            "Untouchable", "Complete a run without losing a life.")
-            .run(Stat.RUNS_COMPLETED, 1)
+            "Untouchable", "Clear a stage without losing a life.")
+            .stage(Stat.STAGES_CLEARED, 1)
             .atMost(Stat.TIMES_HIT, 0)
-            .atLeast(Stat.ENEMIES_DEFEATED, 1)
             .hidden());
 
     private final String id;
@@ -125,8 +132,8 @@ public final class Achievement {
      * @param condition
      *            How to reach it; {@code {target}} is replaced by the target
      *            of the tier shown.
-     * @return a definition to finish with {@link Builder#run} or
-     *         {@link Builder#total}.
+     * @return a definition to finish with {@link Builder#stage},
+     *         {@link Builder#run} or {@link Builder#total}.
      */
     static Builder define(final String id, final String name,
             final String condition) {
@@ -229,10 +236,10 @@ public final class Achievement {
     }
 
     /**
-     * @return whether a run counts towards this achievement: it has the
-     *         values the achievement uses and meets every requirement. A
-     *         version 1 record has no {@link RunStats}, so it never meets a
-     *         requirement on them, even "at most 0".
+     * @return whether a run or stage counts towards this achievement: it
+     *         has the values the achievement uses and meets every
+     *         requirement. A version 1 record has no {@link RunStats}, so it
+     *         never meets a requirement on them, even "at most 0".
      */
     boolean counts(final StatTally run) {
         if (!run.has(this.stat))
@@ -310,6 +317,20 @@ public final class Achievement {
         }
 
         /**
+         * One cleared stage must reach the targets.
+         *
+         * @param stat
+         *            Value of the stage compared with the targets.
+         * @param targets
+         *            Target of each tier, from the first: 1 to
+         *            {@link #MAX_TIERS} positive, increasing values.
+         * @return this definition.
+         */
+        Builder stage(final Stat stat, final long... targets) {
+            return measure(Scope.STAGE, stat, targets);
+        }
+
+        /**
          * One completed run must reach the targets.
          *
          * @param stat
@@ -337,13 +358,13 @@ public final class Achievement {
             return measure(Scope.TOTAL, stat, targets);
         }
 
-        /** Only runs with at least this value count. */
+        /** Only stages or runs with at least this value count. */
         Builder atLeast(final Stat requirementStat, final long limit) {
             this.requirements.add(new Requirement(requirementStat, limit, false));
             return this;
         }
 
-        /** Only runs with at most this value count. */
+        /** Only stages or runs with at most this value count. */
         Builder atMost(final Stat requirementStat, final long limit) {
             this.requirements.add(new Requirement(requirementStat, limit, true));
             return this;
@@ -382,6 +403,12 @@ public final class Achievement {
             if (this.scope == Scope.TOTAL && !this.stat.addsUp())
                 throw new IllegalArgumentException(this.stat
                         + " cannot be added up over runs; use run.");
+            for (Stat used : usedStats())
+                if (this.scope == Scope.STAGE ? !used.isPerStage()
+                        : !used.isPerRun() && !used.isProfileWide())
+                    throw new IllegalArgumentException(used
+                            + " is not counted per " + (this.scope == Scope.STAGE
+                                    ? "stage" : "run") + ": " + this.id);
             if (this.targets == null || this.targets.length < 1
                     || this.targets.length > MAX_TIERS)
                 throw new IllegalArgumentException(
@@ -392,6 +419,15 @@ public final class Achievement {
                     throw new IllegalArgumentException(
                             "Targets must be positive and strictly increasing.");
             return new Achievement(this);
+        }
+
+        /** @return the measured stat and the stats of the requirements. */
+        private List<Stat> usedStats() {
+            List<Stat> used = new ArrayList<Stat>();
+            used.add(this.stat);
+            for (Requirement requirement : this.requirements)
+                used.add(requirement.stat);
+            return used;
         }
     }
 }
