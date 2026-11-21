@@ -75,7 +75,7 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Diffi
 | Stage 1~3 | STANDARD의 기본 탄종. Stage 3은 첫 선택에 따라 ARGUS 또는 NOX | STANDARD 기체와 해당 보스 적용. 시작 탄종은 NORMAL |
 | Stage 4~7 | 루트 탄종 및 수류탄 지급 여부. Stage 7은 루트의 최종 보스 | 현재 등록된 보스와 웨이브 적용. 시작 탄종 NORMAL, 시작 수류탄 0 |
 
-일반 Campaign Stage 7에서는 VESPERA(BOSS_C)가 등장한다. Story 런처는 `StoryRoute`를 따르므로 HYBRID 7단계에서는 BOSS_A, TRUCE 7단계에서는 BOSS_B가 등장한다. 미리보기의 TRUCE 탄종 MULTI와 HOMECOMING 수류탄 지급 표시는 스토리 데이터 값을 보여 준다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
+일반 Campaign Stage 7에서는 VESPERA(BOSS_C)가 등장한다. Story 런처의 7단계 보스는 `StoryRoute`가 정한다. HYBRID에서는 VESPERA(BOSS_C), TRUCE에서는 OBELISK(BOSS_D)가 등장한다. 미리보기의 TRUCE 탄종 MULTI와 HOMECOMING 수류탄 지급 표시는 스토리 데이터 값을 보여 준다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
 
 디버그 실행은 한 스테이지의 전투가 끝나면 관리 창으로 돌아가며, 일반 Story의 엔딩이나 점수 화면으로 넘어가지 않는다. 일회성 명령으로 직접 실행한 경우에는 전투 종료와 함께 도구도 종료한다.
 
@@ -88,7 +88,7 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Diffi
 * 정상 전투 종료 후 전체 종료하면 코드 0이다. 전투 실패 직후 전체 종료하거나 설정 변경을 취소하면 해당 실패 코드를 유지한다. 사용자가 명시적으로 재시도해 성공한 후 종료하면 코드 0이며, 관리 루프의 대기가 인터럽트되면 코드 130이다.
 * `StoryDebugLauncher.createScreen`은 활성 기록 서비스가 있는 JVM을 거부한다. `RunSession`은 null이며, 일반 Story의 기록 저장, 점수 화면과 엔딩으로 이어지는 경로를 실행하지 않는다. 디버그 전투의 일시적인 점수와 클리어 이벤트는 게임 화면 안에서 정상 발생한다.
 * 일반 실행의 `-Dstory.route=TRUCE`는 `PlaceholderStoryScenes`가 질문에 답할 루트만 정한다. 디버그 선택 창도 이 경로를 재사용해 초기 루트를 읽는다. 기존 `-Dinvaders.debugKeys=true`는 전투 중 F2 방패 테스트 옵션이다.
-* **박경준 및 무기 담당자**가 변경할 최소 지점은 두 Story 팩토리의 공용 생성 경로와 `GameScreen.initialize()`다. 팩토리에서 `progress.weaponForStage(stageNumber, shipType.getBulletType())`와 `progress.givesGrenadesOnStage(stageNumber)`를 보관하고, 스토리 기체 생성 직후에 탄종·시작 수류탄을 한 번만 적용한다. 수류탄 개수는 담당자의 게임 규칙이 필요하다. 장비 적용 후 기존 `StoryGameScreenTest.everyShipUsesTheNormalWeapon`을 새 게임 규칙으로 갱신하고 런처의 현재 장비 안내도 갱신한다. 보스·무기 담당자가 새 타입과 루트 데이터를 연결하면 런처는 같은 팩토리와 데이터를 사용한다.
+* **박경준 및 무기 담당자**가 변경할 최소 지점은 두 Story 팩토리의 공용 생성 경로와 `GameScreen.initialize()`다. 팩토리에서 `progress.weaponForStage(stageNumber, shipType.getBulletType())`와 `progress.givesGrenadesOnStage(stageNumber)`를 보관하고, 스토리 기체 생성 직후에 탄종·시작 수류탄을 한 번만 적용한다. 수류탄 개수는 담당자의 게임 규칙이 필요하다. 장비 적용 후 기존 `StoryGameScreenTest.everyShipUsesTheNormalWeapon`을 새 게임 규칙으로 갱신하고 런처의 현재 장비 안내도 갱신한다.
 * 별도 전투 창에는 `Core.java` 변경이 필요 없다. 최신 main의 일반 `GameModeScreen`에는 Story 메뉴가 추가되었고, `Core`의 분기 15로 정상 Story를 시작한다. `Core.playStory`는 1단계에서 시작해 플레이 기록을 준비하므로 개발자 즉시 진입에 재사용하지 않는다. 일반 Story 메뉴와 개발자 선택 창은 서로 다른 진입점이다. 메뉴의 우클릭/Esc 뒤로 가기와 BGM 연속 재생 변경은 main 그대로 사용한다.
 
 ### 담당자 연동 계약
@@ -97,10 +97,10 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Diffi
 | --- | --- | --- |
 | 박경준: `GameScreen.createStoryStage` / `initialize` | 스테이지 번호, 선행 선택이 복원된 `StoryProgress`, `ShipType` → 실제 기체의 시작 장비 | `weaponForStage(stage, ship.getBulletType())` 및 `givesGrenadesOnStage(stage)`를 사용한다. Stage 1~3/4~7 경계, 4루트×7단계(EASY, STANDARD), 일반 Story/Debug 동등성을 검사한다. |
 | 박경준 및 무기 담당자: 수류탄/루트 무기 | 지급 플래그와 합의된 지급 개수 → `Ship.setBulletType` / `addGrenades` 결과 | 수류탄 지급 개수와 스테이지 간 이월·상한 규칙을 먼저 합의한다. 초기화 때 한 번만 적용하고 다음 웨이브에서 재지급하지 않는다. PIERCE를 임의 탄종으로 치환하지 않는다. |
-| 박경준·이성민: `StoryRoute` / 보스 연결 | HYBRID 최종 보스 데이터 → BOSS_C 실제 생성 | 일반 Campaign에서 검증한 BOSS_C를 Story에 연결한 뒤 HYBRID Stage 7 소환·처치·종료를 재검증한다. TRUCE의 OBELISK는 별도 구현·병합 후 검증한다. |
+| 박경준·이성민: `StoryRoute` / 보스 연결 | 7단계에서 HYBRID는 BOSS_C, TRUCE는 BOSS_D를 생성한다. | 두 루트를 실제 디버그 런처로 시작하는 전투 통합 검증은 KAN-65에서 다룬다. |
 | KAN-56 | 선택 검증, 선행 선택 복원, 격리 JVM → 공용 Story 팩토리 | 테스트·설명 갱신은 자체 처리한다. 담당자의 소스나 시작 장비를 디버그 전용 하드코딩으로 대체하지 않는다. |
 
-부모 작업 KAN-56의 시작 장비 지급과 HYBRID 최종 보스 연결은 후속 연동 항목이다.
+KAN-56의 루트별 시작 무기와 수류탄 지급은 후속 연동 항목이다.
 
 ## Linux/macOS 실행
 
@@ -149,6 +149,6 @@ Unix 스크립트 검증은 가짜 JDK로 성공·인수 경계·예외 종료 �
 
 별도 장비 검사도 같은 28개 조합에서 일반 Story 팩토리와 Debug의 시작 탄종·수류탄 수를 비교한다. 이는 두 경로의 동등성 검사이며, NORMAL·수류탄 0을 올바른 게임 규칙으로 고정하는 검사가 아니다. 실제 시작 장비가 스토리 데이터의 요구를 충족하는지는 위 미완료 항목으로 별도 관리한다. 격리 자식 JVM에는 Gradle이 제공하는 JaCoCo 에이전트 인수를 전달한다.
 
-별도 격리 테스트는 main의 일반 Campaign Stage 7을 통해 BOSS_C를 생성한다. 대기 시계만 만료시켜 페이즈별 A/B/C 소환 요청이 실제 `GameScreen`의 적으로 변환되는지, 보스 처치 시 소환 적 정리와 스테이지 종료가 이어지는지 검사한다. KAN-62의 `StoryDebugBossTest`는 디버그 Story 화면의 초기 보스 타입만 BOSS_C로 지정하는 테스트 픽스처를 사용한다. 생성 이후에는 실제 보스 공격 시스템과 소환 경로를 거쳐 3개 페이즈에서 적 HP와 이동량을 확인한다. 실제 Story 런처의 HYBRID 7단계는 BOSS_A를 사용한다.
+별도 격리 테스트는 main의 일반 Campaign Stage 7을 통해 BOSS_C를 생성한다. 대기 시계만 만료시켜 페이즈별 A/B/C 소환 요청이 실제 `GameScreen`의 적으로 변환되는지, 보스 처치 시 소환 적 정리와 스테이지 종료가 이어지는지 검사한다. KAN-62의 `StoryDebugBossTest`는 디버그 Story 화면의 초기 보스 타입만 BOSS_C로 지정하는 테스트 픽스처를 사용한다. 생성 이후에는 실제 보스 공격 시스템과 소환 경로를 거쳐 3개 페이즈에서 적 HP와 이동량을 확인한다. 이 테스트에서 BOSS_C를 직접 지정하므로 실제 루트의 보스 선택은 검증 범위에서 빠진다.
 
 두 스크립트의 회귀 테스트는 `NORMAL`·`HARD` 난이도와 `SPEEDSTER`·`TANK` 기체를 거부하고 소문자 `easy`·`standard`를 허용하는지 확인한다. PowerShell 회귀 테스트는 부분 인수, 잘못된 JDK 경로, 소수 스테이지, `javac`와 Java의 실패 종료 코드 전달 및 임시 폴더 정리도 검사한다. 임시 경로에는 공백이 있으며 Java 실패 시나리오에서는 실제 선택적 컴파일도 수행한다. PowerShell 프로세스 자체가 강제 종료되면 임시 폴더가 남을 수 있다. 다음 실행에서는 새 폴더를 사용한다.
