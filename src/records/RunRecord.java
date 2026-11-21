@@ -15,9 +15,15 @@ public final class RunRecord {
 	private final long activeDurationMillis;
 	/** Time at which the run completed, in Unix epoch milliseconds. */
 	private final long completionTimeMillis;
+	/** Game mode of the run. */
+	private final RunMode mode;
+	/** Play statistics of the run. */
+	private final RunStats stats;
 
 	/**
-	 * Creates a completed run record.
+	 * Creates a record without a mode or play statistics, as version 1
+	 * profiles stored it: the mode is {@link RunMode#UNKNOWN} and every
+	 * statistic is 0.
 	 *
 	 * @param runId
 	 *            Unique, non-blank run identifier.
@@ -33,6 +39,31 @@ public final class RunRecord {
 	public RunRecord(final String runId, final int score,
 			final int enemiesDefeated, final long activeDurationMillis,
 			final long completionTimeMillis) {
+		this(runId, RunMode.UNKNOWN, score, enemiesDefeated,
+				activeDurationMillis, completionTimeMillis, RunStats.EMPTY);
+	}
+
+	/**
+	 * Creates a completed run record.
+	 *
+	 * @param runId
+	 *            Unique, non-blank run identifier.
+	 * @param mode
+	 *            Game mode of the run.
+	 * @param score
+	 *            Final score.
+	 * @param enemiesDefeated
+	 *            Total number of enemies defeated.
+	 * @param activeDurationMillis
+	 *            Active play duration in milliseconds.
+	 * @param completionTimeMillis
+	 *            Completion time in Unix epoch milliseconds.
+	 * @param stats
+	 *            Play statistics of the run.
+	 */
+	public RunRecord(final String runId, final RunMode mode, final int score,
+			final int enemiesDefeated, final long activeDurationMillis,
+			final long completionTimeMillis, final RunStats stats) {
 		if (runId == null || runId.trim().length() == 0)
 			throw new IllegalArgumentException("runId must not be blank.");
 		if (enemiesDefeated < 0)
@@ -44,12 +75,18 @@ public final class RunRecord {
 		if (completionTimeMillis <= 0)
 			throw new IllegalArgumentException(
 					"completionTimeMillis must be positive.");
+		if (mode == null)
+			throw new IllegalArgumentException("mode must not be null.");
+		if (stats == null)
+			throw new IllegalArgumentException("stats must not be null.");
 
 		this.runId = runId;
 		this.score = score;
 		this.enemiesDefeated = enemiesDefeated;
 		this.activeDurationMillis = activeDurationMillis;
 		this.completionTimeMillis = completionTimeMillis;
+		this.mode = mode;
+		this.stats = stats;
 	}
 
 	/** @return the unique run identifier. */
@@ -75,5 +112,15 @@ public final class RunRecord {
 	/** @return the completion time in Unix epoch milliseconds. */
 	public long getCompletionTimeMillis() {
 		return this.completionTimeMillis;
+	}
+
+	/** @return the game mode of the run. */
+	public RunMode getMode() {
+		return this.mode;
+	}
+
+	/** @return the play statistics of the run. */
+	public RunStats getStats() {
+		return this.stats;
 	}
 }
