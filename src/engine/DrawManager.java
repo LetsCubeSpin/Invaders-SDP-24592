@@ -22,7 +22,8 @@ import screen.PlayerRecordsScreen;
 import screen.Screen;
 import screen.ShipCustomization;
 import hud.FloatingScoreHud;
-import records.Achievement;
+import records.AchievementStatus;
+import records.AchievementUnlock;
 import records.RecordsService;
 import records.RunRecord;
 import records.RunRecordFormatter;
@@ -59,6 +60,9 @@ public final class DrawManager {
                 - fontRegularMetrics.getDescent()
                 + fontBigMetrics.getAscent()) / 2;
     }
+
+    /** Most rows of newly unlocked achievements on the results screen. */
+    private static final int MAX_RESULT_ACHIEVEMENTS = 6;
 
     /**
      * Centers the complete achievement result block above the input prompt.
@@ -1730,10 +1734,10 @@ public final class DrawManager {
     }
 
     public void drawAchievementNotice(final Screen screen,
-            final Achievement achievement) {
+            final AchievementUnlock achievement) {
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, "Achievement unlocked: "
-                + achievement.getName(), screen.getHeight() / 7);
+                + achievement.getTitle(), screen.getHeight() / 7);
         backBufferGraphics.setColor(Color.WHITE);
         drawCenteredRegularString(screen, achievement.getCondition(),
                 screen.getHeight() / 7 + fontRegularMetrics.getHeight());
@@ -1741,7 +1745,7 @@ public final class DrawManager {
     public void drawAchievementResults(final Screen screen, final int score,
             final int lives, final int enemies, final float accuracy,
             final boolean isNewRecord, final char[] name, final int selected,
-            final List<Achievement> achievements, final boolean acceptsInput, final int failedStage) {
+            final List<AchievementUnlock> achievements, final boolean acceptsInput, final int failedStage) {
         drawAchievementResults(screen, score, lives, enemies, accuracy, isNewRecord, name, selected,
                 achievements, acceptsInput, failedStage, false);
     }
@@ -1749,7 +1753,7 @@ public final class DrawManager {
     public void drawAchievementResults(final Screen screen, final int score,
             final int lives, final int enemies, final float accuracy,
             final boolean isNewRecord, final char[] name, final int selected,
-            final List<Achievement> achievements, final boolean acceptsInput, final int failedStage,
+            final List<AchievementUnlock> achievements, final boolean acceptsInput, final int failedStage,
             final boolean gameCleared) {
         drawAchievementResults(screen, score, lives, enemies, accuracy,
                 isNewRecord, name, selected, achievements, acceptsInput,
@@ -1759,11 +1763,11 @@ public final class DrawManager {
     public void drawAchievementResults(final Screen screen, final int score,
             final int lives, final int enemies, final float accuracy,
             final boolean isNewRecord, final char[] name, final int selected,
-            final List<Achievement> achievements, final boolean acceptsInput,
+            final List<AchievementUnlock> achievements, final boolean acceptsInput,
             final int failedStage, final boolean gameCleared, final String modeLabel) {
         int spacing = fontRegularMetrics.getHeight();
         int y = getAchievementResultsTitleY(screen, isNewRecord, failedStage,
-                achievements.size());
+                Math.min(achievements.size(), MAX_RESULT_ACHIEVEMENTS));
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, gameCleared ? "Game Cleared!" : "Game Over", y);
         if (failedStage > 0) {
@@ -1791,27 +1795,74 @@ public final class DrawManager {
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, "New achievements:", y);
         backBufferGraphics.setColor(Color.WHITE);
-        for (Achievement achievement : achievements) {
+        // A run can unlock more tiers than fit; the last row counts the rest.
+        int rows = Math.min(achievements.size(), MAX_RESULT_ACHIEVEMENTS);
+        boolean overflow = achievements.size() > rows;
+        for (int i = 0; i < rows; i++) {
             y += spacing;
-            drawCenteredRegularString(screen, achievement.getName(), y);
+            drawCenteredRegularString(screen, overflow && i == rows - 1
+                    ? "and " + (achievements.size() - i) + " more"
+                    : achievements.get(i).getTitle(), y);
         }
         backBufferGraphics.setColor(acceptsInput ? Color.GREEN : Color.GRAY);
         drawCenteredRegularString(screen, "Space: play again   Esc: menu",
                 screen.getHeight() - spacing);
     }
 
-    public void drawAchievementList(final Screen screen, final RecordsService service, int y) {
-        // Two rows per achievement so every achievement fits above the status line.
-        for (Achievement achievement : Achievement.values()) {
-            Long unlocked = service.getUnlockTime(achievement);
-            backBufferGraphics.setColor(unlocked == null ? Color.WHITE : Color.GREEN);
-            drawCenteredRegularString(screen, achievement.getName() + (unlocked == null ? " [Locked]"
+    /** Height of one achievement on the records page: two text rows and a gap. */
+    private int achievementRowHeight() {
+        return fontRegularMetrics.getHeight() * 2 + 8;
+    }
+
+    /** First baseline of the achievement rows, below the summary line. */
+    private int achievementListTop(final Screen screen) {
+        return getRecordsPageTop(screen) + fontRegularMetrics.getHeight() * 2;
+    }
+
+    /**
+     * @return how many achievements the records page shows at once; Up/Down
+     *         scrolls through the others.
+     */
+    public int getAchievementsPerPage(final Screen screen) {
+        // Rows stop one line above the status line at the bottom.
+        int bottom = screen.getHeight() - fontRegularMetrics.getHeight() * 2;
+        // The second text row of the last achievement must fit above it.
+        return Math.max(1, (bottom - achievementListTop(screen)
+                - fontRegularMetrics.getHeight() + achievementRowHeight())
+                / achievementRowHeight());
+    }
+
+    /** Draws the achievements of the records page from the first one shown. */
+    public void drawAchievementList(final Screen screen, final RecordsService service,
+            final int firstShown) {
+        List<AchievementStatus> statuses = service.getAchievementStatuses();
+        int perPage = getAchievementsPerPage(screen);
+        int first = Math.max(0, Math.min(firstShown, statuses.size() - perPage));
+        int unlocked = 0;
+        for (AchievementStatus status : statuses)
+            if (status.isUnlocked())
+                unlocked++;
+        backBufferGraphics.setColor(Color.GRAY);
+        String summary = unlocked + "/" + statuses.size() + " unlocked";
+        if (statuses.size() > perPage)
+            summary += String.format("   %d-%d   Up/Down: scroll", first + 1,
+                    Math.min(statuses.size(), first + perPage));
+        drawCenteredRegularString(screen, summary, getRecordsPageTop(screen));
+        int y = achievementListTop(screen);
+        for (int i = first; i < Math.min(statuses.size(), first + perPage); i++) {
+            AchievementStatus status = statuses.get(i);
+            Long time = status.getLastUnlockTime();
+            backBufferGraphics.setColor(time == null ? Color.WHITE : Color.GREEN);
+            drawCenteredRegularString(screen, status.getTitle() + (time == null ? " [Locked]"
                     : " [" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                            .format(new Date(unlocked)) + "]"),
+                            .format(new Date(time)) + "]"),
                     y);
             backBufferGraphics.setColor(Color.GRAY);
-            drawCenteredRegularString(screen, achievement.getCondition(), y + fontRegularMetrics.getHeight());
-            y += fontRegularMetrics.getHeight() * 2 + 8;
+            String progress = status.getProgressText();
+            drawCenteredRegularString(screen, status.getCondition()
+                    + (progress.isEmpty() ? "" : "  " + progress),
+                    y + fontRegularMetrics.getHeight());
+            y += achievementRowHeight();
         }
     }
 
@@ -1992,6 +2043,17 @@ public final class DrawManager {
         drawRecordsPage(screen, service, tab, 0);
     }
 
+    /** Draws the records page with the achievements scrolled to the top. */
+    public void drawRecordsPage(final Screen screen,
+            final RecordsService service, final int tab, final int selectedRun) {
+        drawRecordsPage(screen, service, tab, selectedRun, 0);
+    }
+
+    /** First baseline below the title and key help of the records page. */
+    private int getRecordsPageTop(final Screen screen) {
+        return screen.getHeight() / 6 + fontRegularMetrics.getHeight() * 2;
+    }
+
     /**
      * Draws one tab of the records page.
      *
@@ -1999,9 +2061,13 @@ public final class DrawManager {
      *            One of the PlayerRecordsScreen TAB_ constants.
      * @param selectedRun
      *            Rank, from 0, of the run shown on the details tab.
+     * @param firstAchievement
+     *            Index, from 0, of the first achievement shown on the
+     *            achievements tab.
      */
     public void drawRecordsPage(final Screen screen,
-            final RecordsService service, final int tab, final int selectedRun) {
+            final RecordsService service, final int tab, final int selectedRun,
+            final int firstAchievement) {
         backBufferGraphics.setColor(Color.GREEN);
         String title = tab == PlayerRecordsScreen.TAB_RUNS ? "Run Records"
                 : tab == PlayerRecordsScreen.TAB_RUN_DETAILS ? "Run Details"
@@ -2010,7 +2076,7 @@ public final class DrawManager {
         backBufferGraphics.setColor(Color.GRAY);
         drawCenteredRegularString(screen,
                 "Left/Right: switch   Esc/Space: return", screen.getHeight() / 6);
-        int y = screen.getHeight() / 6 + fontRegularMetrics.getHeight() * 2;
+        int y = getRecordsPageTop(screen);
         if (tab == PlayerRecordsScreen.TAB_RUN_DETAILS) {
             drawRunDetails(screen, service.getTopRuns(), selectedRun, y);
         } else if (tab == PlayerRecordsScreen.TAB_RUNS) {
@@ -2046,7 +2112,7 @@ public final class DrawManager {
                 }
             }
         } else {
-            drawAchievementList(screen, service, y);
+            drawAchievementList(screen, service, firstAchievement);
         }
         backBufferGraphics.setColor(Color.GRAY);
         String status = service.getSaveError();

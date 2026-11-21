@@ -565,7 +565,7 @@ private static void testRecordsPageNavigationAndRender() {
 			draw.initDrawing(page);
 			draw.drawAchievementResults(page, 10000, 0, 20, 0.5f, true,
 					new char[] { 'A', 'A', 'A' }, 0,
-					java.util.Arrays.asList(Achievement.values()), true, 0);
+					firstTiers(Achievement.values()), true, 0);
 			javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
 					"png", directory.resolve("results.png").toFile());
 			draw.completeDrawing(page);
@@ -578,6 +578,12 @@ private static void testRecordsPageNavigationAndRender() {
 		}
 	}
 
+private static List<AchievementUnlock> firstTiers(final List<Achievement> achievements) {
+    List<AchievementUnlock> unlocks = new ArrayList<AchievementUnlock>();
+    for (Achievement achievement : achievements)
+        unlocks.add(new AchievementUnlock(achievement, 1));
+    return unlocks;
+}
 private static void testLatestMainMenuOrder() throws Exception {
     screen.TitleScreen menu = new screen.TitleScreen(432,490,60);
     java.lang.reflect.Field code = screen.Screen.class.getDeclaredField("returnCode"); code.setAccessible(true);

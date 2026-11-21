@@ -46,7 +46,7 @@ import audio.AudioManager;
 import hud.FloatingScoreHud;
 import records.RunSession;
 import records.RecordsService;
-import records.Achievement;
+import records.AchievementUnlock;
 import story.StoryProgress;
 import story.StoryQuestion;
 import story.StoryStage;
@@ -267,7 +267,7 @@ public class GameScreen extends Screen {
     private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
-    private Achievement visibleAchievement;
+    private AchievementUnlock visibleAchievement;
     private long achievementNoticeUntil;
     private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
     private final Map<EnemyShip,String> defeatIds = new IdentityHashMap<EnemyShip,String>();

@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 
 class AllEndingsAchievementTest {
 
@@ -34,7 +33,7 @@ class AllEndingsAchievementTest {
 
             endings.see(all[all.length - 1]);
             assertNotNull(records.getUnlockTime(Achievement.ALL_ENDINGS));
-            assertSame(Achievement.ALL_ENDINGS, records.pollNotification());
+            assertEquals(new AchievementUnlock(Achievement.ALL_ENDINGS, 1), records.pollNotification());
         } finally {
             records.close();
         }
@@ -49,7 +48,7 @@ class AllEndingsAchievementTest {
             records.allEndingsSeen();
 
             assertEquals(first, records.getUnlockTime(Achievement.ALL_ENDINGS));
-            assertSame(Achievement.ALL_ENDINGS, records.pollNotification());
+            assertEquals(new AchievementUnlock(Achievement.ALL_ENDINGS, 1), records.pollNotification());
             assertNull(records.pollNotification());
         } finally {
             records.close();

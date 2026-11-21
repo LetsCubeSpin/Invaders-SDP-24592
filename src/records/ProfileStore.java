@@ -27,6 +27,13 @@ import story.Ending;
  * {@link RunMode#UNKNOWN} mode and {@link RunStats#EMPTY}. A version 1 file
  * stays valid, so it is backed up as usual before the first version 2 write
  * replaces it.</p>
+ *
+ * <p>Each achievement entry is the unlock time of one tier. An entry
+ * without a {@code tier} field is the first tier, the only one achievements
+ * had before tiers existed, so those profiles load unchanged. Achievement
+ * IDs are not checked against {@link Achievement#values()}: unknown ones are
+ * kept, so a profile written by a build with more achievements still
+ * loads.</p>
  */
 public final class ProfileStore {
     /** Version written by this class. */
@@ -109,7 +116,14 @@ public final class ProfileStore {
         index = 0;
         for (Map.Entry<String, Long> entry : snapshot.getUnlockTimes().entrySet()) {
             String prefix = "achievement." + index++ + ".";
-            properties.setProperty(prefix + "id", entry.getKey());
+            String key = entry.getKey();
+            int separator = key.indexOf('#');
+            // The first tier keeps the plain ID, as profiles saved before
+            // tiers existed store it.
+            properties.setProperty(prefix + "id",
+                    separator < 0 ? key : key.substring(0, separator));
+            if (separator >= 0)
+                properties.setProperty(prefix + "tier", key.substring(separator + 1));
             properties.setProperty(prefix + "unlocked", Long.toString(entry.getValue()));
         }
         properties.setProperty("ending.count",
@@ -203,14 +217,30 @@ public final class ProfileStore {
                 throw new IOException("Invalid run record in profile.", exception);
             }
         }
-        int achievementCount = count(properties, "achievement.count",
-                Achievement.values().length);
+        int achievementCount = count(properties, "achievement.count", 100000);
         Map<String, Long> unlocked = new LinkedHashMap<String, Long>();
         for (int i = 0; i < achievementCount; i++) {
             String prefix = "achievement." + i + ".";
             String id = required(properties, prefix + "id");
-            if (Achievement.fromId(id) == null || unlocked.containsKey(id))
-                throw new IOException("Unknown or duplicate achievement ID.");
+            if (!id.matches("[a-z0-9_]+"))
+                throw new IOException("Invalid achievement ID.");
+            int tier = 1;
+            String tierValue = properties.getProperty(prefix + "tier");
+            if (tierValue != null) {
+                try {
+                    tier = Integer.parseInt(tierValue.trim());
+                } catch (NumberFormatException exception) {
+                    throw new IOException("Invalid achievement tier.", exception);
+                }
+                if (tier < 2 || tier > Achievement.MAX_TIERS)
+                    throw new IOException("Invalid achievement tier.");
+            }
+            // IDs this build does not define are kept rather than rejected,
+            // so a profile shared with a build that has more achievements
+            // still loads and keeps them.
+            String key = Achievement.unlockKey(id, tier);
+            if (unlocked.containsKey(key))
+                throw new IOException("Duplicate achievement unlock.");
             long time;
             try {
                 time = Long.parseLong(required(properties, prefix + "unlocked"));
@@ -219,7 +249,7 @@ public final class ProfileStore {
             }
             if (time <= 0)
                 throw new IOException("Invalid achievement time.");
-            unlocked.put(id, Long.valueOf(time));
+            unlocked.put(key, Long.valueOf(time));
         }
         return new ProfileSnapshot(records, unlocked, readEndings(properties));
     }
