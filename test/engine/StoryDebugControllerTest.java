@@ -73,6 +73,72 @@ class StoryDebugControllerTest {
     }
 
     @Test
+    void returningFromABossBattleOpensPreviousSettingsAndStartsAFreshStage(@TempDir Path dir) throws Exception {
+        View view = new View(List.of(FIRST, SECOND), StoryDebugController.Action.EXIT);
+        Path normalSave = dir.resolve("scores");
+        Files.writeString(normalSave, "normal progress");
+        List<List<String>> battles = new ArrayList<>();
+        assertEquals(0, StoryDebugController.runLoop(view, selection -> {
+            boolean returning = battles.isEmpty();
+            int expected = returning ? GameScreen.RETURN_TO_STORY_DEBUG : 0;
+            Path evidence = dir.resolve("child-" + battles.size() + ".txt");
+            Path log = dir.resolve("child-" + battles.size() + ".log");
+            try (StoryDebugSession session = new StoryDebugSession(dir)) {
+                List<String> command = fixtureCommand(session, selection, evidence, returning ? "return" : "write", 0);
+                int exit = session.runCommand(command, ProcessBuilder.Redirect.to(log.toFile()));
+                assertChildExit(expected, exit, log);
+                battles.add(Files.readAllLines(evidence));
+                return new StoryDebugController.Result(exit, "stage result");
+            }
+        }, FIRST));
+        assertEquals(List.of(FIRST, FIRST), view.previous);
+        assertEquals(List.of(0), view.results.stream().map(StoryDebugController.Result::exitCode).toList());
+        assertEquals(2, battles.size());
+        assertEquals(FIRST.toString(), battles.get(0).get(2));
+        assertEquals(SECOND.toString(), battles.get(1).get(2));
+        assertNotEquals(battles.get(0).get(0), battles.get(1).get(0), "Separate JVMs");
+        assertNotEquals(battles.get(0).get(1), battles.get(1).get(1), "Separate session directories");
+        for (List<String> battle : battles) assertFalse(Files.exists(Path.of(battle.get(1))));
+        assertEquals("normal progress", Files.readString(normalSave));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 7})
+    void cliStageNormallyExitsWithoutDialogs(int status) throws Exception {
+        View view = new View(List.of());
+        assertEquals(status, StoryDebugController.runLoop(view, selection -> {
+            assertEquals(FIRST, selection);
+            return new StoryDebugController.Result(status, "ended");
+        }, FIRST, true));
+        assertTrue(view.previous.isEmpty());
+        assertTrue(view.results.isEmpty());
+    }
+
+    @Test
+    void returningFromCliPromotesToInteractiveReplayAndChange() throws Exception {
+        View view = new View(List.of(SECOND), StoryDebugController.Action.REPLAY, StoryDebugController.Action.EXIT);
+        List<StoryDebugSelection> runs = new ArrayList<>();
+        assertEquals(0, StoryDebugController.runLoop(view, selection -> {
+            runs.add(selection);
+            int code = runs.size() == 1 ? GameScreen.RETURN_TO_STORY_DEBUG : 0;
+            return new StoryDebugController.Result(code, "stage result");
+        }, FIRST, true));
+        assertEquals(List.of(FIRST), view.previous);
+        assertEquals(List.of(FIRST, SECOND, SECOND), runs);
+        assertEquals(2, view.results.size());
+    }
+
+    @Test
+    void cancelAfterReturningExitsSuccessfully() throws Exception {
+        View view = new View(List.of());
+        assertEquals(0, StoryDebugController.runLoop(view,
+                selection -> new StoryDebugController.Result(GameScreen.RETURN_TO_STORY_DEBUG, "returned"),
+                FIRST, true));
+        assertEquals(List.of(FIRST), view.previous);
+        assertTrue(view.results.isEmpty());
+    }
+
+    @Test
     void cancelBeforeFirstBattleStartsNothing() throws Exception {
         assertEquals(0, StoryDebugController.runLoop(new View(List.of()), selection -> {
             fail("Cancellation must not launch a battle");
@@ -268,7 +334,7 @@ class StoryDebugControllerTest {
     private static List<String> fixtureCommand(StoryDebugSession session, StoryDebugSelection selection,
             Path evidence, String mode, int status) {
         List<String> command = session.command(selection);
-        int entry = command.indexOf(StoryDebugLauncher.class.getName());
+        int entry = command.indexOf(StoryDebugLauncher.Battle.class.getName());
         assertTrue(entry > 0);
         command.set(entry, Fixture.class.getName());
         command.add(evidence.toString());
@@ -321,7 +387,17 @@ class StoryDebugControllerTest {
                 if (!cwd.equals(Path.of(System.getProperty(property)).toRealPath())) throw new AssertionError(property);
             if (!Preferences.userRoot().get("repeat-test", "fresh").equals("fresh")) throw new AssertionError("Old preferences");
             Preferences.userRoot().put("repeat-test", "used");
+            int status = Integer.parseInt(args[tail + 2]);
             if (mode.equals("write")) checkBattle(choice);
+            if (mode.equals("return")) {
+                AudioManager.setMuted(true);
+                GameScreen battle = StoryDebugLauncher.createScreen(choice, 448, 520, () -> true);
+                battle.initialize();
+                status = battle.run();
+                assertEquals(0, battle.getGameState().getScore());
+                assertEquals(choice.modifiers().startingLives(), battle.getGameState().getLivesRemaining());
+                AudioManager.stopBGM();
+            }
             Files.writeString(cwd.resolve("scores"), "stage-only");
             Path evidence = Path.of(args[tail]);
             Path pending = evidence.resolveSibling(evidence.getFileName() + ".tmp");
@@ -344,7 +420,7 @@ class StoryDebugControllerTest {
                 System.exit(0);
             }
             if (mode.equals("wait")) Thread.sleep(60000);
-            System.exit(Integer.parseInt(args[tail + 2]));
+            System.exit(status);
         }
     }
 }

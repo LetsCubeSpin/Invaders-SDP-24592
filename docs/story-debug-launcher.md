@@ -15,6 +15,7 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Diffi
 | 동작 | 반복 테스트 모드의 결과 |
 | --- | --- |
 | 클리어 또는 패배 | 현재 전투와 임시 저장 폴더를 정리하고 다음 동작 선택 창 표시 |
+| 전투 중 Esc → 개발자 도구로 복귀 또는 Ctrl+Shift+D | 현재 전투를 중단하고 직전 루트·스테이지·전투 설정이 채워진 선택 창을 바로 표시 |
 | 전투 창의 × | 해당 전투 JVM만 종료하고 다음 동작 선택 창 표시 |
 | Replay same settings | 같은 루트·스테이지·네 전투 설정으로 새 JVM과 새 임시 저장 폴더에서 시작 |
 | Change selection | 직전 루트·스테이지·네 전투 설정이 채워진 창에서 편집 |
@@ -22,9 +23,11 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Diffi
 | Exit tool 또는 다음 동작 창의 × / Esc | 도구 전체 종료 |
 | 전투 JVM 실패 또는 시작·정리 오류 | 오류를 표시하고 사용자가 재실행·설정 변경·종료를 선택. 자동 재시도하지 않음 |
 
-전투 중 Esc로 선택 창에 돌아오는 기능은 없다. 전투를 중단하려면 전투 창의 ×를 사용한다. 일반 게임으로 돌아가려면 도구를 종료하고 `engine.Core` 또는 `gradlew.bat run`을 별도로 실행한다.
+디버그 전투 창에 포커스를 두고 **Esc → 개발자 도구로 복귀**를 선택하거나 **Ctrl+Shift+D**를 누른다. 무적 ON/OFF와 보스전 모두에서 사용할 수 있다. 중단은 클리어나 패배로 집계되지 않으며, 일반 캠페인 진행도·점수·기록을 저장하지 않는다. 선택 창에서 값을 유지하거나 바꿔 **Start stage**를 누르면 새 전투가 시작된다. 일반 게임에는 이 복귀 메뉴나 단축키가 없다. 일반 게임으로 돌아가려면 도구를 종료하고 `engine.Core` 또는 `gradlew.bat run`을 별도로 실행한다.
 
-두 번째와 세 번째 명령은 선택 창을 건너뛰고 한 전투를 실행한 뒤 종료한다. 두 번째 명령은 기본 전투 조건을, 세 번째 명령은 무적·생명 15개·적 HP 2배·적 이동속도 0.5배를 사용한다. 일회성 실행에는 루트·스테이지·난이도·기체가 모두 필요하고, 전투 설정은 각각 생략할 수 있다. 난이도에는 `EASY`, 기체에는 `STANDARD`를 지정한다. 다른 난이도나 기체를 입력하면 오류로 종료한다. 사람이 사용하는 파일은 `run-story-debug.*`이며 `test-story-debug.*`는 오류 처리와 격리를 검증하는 자동 테스트다.
+Esc 메뉴에서 **계속하기**를 선택하면 같은 전투를 이어 간다. 메뉴를 연 동안 전투 업데이트는 대기하지만 실제 경과 시간을 쓰는 피격 쿨다운 등은 만료될 수 있다.
+
+두 번째와 세 번째 명령은 선택 창을 건너뛰고 첫 전투를 시작한다. 클리어·패배·창 닫기로 끝내면 기존처럼 종료하고, 명시적으로 복귀하면 선택 창에서 반복 테스트를 이어 간다. 두 번째 명령은 기본 전투 조건을, 세 번째 명령은 무적·생명 15개·적 HP 2배·적 이동속도 0.5배를 사용한다. 일회성 실행에는 루트·스테이지·난이도·기체가 모두 필요하고, 전투 설정은 각각 생략할 수 있다. 난이도에는 `EASY`, 기체에는 `STANDARD`를 지정한다. 다른 난이도나 기체를 입력하면 오류로 종료한다. 사람이 사용하는 파일은 `run-story-debug.*`이며 `test-story-debug.*`는 오류 처리와 격리를 검증하는 자동 테스트다.
 
 컴파일은 도구를 켤 때 한 번만 수행한다. `Compiling Story debug launcher...` 다음 `Starting Story debug launcher...`가 표시된다. 반복 중에는 컴파일 결과와 리소스만 재사용한다. 소스를 변경한 뒤 새 코드를 테스트하려면 도구를 종료하고 다시 켠다.
 
@@ -77,13 +80,13 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Diffi
 
 일반 Campaign Stage 7에서는 VESPERA(BOSS_C)가 등장한다. Story 런처의 7단계 보스는 `StoryRoute`가 정한다. HYBRID에서는 VESPERA(BOSS_C), TRUCE에서는 OBELISK(BOSS_D)가 등장한다. 미리보기의 TRUCE 탄종 MULTI와 HOMECOMING 수류탄 지급 표시는 스토리 데이터 값을 보여 준다. 전투 도중의 통상 아이템 드롭은 기존 게임 규칙을 따른다.
 
-디버그 실행은 한 스테이지의 전투가 끝나면 관리 창으로 돌아가며, 일반 Story의 엔딩이나 점수 화면으로 넘어가지 않는다. 일회성 명령으로 직접 실행한 경우에는 전투 종료와 함께 도구도 종료한다.
+디버그 실행은 한 스테이지의 전투가 끝나면 관리 창으로 돌아가며, 일반 Story의 엔딩이나 점수 화면으로 넘어가지 않는다. 일회성 명령에서 클리어·패배·창 닫기로 끝내면 도구가 종료된다.
 
 ## 저장 격리와 연동 지점
 
 * 런처는 테스트 소스에만 있으며, 전용 스크립트가 필요한 Java 소스를 임시 폴더에 컴파일한다. Gradle 또는 다운로드 없이 실행할 수 있다. `engine.Core`의 일반 진입점과 배포 JAR에는 런처가 들어가지 않는다.
-* 무인수 실행에서는 `StoryDebugController`가 불변 `StoryDebugSelection`에 루트·스테이지와 `StoryDebugModifiers`를 보관한다. `StoryDebugSession`은 매번 네 기본 인수와 네 설정의 이름·값을 자식 JVM에 전달한다. 자식의 `StoryDebugLauncher`가 이를 검증해 `GameScreen.forStoryDebugStage`에 넘긴다. 일회성 실행도 같은 검증과 화면 생성을 사용한다. 일반 Campaign·Infinite·Custom·Story는 기존 진입점과 기본 전투 규칙을 사용한다.
-* 명시적 `-Dinvaders.storyDebug=true`와 실제 메모리 전용 preferences가 필요하다. 키·오디오 설정을 포함한 전투 환경설정은 해당 JVM의 메모리에만 저장한다. 반복 모드의 각 전투는 작업 디렉터리, `user.home`, `invaders.storageDir`, `java.io.tmpdir`가 같은 새 `stage-*` 폴더를 사용한다. 각 전투 종료 후 해당 폴더를 지우고, 도구 종료 시 스크립트가 컴파일 결과를 포함한 전체 임시 세션을 정리한다.
+* `StoryDebugController`가 불변 `StoryDebugSelection`에 루트·스테이지와 `StoryDebugModifiers`를 보관한다. `StoryDebugSession`은 매번 네 기본 인수와 네 설정의 이름·값을 자식 JVM에 전달한다. 자식의 `StoryDebugLauncher`가 이를 검증해 `GameScreen.forStoryDebugStage`에 넘긴다. 일회성 실행도 같은 검증과 화면 생성을 사용한다. 일반 Campaign·Infinite·Custom·Story는 기존 진입점과 기본 전투 규칙을 사용한다.
+* 명시적 `-Dinvaders.storyDebug=true`와 실제 메모리 전용 preferences가 필요하다. 키·오디오 설정을 포함한 전투 환경설정은 해당 JVM의 메모리에만 저장한다. 각 전투는 작업 디렉터리, `user.home`, `invaders.storageDir`, `java.io.tmpdir`가 같은 새 `stage-*` 폴더를 사용한다. 각 전투 종료 후 해당 폴더를 지우고, 도구 종료 시 스크립트가 컴파일 결과를 포함한 전체 임시 세션을 정리한다.
 * 관리 프로세스가 종료 신호를 받으면 shutdown hook이 실행 중인 자식 JVM을 중단하고 해당 폴더를 정리한다. 전투 시작 실패·0이 아닌 종료·대기 중 인터럽트에도 정리를 수행한다. 파일 삭제 실패는 오류로 표시한다. OS 강제 종료나 전원 차단처럼 종료 훅과 `finally`가 실행되지 않는 상황까지 정리를 보장하지는 않는다. 이 경우 임시 파일이 남을 수 있으며, 다음 실행은 새 경로를 사용한다.
 * 정상 전투 종료 후 전체 종료하면 코드 0이다. 전투 실패 직후 전체 종료하거나 설정 변경을 취소하면 해당 실패 코드를 유지한다. 사용자가 명시적으로 재시도해 성공한 후 종료하면 코드 0이며, 관리 루프의 대기가 인터럽트되면 코드 130이다.
 * `StoryDebugLauncher.createScreen`은 활성 기록 서비스가 있는 JVM을 거부한다. `RunSession`은 null이며, 일반 Story의 기록 저장, 점수 화면과 엔딩으로 이어지는 경로를 실행하지 않는다. 디버그 전투의 일시적인 점수와 클리어 이벤트는 게임 화면 안에서 정상 발생한다.

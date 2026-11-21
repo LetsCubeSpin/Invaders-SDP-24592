@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.Random;
+import java.util.function.BooleanSupplier;
 import java.util.function.UnaryOperator;
 
 import boss.*;
@@ -82,6 +83,9 @@ import entity.item.Item;
  *
  */
 public class GameScreen extends Screen {
+
+	/** Ends the isolated Story battle without a clear, defeat or score bonus. */
+	public static final int RETURN_TO_STORY_DEBUG = 73;
 
     /** Milliseconds until the screen accepts user input. */
     private static final int INPUT_DELAY = 6000;
@@ -186,6 +190,8 @@ public class GameScreen extends Screen {
 	/** Story stage being played; null outside story mode. */
 	private StoryStage storyStage;
 	private final StoryDebugModifiers modifiers;
+	/** Only the Story debug launcher can supply this battle's return control. */
+	private BooleanSupplier debugReturnRequested;
 	/** Boss of the story stage; null when the stage has no boss. */
 	private Boss.BossType storyBoss;
     /** Current difficulty level number. */
@@ -567,10 +573,20 @@ public class GameScreen extends Screen {
 	public static GameScreen forStoryDebugStage(final GameState gameState,
 			final StoryProgress progress, final UnaryOperator<GameSettings> difficulty,
 			final int width, final int height, final int fps, final StoryDebugModifiers modifiers) {
+		return forStoryDebugStage(gameState, progress, difficulty, width, height, fps, modifiers, null);
+	}
+
+	/** Grants optional launcher controls only to this isolated debug battle. */
+	public static GameScreen forStoryDebugStage(final GameState gameState,
+			final StoryProgress progress, final UnaryOperator<GameSettings> difficulty,
+			final int width, final int height, final int fps, final StoryDebugModifiers modifiers,
+			final BooleanSupplier returnRequested) {
 		if (modifiers == null)
 			throw new IllegalArgumentException("Debug modifiers must not be null.");
-		return createStoryStage(gameState, progress, difficulty, false,
+		GameScreen screen = createStoryStage(gameState, progress, difficulty, false,
 				width, height, fps, ShipType.STANDARD, null, modifiers);
+		screen.debugReturnRequested = returnRequested;
+		return screen;
 	}
 
 	private static GameScreen createStoryStage(final GameState gameState, final StoryProgress progress,
@@ -1023,6 +1039,9 @@ public class GameScreen extends Screen {
         try { super.run(); }
         finally { if (this.runSession != null) this.runSession.stopActiveSegment(System.nanoTime()); }
 
+		if (this.returnCode == RETURN_TO_STORY_DEBUG)
+			return this.returnCode;
+
         // Life bonus is only awarded when the stage was cleared.
         if (this.stageCleared && this.timeAttack == null)
 			this.score += LIFE_SCORE * (getLivesRemaining() - 1);
@@ -1036,6 +1055,12 @@ public class GameScreen extends Screen {
 	 * enemy appearance sound.
 	 */
 	protected final void update() {
+		if (this.debugReturnRequested != null && !this.levelFinished
+				&& this.debugReturnRequested.getAsBoolean()) {
+			this.returnCode = RETURN_TO_STORY_DEBUG;
+			this.isRunning = false;
+			return;
+		}
 		super.update();
 		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
 				System.currentTimeMillis());
