@@ -18,9 +18,11 @@ public class ShipColorScreen extends Screen {
     private static final int COLOR_ADJUSTMENT_TIME = 25;
     private static final int COLOR_BAR_WIDTH = 240;
     private static final int COLOR_BAR_HEIGHT = 14;
+    private static final int PREVIEW_SHIP_OFFSET = 48;
 
     private final Cooldown selectionCooldown;
     private final Ship previewShip;
+    private final Ship secondPlayerPreviewShip;
     private boolean editingCustomColor;
     private boolean draggingColor;
     private boolean wasMousePressed = true;
@@ -32,7 +34,12 @@ public class ShipColorScreen extends Screen {
         this.returnCode = RETURN_TO_SETTINGS;
         this.selectionCooldown = Core.getCooldown(SELECTION_TIME);
         this.selectionCooldown.reset();
-        this.previewShip = new Ship(width / 2 - 13, height / 2 - 8);
+        int centerX = width / 2;
+        int positionY = height / 2 - 8;
+        this.previewShip = new Ship(centerX - PREVIEW_SHIP_OFFSET - 13,
+                positionY);
+        this.secondPlayerPreviewShip = new Ship(
+                centerX + PREVIEW_SHIP_OFFSET - 13, positionY);
     }
 
     @Override
@@ -119,8 +126,10 @@ public class ShipColorScreen extends Screen {
     private void draw() {
         this.drawManager.initDrawing(this);
         this.previewShip.setColor(ShipCustomization.getColor());
+        this.secondPlayerPreviewShip.setColor(ShipCustomization.getColor(1));
         this.drawManager.drawShipColorSelection(this, this.previewShip,
-                getColorBarBounds(), this.editingCustomColor);
+                this.secondPlayerPreviewShip, getColorBarBounds(),
+                this.editingCustomColor);
 
         this.drawManager.completeDrawing(this);
     }

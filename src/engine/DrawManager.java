@@ -1239,11 +1239,15 @@ public final class DrawManager {
 
     /** Draws the ship preview and the custom color editing controls. */
     public void drawShipColorSelection(final Screen screen,
-            final Ship previewShip, final Rectangle colorBar,
+            final Ship previewShip, final Ship secondPlayerPreviewShip,
+            final Rectangle colorBar,
             final boolean editingCustomColor) {
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, "Ship Color", screen.getHeight() / 5);
         drawEntity(previewShip, previewShip.getPositionX(), previewShip.getPositionY());
+        drawEntity(secondPlayerPreviewShip,
+                secondPlayerPreviewShip.getPositionX(),
+                secondPlayerPreviewShip.getPositionY());
 
         boolean custom = ShipCustomization.isCustomColor();
         backBufferGraphics.setColor(Color.WHITE);
