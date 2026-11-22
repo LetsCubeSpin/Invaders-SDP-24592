@@ -23,10 +23,13 @@ public class ShipColorScreen extends Screen {
     private final Cooldown selectionCooldown;
     private final Ship previewShip;
     private final Ship secondPlayerPreviewShip;
+    private int selectedPlayerIndex;
     private boolean editingCustomColor;
     private boolean draggingColor;
     private boolean wasMousePressed = true;
     private boolean wasConfirmPressed = true;
+    private boolean wasUpPressed;
+    private boolean wasDownPressed;
 
     public ShipColorScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
@@ -55,6 +58,7 @@ public class ShipColorScreen extends Screen {
         boolean acceptsInput = this.inputDelay.checkFinished();
         boolean confirmPressed = this.inputManager.isKeyDown(KeyEvent.VK_ENTER)
                 || this.inputManager.isKeyDown(KeyEvent.VK_SPACE);
+        handlePlayerSelection(acceptsInput);
         handleColorBar(acceptsInput);
         this.selectionCooldown.setDuration(this.editingCustomColor
                 ? COLOR_ADJUSTMENT_TIME : SELECTION_TIME);
@@ -63,7 +67,8 @@ public class ShipColorScreen extends Screen {
             this.returnCode = RETURN_TO_SETTINGS;
             this.isRunning = false;
             AudioManager.playSFX("audio/sfx/menu_back.wav");
-        } else if (acceptsInput && ShipCustomization.isCustomColor()
+        } else if (acceptsInput
+                && ShipCustomization.isCustomColor(this.selectedPlayerIndex)
                 && confirmPressed && !this.wasConfirmPressed) {
             this.editingCustomColor = !this.editingCustomColor;
             this.draggingColor = false;
@@ -84,13 +89,35 @@ public class ShipColorScreen extends Screen {
         draw();
     }
 
+    private void handlePlayerSelection(final boolean acceptsInput) {
+        boolean upPressed = this.inputManager.isKeyDown(KeyEvent.VK_UP);
+        boolean downPressed = this.inputManager.isKeyDown(KeyEvent.VK_DOWN);
+        if (acceptsInput && upPressed && !this.wasUpPressed) {
+            selectPlayer(0);
+        } else if (acceptsInput && downPressed && !this.wasDownPressed) {
+            selectPlayer(1);
+        }
+        this.wasUpPressed = upPressed;
+        this.wasDownPressed = downPressed;
+    }
+
+    private void selectPlayer(final int playerIndex) {
+        if (this.selectedPlayerIndex == playerIndex)
+            return;
+        this.selectedPlayerIndex = playerIndex;
+        this.editingCustomColor = false;
+        this.draggingColor = false;
+        AudioManager.playSFX("audio/sfx/menu_move.wav");
+    }
+
     private void changeSelection(final int direction) {
         if (this.editingCustomColor) {
-            float hue = ShipCustomization.getCustomHue()
+            float hue = ShipCustomization.getCustomHue(this.selectedPlayerIndex)
                     + direction / (float) (COLOR_BAR_WIDTH - 1);
-            ShipCustomization.setCustomHue(Math.max(0f, Math.min(1f, hue)));
+            ShipCustomization.setCustomHue(this.selectedPlayerIndex,
+                    Math.max(0f, Math.min(1f, hue)));
         } else {
-            ShipCustomization.changeColor(direction);
+            ShipCustomization.changeColor(this.selectedPlayerIndex, direction);
             AudioManager.playSFX("audio/sfx/menu_move.wav");
         }
         this.selectionCooldown.reset();
@@ -103,7 +130,9 @@ public class ShipColorScreen extends Screen {
 
     private void handleColorBar(final boolean acceptsInput) {
         boolean pressed = this.inputManager.isMousePressed();
-        if (!acceptsInput || !ShipCustomization.isCustomColor() || !pressed) {
+        if (!acceptsInput
+                || !ShipCustomization.isCustomColor(this.selectedPlayerIndex)
+                || !pressed) {
             this.draggingColor = false;
         } else {
             Rectangle bounds = getColorBarBounds();
@@ -117,7 +146,8 @@ public class ShipColorScreen extends Screen {
             }
             if (this.draggingColor && mouseX >= 0 && mouseY >= 0) {
                 float hue = (mouseX - bounds.x) / (float) (bounds.width - 1);
-                ShipCustomization.setCustomHue(Math.max(0f, Math.min(1f, hue)));
+                ShipCustomization.setCustomHue(this.selectedPlayerIndex,
+                        Math.max(0f, Math.min(1f, hue)));
             }
         }
         this.wasMousePressed = pressed;
@@ -125,11 +155,11 @@ public class ShipColorScreen extends Screen {
 
     private void draw() {
         this.drawManager.initDrawing(this);
-        this.previewShip.setColor(ShipCustomization.getColor());
+        this.previewShip.setColor(ShipCustomization.getColor(0));
         this.secondPlayerPreviewShip.setColor(ShipCustomization.getColor(1));
         this.drawManager.drawShipColorSelection(this, this.previewShip,
                 this.secondPlayerPreviewShip, getColorBarBounds(),
-                this.editingCustomColor);
+                this.editingCustomColor, this.selectedPlayerIndex);
 
         this.drawManager.completeDrawing(this);
     }
