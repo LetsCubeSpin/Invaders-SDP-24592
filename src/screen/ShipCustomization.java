@@ -34,6 +34,21 @@ public final class ShipCustomization {
                 : COLORS[selectedColorIndex];
     }
 
+    /**
+     * Gets the color assigned to a player slot. Player 1 keeps the selected
+     * settings color, while Player 2 uses blue until it has its own setting.
+     *
+     * @param playerIndex zero-based player number
+     * @return the color for that player
+     */
+    public static Color getColor(final int playerIndex) {
+        if (playerIndex == 0)
+            return getColor();
+        if (playerIndex == 1)
+            return Color.BLUE;
+        throw new IllegalArgumentException("Player index must be 0 or 1.");
+    }
+
     public static String getColorName() {
         return isCustomColor() ? "Custom" : COLOR_NAMES[selectedColorIndex];
     }

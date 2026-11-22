@@ -170,7 +170,9 @@ public class InfiniteGameScreen extends Screen {
 		int positionX = this.width / 2;
 		if (this.playerCount == 2)
 			positionX += index == 0 ? -20 : 20;
-		return new Ship(positionX, this.height - 30);
+		Ship playerShip = new Ship(positionX, this.height - 30);
+		playerShip.setBaseColor(ShipCustomization.getColor(index));
+		return playerShip;
 	}
 
 	private void syncPrimaryPlayer() {
