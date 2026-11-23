@@ -143,10 +143,8 @@ public final class RecordsService {
      * Unlocks {@link Achievement#ALL_ENDINGS}. {@link #endingSeen} unlocks
      * it as well once every ending is saved. Meant to be called for
      * {@code event.AllEndingsSeenEvent}, for example
-     * {@code publisher.subscribe(AllEndingsSeenEvent.class, e -> records.allEndingsSeen())}.
-     *
-     * <p>Not called in the game yet; ready to use once
-     * {@code story.EndingCollection} is connected (see that class).</p>
+     * {@code publisher.subscribe(AllEndingsSeenEvent.class, e -> records.allEndingsSeen())},
+     * as {@code engine.Core} does when the game starts.
      */
     public synchronized void allEndingsSeen() {
         if (!this.closed)
@@ -157,10 +155,8 @@ public final class RecordsService {
     /**
      * Saves that an ending was seen, so it is still seen after a restart.
      * Meant to be called for {@code event.EndingReachedEvent}, for example
-     * {@code publisher.subscribe(EndingReachedEvent.class, e -> records.endingSeen(e.getEnding()))}.
-     *
-     * <p>Not called in the game yet; ready to use once
-     * {@code story.EndingCollection} is connected (see that class).</p>
+     * {@code publisher.subscribe(EndingReachedEvent.class, e -> records.endingSeen(e.getEnding()))},
+     * as {@code engine.Core} does when the game starts.
      *
      * @param ending
      *            Ending the player saw.
