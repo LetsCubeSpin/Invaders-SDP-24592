@@ -14,8 +14,10 @@ import records.RecordsService;
  *
  * <p>There is one per {@link RecordsService}, shared by every game screen,
  * so a notice carries on when the next stage opens a new screen. Its time
- * only runs while a screen updates it: the gap while no game screen is
- * shown, such as between stages, does not count.</p>
+ * only runs while a screen updates it: each game screen calls
+ * {@link #screenStarted()} when it opens, so the gap while no game screen
+ * is shown, such as between stages, does not count, while every frame a
+ * screen shows counts however slow it is.</p>
  */
 public final class AchievementToast {
     /** Time the notice takes to slide in, and again to slide out. */
@@ -30,11 +32,6 @@ public final class AchievementToast {
     public static final long FLASH_MILLIS = 600;
     /** Time the border stays lit, and then dark, while it flashes. */
     static final long FLASH_PERIOD_MILLIS = 100;
-    /**
-     * Longest time between two updates that counts; a longer gap means no
-     * game screen was shown in between.
-     */
-    static final long MAX_FRAME_GAP_MILLIS = 100;
 
     private static final Map<RecordsService, AchievementToast> TOASTS =
             new WeakHashMap<RecordsService, AchievementToast>();
@@ -79,7 +76,7 @@ public final class AchievementToast {
     public AchievementUnlock update(final long nowMillis) {
         if (this.lastUpdate >= 0) {
             long gap = nowMillis - this.lastUpdate;
-            if (gap > 0 && gap <= MAX_FRAME_GAP_MILLIS)
+            if (gap > 0)
                 this.elapsed += gap;
         }
         this.lastUpdate = nowMillis;
@@ -93,6 +90,14 @@ public final class AchievementToast {
         this.duration = left == 0 ? SHOW_MILLIS
                 : left == 1 ? SHORT_SHOW_MILLIS : SHORTEST_SHOW_MILLIS;
         return this.current;
+    }
+
+    /**
+     * Marks that a game screen has just opened: the time since the last
+     * update, spent without a game screen, is not counted.
+     */
+    public void screenStarted() {
+        this.lastUpdate = -1;
     }
 
     /** @return the unlock shown, or null. */

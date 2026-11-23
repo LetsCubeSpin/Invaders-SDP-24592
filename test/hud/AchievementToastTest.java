@@ -48,9 +48,20 @@ class AchievementToastTest {
      * @return each unlock as it started showing, and how long it stayed.
      */
     private List<Object[]> playUntilEmpty(final long start) {
+        return playUntilEmpty(start, FRAME);
+    }
+
+    /**
+     * Updates the toast from the given time until it shows no notice, with
+     * the frames taking the given times in turn.
+     *
+     * @return each unlock as it started showing, and how long it stayed.
+     */
+    private List<Object[]> playUntilEmpty(final long start, final long... frames) {
         List<Object[]> shown = new ArrayList<Object[]>();
         long started = start;
-        for (long now = start; now < start + 60_000; now += FRAME) {
+        int frame = 0;
+        for (long now = start; now < start + 60_000; now += frames[frame++ % frames.length]) {
             AchievementUnlock next = this.toast.update(now);
             if (next != null) {
                 if (!shown.isEmpty())
@@ -107,11 +118,32 @@ class AchievementToastTest {
         this.queue.addAll(Arrays.asList(FIRST, BRONZE));
         this.toast.update(0);
         this.toast.update(FRAME);
-        // A stage change: no screen updates the notice for ten seconds.
+        // A stage change: no screen updates the notice for ten seconds,
+        // then the next stage's screen opens.
+        this.toast.screenStarted();
         assertNull(this.toast.update(10_000));
         assertSame(FIRST, this.toast.getCurrent(), "the notice carries on in the next stage");
         List<Object[]> rest = playUntilEmpty(10_000 + FRAME);
         assertSame(BRONZE, rest.get(0)[0], "the waiting notice follows it");
+    }
+
+    @Test
+    void slowFramesStillMoveTheNoticesOn() {
+        this.queue.addAll(Arrays.asList(FIRST, BRONZE, SILVER));
+        long slow = 125;
+        List<Object[]> shown = playUntilEmpty(1_000, 101, slow);
+        assertEquals(3, shown.size(), "every notice is shown at 8 to 10 frames a second");
+        assertSame(FIRST, shown.get(0)[0]);
+        assertSame(BRONZE, shown.get(1)[0]);
+        assertSame(SILVER, shown.get(2)[0]);
+        assertSlowDuration(AchievementToast.SHORTEST_SHOW_MILLIS, (Long) shown.get(0)[1], slow);
+        assertSlowDuration(AchievementToast.SHORT_SHOW_MILLIS, (Long) shown.get(1)[1], slow);
+        assertSlowDuration(AchievementToast.SHOW_MILLIS, (Long) shown.get(2)[1], slow);
+    }
+
+    private static void assertSlowDuration(final long expected, final long actual, final long frame) {
+        assertTrue(actual >= expected && actual <= expected + frame,
+                "shown " + actual + " ms, expected " + expected);
     }
 
     @Test

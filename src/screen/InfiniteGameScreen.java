@@ -135,6 +135,10 @@ public class InfiniteGameScreen extends Screen {
 
 	public final void initialize() {
 		super.initialize();
+		// The time between the previous screen and this one does not count
+		// toward the achievement notice.
+		if (this.recordsService != null)
+			AchievementToast.of(this.recordsService).screenStarted();
 
 		initializePlayerSlots();
 		this.enemies = new ArrayList<ZigzagEnemyShip>();
