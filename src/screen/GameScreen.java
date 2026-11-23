@@ -834,7 +834,7 @@ public class GameScreen extends Screen {
 		if (this.playerCount == 2)
 			positionX += index == 0 ? -20 : 20;
 		Ship playerShip = new Ship(positionX, this.height - 30, this.shipType);
-		playerShip.setBaseColor(ShipCustomization.getColor());
+		playerShip.setBaseColor(ShipCustomization.getColor(index));
 		if (this.storyStage != null)
 			playerShip.setBulletType(BulletType.NORMAL);
 		return playerShip;
