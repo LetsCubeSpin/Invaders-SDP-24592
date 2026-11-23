@@ -551,47 +551,105 @@ private static void testRecordsPageNavigationAndRender() {
 			screen.Screen page = new screen.Screen(432, 490, 60);
 			java.lang.reflect.Field buffer = engine.DrawManager.class.getDeclaredField("backBuffer");
 			buffer.setAccessible(true);
-			String[] tabImages = { "records.png", "details-story.png", "achievements.png" };
-			for (int tab = 0; tab < tabImages.length; tab++) {
-				draw.initDrawing(page);
-				draw.drawRecordsPage(page, service, tab);
-				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
-						"png", directory.resolve(tabImages[tab]).toFile());
-				draw.completeDrawing(page);
-			}
+			String[] tabImages = { "records.png", "achievements.png", "stats.png" };
+			for (int tab = 0; tab < tabImages.length; tab++)
+				renderRecordsPage(draw, page, service, tab, RunOrder.SCORE, RunFilter.ALL,
+						0, 0, directory.resolve(tabImages[tab]));
 			// Rank 2 is the Infinite run and rank 3 a version 1 run.
-			String[] detailImages = { "details-infinite.png", "details-v1.png" };
-			for (int i = 0; i < detailImages.length; i++) {
-				draw.initDrawing(page);
-				draw.drawRecordsPage(page, service, screen.PlayerRecordsScreen.TAB_RUN_DETAILS, i + 1);
-				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
-						"png", directory.resolve(detailImages[i]).toFile());
-				draw.completeDrawing(page);
-			}
-			draw.initDrawing(page);
-			draw.drawRecordsPage(page, service, screen.PlayerRecordsScreen.TAB_RUN_DETAILS, 99);
-			draw.completeDrawing(page);
+			renderRecordsPage(draw, page, service, screen.PlayerRecordsScreen.TAB_RECORDS,
+					RunOrder.SCORE, RunFilter.ALL, 1, 0, directory.resolve("records-infinite.png"));
+			renderRecordsPage(draw, page, service, screen.PlayerRecordsScreen.TAB_RECORDS,
+					RunOrder.SCORE, RunFilter.ALL, 2, 0, directory.resolve("records-v1.png"));
+			renderRecordsPage(draw, page, service, screen.PlayerRecordsScreen.TAB_RECORDS,
+					RunOrder.NEWEST, RunFilter.ALL, 11, 99, directory.resolve("records-newest-last.png"));
+			renderRecordsPage(draw, page, service, screen.PlayerRecordsScreen.TAB_RECORDS,
+					RunOrder.SCORE, RunFilter.STORY, 0, 0, directory.resolve("records-story.png"));
+			renderRecordsPage(draw, page, service, screen.PlayerRecordsScreen.TAB_RECORDS,
+					RunOrder.SCORE, RunFilter.ALL, 99, -5, null);
 
 			screen.PlayerRecordsScreen browser = new screen.PlayerRecordsScreen(432, 490, 60, service);
-			java.lang.reflect.Method changeTab = screen.PlayerRecordsScreen.class.getDeclaredMethod("changeTab", int.class);
-			java.lang.reflect.Method changeRun = screen.PlayerRecordsScreen.class.getDeclaredMethod("changeRun", int.class);
-			java.lang.reflect.Field tabField = screen.PlayerRecordsScreen.class.getDeclaredField("tab");
-			java.lang.reflect.Field runField = screen.PlayerRecordsScreen.class.getDeclaredField("selectedRun");
-			for (java.lang.reflect.AccessibleObject member : new java.lang.reflect.AccessibleObject[] {
-					changeTab, changeRun, tabField, runField })
-				member.setAccessible(true);
-			changeTab.invoke(browser, 1);
-			assertEquals(screen.PlayerRecordsScreen.TAB_RUN_DETAILS, tabField.getInt(browser), "Right opens run details");
-			changeTab.invoke(browser, 1);
-			assertEquals(screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS, tabField.getInt(browser), "Right then opens achievements");
-			changeTab.invoke(browser, 1);
-			assertEquals(screen.PlayerRecordsScreen.TAB_RUNS, tabField.getInt(browser), "tabs wrap around to the right");
-			changeTab.invoke(browser, -1);
-			assertEquals(screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS, tabField.getInt(browser), "tabs wrap around to the left");
-			changeRun.invoke(browser, -1);
-			assertEquals(9, runField.getInt(browser), "Up from the best run wraps to the last of the top ten");
-			changeRun.invoke(browser, 1);
-			assertEquals(0, runField.getInt(browser), "Down from the last run wraps to the best");
+			skipInputDelay(browser);
+			assertEquals(java.awt.event.KeyEvent.VK_J, screen.PlayerRecordsScreen.SORT_KEY, "J switches the order");
+			assertEquals(java.awt.event.KeyEvent.VK_K, screen.PlayerRecordsScreen.FILTER_KEY, "K switches the filter");
+			int right = java.awt.event.KeyEvent.VK_RIGHT;
+			int left = java.awt.event.KeyEvent.VK_LEFT;
+			int up = java.awt.event.KeyEvent.VK_UP;
+			int down = java.awt.event.KeyEvent.VK_DOWN;
+			int sort = screen.PlayerRecordsScreen.SORT_KEY;
+			int filter = screen.PlayerRecordsScreen.FILTER_KEY;
+			pressOnRecordsPage(browser, right);
+			assertEquals(screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS, recordsPageInt(browser, "tab"), "Right opens achievements");
+			pressOnRecordsPage(browser, right);
+			assertEquals(screen.PlayerRecordsScreen.TAB_STATS, recordsPageInt(browser, "tab"), "Right then opens stats");
+			pressOnRecordsPage(browser, right);
+			assertEquals(screen.PlayerRecordsScreen.TAB_RECORDS, recordsPageInt(browser, "tab"), "tabs wrap around to the right");
+			pressOnRecordsPage(browser, left);
+			assertEquals(screen.PlayerRecordsScreen.TAB_STATS, recordsPageInt(browser, "tab"), "tabs wrap around to the left");
+			pressOnRecordsPage(browser, sort);
+			pressOnRecordsPage(browser, down);
+			assertSame(RunOrder.SCORE, recordsPageField(browser, "order"), "J does nothing outside the records tab");
+			assertEquals(0, recordsPageInt(browser, "selectedRun"), "Down selects no run outside the records tab");
+			pressOnRecordsPage(browser, right);
+			pressOnRecordsPage(browser, up);
+			assertEquals(0, recordsPageInt(browser, "selectedRun"), "Up at the first run stays there");
+			int perPage = draw.getRunsPerPage(browser);
+			assertTrue(perPage >= 4 && perPage < 12, "twelve runs do not fit, a few do: " + perPage);
+			for (int i = 0; i < 20; i++)
+				pressOnRecordsPage(browser, down);
+			assertEquals(11, recordsPageInt(browser, "selectedRun"), "Down stops at the last of every run, not the top ten");
+			assertEquals(12 - perPage, recordsPageInt(browser, "firstRun"), "the list scrolls to show the last run");
+			for (int i = 0; i < 11; i++)
+				pressOnRecordsPage(browser, up);
+			assertEquals(0, recordsPageInt(browser, "firstRun"), "the list scrolls back to the first run");
+			pressOnRecordsPage(browser, down);
+			pressOnRecordsPage(browser, sort);
+			assertSame(RunOrder.NEWEST, recordsPageField(browser, "order"), "J switches to newest first");
+			assertEquals(0, recordsPageInt(browser, "selectedRun"), "J selects the first run");
+			assertEquals("render-infinite", service.getRuns(RunOrder.NEWEST, RunFilter.ALL).get(0).getRunId(),
+					"newest first starts with the last completed run");
+			pressOnRecordsPage(browser, sort);
+			assertSame(RunOrder.SCORE, recordsPageField(browser, "order"), "J switches back to score");
+			RunFilter[] filters = { RunFilter.CAMPAIGN, RunFilter.INFINITE, RunFilter.STORY, RunFilter.ALL };
+			for (RunFilter expected : filters) {
+				pressOnRecordsPage(browser, down);
+				pressOnRecordsPage(browser, filter);
+				assertSame(expected, recordsPageField(browser, "filter"), "K cycles the mode filter");
+				assertEquals(0, recordsPageInt(browser, "selectedRun"), "K selects the first run");
+			}
+			pressOnRecordsPage(browser, filter);
+			for (int i = 0; i < 3; i++)
+				pressOnRecordsPage(browser, down);
+			assertEquals(0, recordsPageInt(browser, "selectedRun"), "an empty Campaign list has nothing to select");
+			renderRecordsPage(draw, page, service, screen.PlayerRecordsScreen.TAB_RECORDS,
+					RunOrder.SCORE, RunFilter.CAMPAIGN, 0, 0, directory.resolve("records-empty-filter.png"));
+
+			// Every tab, order and filter draws with no runs and with one run.
+			for (int runs = 0; runs <= 1; runs++) {
+				RecordsService few = new RecordsService(
+						testDirectory("few-runs-" + runs).resolve("profile.properties"));
+				try {
+					if (runs == 1)
+						few.completeRun(new RunRecord("only", RunMode.CAMPAIGN, 500, 12, 45000,
+								1791850000000L, new RunStats(2, 5, 90, 40, 1, 0, 1)));
+					for (int tab = 0; tab < screen.PlayerRecordsScreen.TAB_COUNT; tab++)
+						for (RunOrder order : RunOrder.values())
+							for (RunFilter shown : RunFilter.values())
+								renderRecordsPage(draw, page, few, tab, order, shown, 0, 0, null);
+					renderRecordsPage(draw, page, few, screen.PlayerRecordsScreen.TAB_RECORDS,
+							RunOrder.SCORE, RunFilter.ALL, 0, 0,
+							directory.resolve("records-" + runs + "-runs.png"));
+					renderRecordsPage(draw, page, few, screen.PlayerRecordsScreen.TAB_STATS,
+							RunOrder.SCORE, RunFilter.ALL, 0, 0,
+							directory.resolve("stats-" + runs + "-runs.png"));
+					screen.PlayerRecordsScreen small = new screen.PlayerRecordsScreen(432, 490, 60, few);
+					skipInputDelay(small);
+					pressOnRecordsPage(small, up);
+					pressOnRecordsPage(small, down);
+					assertEquals(0, recordsPageInt(small, "selectedRun"), "with " + runs + " runs the first stays selected");
+				} finally {
+					few.close();
+				}
+			}
 			// More achievements than fit: Up/Down scrolls and stops at either end.
 			List<Achievement> many = new ArrayList<Achievement>();
 			for (int i = 0; i < 14; i++)
@@ -603,24 +661,20 @@ private static void testRecordsPageNavigationAndRender() {
 			try {
 				crowded.completeRun(new RunRecord("crowded", 1, 105, 1, 1));
 				screen.PlayerRecordsScreen list = new screen.PlayerRecordsScreen(432, 490, 60, crowded);
-				java.lang.reflect.Method scroll = screen.PlayerRecordsScreen.class
-						.getDeclaredMethod("scrollAchievements", int.class);
-				java.lang.reflect.Field firstField = screen.PlayerRecordsScreen.class
-						.getDeclaredField("firstAchievement");
-				scroll.setAccessible(true);
-				firstField.setAccessible(true);
-				int perPage = draw.getAchievementsPerPage(page);
-				assertTrue(perPage >= 6 && perPage < many.size(),
-						"the six game achievements fit, fourteen do not: " + perPage);
-				scroll.invoke(list, -1);
-				assertEquals(0, firstField.getInt(list), "Up at the top stays at the top");
+				skipInputDelay(list);
+				pressOnRecordsPage(list, right);
+				int achievementsPerPage = draw.getAchievementsPerPage(page);
+				assertTrue(achievementsPerPage >= 6 && achievementsPerPage < many.size(),
+						"the six game achievements fit, fourteen do not: " + achievementsPerPage);
+				pressOnRecordsPage(list, up);
+				assertEquals(0, recordsPageInt(list, "firstAchievement"), "Up at the top stays at the top");
 				for (int i = 0; i < many.size(); i++)
-					scroll.invoke(list, 1);
-				assertEquals(many.size() - perPage, firstField.getInt(list),
+					pressOnRecordsPage(list, down);
+				assertEquals(many.size() - achievementsPerPage, recordsPageInt(list, "firstAchievement"),
 						"Down stops once the last achievement is shown");
 				draw.initDrawing(page);
 				draw.drawRecordsPage(page, crowded, screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS,
-						0, firstField.getInt(list));
+						RunOrder.SCORE, RunFilter.ALL, 0, 0, recordsPageInt(list, "firstAchievement"));
 				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
 						"png", directory.resolve("achievements-scrolled.png").toFile());
 				draw.completeDrawing(page);
@@ -642,6 +696,57 @@ private static void testRecordsPageNavigationAndRender() {
 				service.close();
 		}
 	}
+
+/** Draws one view of the records page, saving it as an image unless the path is null. */
+private static void renderRecordsPage(final engine.DrawManager draw, final screen.Screen page,
+		final RecordsService service, final int tab, final RunOrder order, final RunFilter filter,
+		final int selectedRun, final int firstRun, final Path image) throws Exception {
+	draw.initDrawing(page);
+	draw.drawRecordsPage(page, service, tab, order, filter, selectedRun, firstRun, 0);
+	if (image != null) {
+		java.lang.reflect.Field buffer = engine.DrawManager.class.getDeclaredField("backBuffer");
+		buffer.setAccessible(true);
+		javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
+				"png", image.toFile());
+	}
+	draw.completeDrawing(page);
+}
+
+/** Lets the records page take keys at once instead of after the opening delay. */
+private static void skipInputDelay(final screen.PlayerRecordsScreen page) throws Exception {
+	java.lang.reflect.Field delay = screen.Screen.class.getDeclaredField("inputDelay");
+	delay.setAccessible(true);
+	delay.set(page, engine.Core.getCooldown(0));
+}
+
+/** Holds a key for one frame of the records page, as the player would. */
+private static void pressOnRecordsPage(final screen.PlayerRecordsScreen page, final int key) throws Exception {
+	engine.InputManager input = engine.Core.getInputManager();
+	java.awt.Canvas source = new java.awt.Canvas();
+	java.lang.reflect.Field next = screen.PlayerRecordsScreen.class.getDeclaredField("nextInputAt");
+	next.setAccessible(true);
+	next.setLong(page, 0);
+	java.lang.reflect.Method update = screen.PlayerRecordsScreen.class.getDeclaredMethod("update");
+	update.setAccessible(true);
+	input.keyPressed(new java.awt.event.KeyEvent(source,
+			java.awt.event.KeyEvent.KEY_PRESSED, 0, 0, key, '\u0000'));
+	try {
+		update.invoke(page);
+	} finally {
+		input.keyReleased(new java.awt.event.KeyEvent(source,
+				java.awt.event.KeyEvent.KEY_RELEASED, 0, 0, key, '\u0000'));
+	}
+}
+
+private static Object recordsPageField(final screen.PlayerRecordsScreen page, final String name) throws Exception {
+	java.lang.reflect.Field field = screen.PlayerRecordsScreen.class.getDeclaredField(name);
+	field.setAccessible(true);
+	return field.get(page);
+}
+
+private static int recordsPageInt(final screen.PlayerRecordsScreen page, final String name) throws Exception {
+	return ((Integer) recordsPageField(page, name)).intValue();
+}
 
 private static List<AchievementUnlock> firstTiers(final List<Achievement> achievements) {
     List<AchievementUnlock> unlocks = new ArrayList<AchievementUnlock>();
