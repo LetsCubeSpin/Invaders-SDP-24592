@@ -53,6 +53,62 @@ Test sources from `test/` and `tests/` are consolidated under `test/`, following
 
 To run one suite, use `test --tests "level.JsonLevelReaderTest"` for JUnit or `smokeLevelModelTest` for a standalone test. Use `tasks` to list all available tasks. Existing PowerShell scripts in `scripts/` also delegate to the Wrapper. Use these Gradle tasks instead of manual `javac` commands in older team documents.
 
+## 개발 로그 형식
+
+일반 게임의 콘솔과 `log` 파일, Gradle JUnit·스모크 테스트, 스토리 디버그
+전투는 공통 로그 형식을 사용합니다. 머리말에는 현지 시간대 기준의 날짜와
+24시간제 시각, 영문 로그 레벨, 로그 출처를 표시합니다.
+
+```text
+2026-11-23 18:34:05 [INFO] screen.GameScreen: Stage 7 failed.
+```
+
+로그 본문과 예외 스택 트레이스는 원래 내용을 표시합니다. 본문에 한글이 포함되면
+출력하는 JVM과 이를 표시하는 콘솔이 같은 문자 인코딩을 사용해야 합니다.
+
+Gradle JUnit·스모크 테스트 JVM이나 스토리 디버그 전투 JVM에
+`-Djava.util.logging.config.file=<경로>`를 명시하면 해당 설정 파일이 우선합니다.
+예를 들어 루트 로거와 콘솔 핸들러를 모두 `FINE`으로 설정하면 상세 로그가
+표시됩니다. 설정 파일을 지정하지 않으면 공통 형식과 `INFO` 기준을 사용합니다.
+
+### 한국어 Windows에서 검증
+
+같은 JDK와 콘솔 설정을 유지한 채 변경 전후에 아래 명령을 실행합니다.
+
+1. IntelliJ Gradle 실행 구성에서 `smokeBulletCleanupTest --console=plain`을 실행합니다.
+   `Initializing ... ship formation` 로그의 날짜·로그 레벨을 확인합니다.
+2. JUnit은 `test --tests "engine.StoryDebugBattleControlsTest" --info --console=plain`을
+   실행하고 테스트의 표준 오류 출력에서 같은 형식인지 확인합니다.
+3. `run`으로 일반 게임을 실행하고 콘솔과 프로젝트 폴더의 `log` 파일에서
+   같은 형식인지 확인합니다.
+4. PowerShell에서 아래 명령으로 스토리 디버그 전투를 실행합니다.
+   `BossAttack`이나 `PlayerDamaged` 로그에서 같은 형식으로 표시되는지 확인합니다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-story-debug.ps1 `
+  -Route HYBRID -Stage 7 -Difficulty EASY -Ship STANDARD `
+  -EnemyHpMultiplier '4.0' -EnemySpeedMultiplier '0.25'
+```
+
+변경 전에는 기본 Java 로그 형식이 시스템 언어에 따라 `월`, `오후`, `정보`를
+붙일 수 있습니다. 변경 후에는 위 실행 경로에 같은 형식이 표시되어야 합니다.
+예외 로그가 나오면 메시지 아래에 스택 트레이스도 있는지 확인합니다.
+
+### 검증 결과
+
+- 기존 Windows PowerShell 실행에서 스토리 디버그 전투 로그의 한글 머리말이
+  깨졌고, 콘솔을 UTF-8로 바꾸자 정상 표시됐습니다.
+- 한국어 Windows에서 수정 버전 `5fc949c`의 스토리 디버그 전투, 일반 게임
+  콘솔과 `log` 파일, JUnit 결과 XML의 표준 오류에 새 머리말이 표시되는 것을
+  확인했습니다. 일반 게임의 파일 로그에서는 `FINE` 레벨도 확인했습니다.
+- 한국어 Windows의 IntelliJ Gradle 실행 창에서 로그 머리말이 더 이상 깨지지
+  않는 것을 확인했습니다. [IntelliJ 리뷰](https://github.com/LetsCubeSpin/Invaders-SDP-24592/pull/41#pullrequestreview-6020447639)
+- Windows Java 17에서 수정 커밋 `d64186d`로 사용자 지정 설정을 적용했을 때
+  `FINE` 로그와 지정한 포맷이 유지되고, 설정을 생략했을 때 공통 포맷이
+  적용되는 것을 확인했습니다. [재검증 리뷰](https://github.com/LetsCubeSpin/Invaders-SDP-24592/pull/41#pullrequestreview-6022173943)
+- Linux의 한국어 로캘에서는 Gradle 스모크 테스트에서 새 머리말과 예외 스택
+  트레이스를 확인했습니다.
+
 ## CI and local files
 
 [GitHub Actions](../.github/workflows/ci.yml) runs `clean build` with JDK 17 on Windows and Linux for pull requests and pushes to `main`. These two jobs verify the minimum supported Java version; JDK 21 and 25 are checked separately when changing JDK support or build tooling. Available test and coverage reports are kept as workflow artifacts for seven days, including on failed builds.
