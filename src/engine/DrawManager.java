@@ -22,6 +22,7 @@ import screen.PlayerRecordsScreen;
 import screen.Screen;
 import screen.ShipCustomization;
 import hud.FloatingScoreHud;
+import hud.ItemStatus;
 import records.AchievementStatus;
 import records.AchievementUnlock;
 import records.RecordsService;
@@ -1542,36 +1543,65 @@ public final class DrawManager {
     }
 
     /**
-     * Draws the number of grenades left, when the ship has some.
-     *
-     * @param screen Screen to draw on.
-     * @param grenades Number of grenades left.
+     * Top of the status strip: the band just under the HUD separator, above
+     * the path of the bonus ship, where no gameplay object goes.
      */
-    public void drawGrenadeCount(final Screen screen, final int grenades) {
-        if (grenades <= 0) {
-            return;
-        }
-        backBufferGraphics.setFont(fontRegular);
-        backBufferGraphics.setColor(Color.ORANGE);
-        backBufferGraphics.drawString("GRENADE [G] x" + grenades, 10, 55);
+    public static final int STATUS_STRIP_TOP = 41;
+    /** Height of the status strip; the bonus ship flies from y 60. */
+    public static final int STATUS_STRIP_HEIGHT = 18;
+    /** Left edge of the item icons on the status strip. */
+    private static final int STATUS_STRIP_MARGIN = 10;
+
+    /** Baseline of text on the status strip. */
+    private int statusStripBaseline() {
+        return STATUS_STRIP_TOP + STATUS_STRIP_HEIGHT - 3;
     }
 
     /**
-     * Draws the names of the active buffs, top right, under the separator.
+     * Draws each player's grenades and active buffs as icons from the left
+     * of the status strip; with two players, a bar separates them.
      *
      * @param screen Screen to draw on.
-     * @param lines Buff names to show.
+     * @param players Items of each player, Player 1 first.
+     * @return the x where the strip is free again, for the achievement
+     *         notice; the left edge when nothing is drawn.
      */
-    public void drawBuffs(final Screen screen, final List<String> lines) {
+    public int drawItemStrip(final Screen screen, final List<ItemStatus> players) {
+        boolean any = false;
+        for (ItemStatus player : players)
+            any |= !player.isEmpty();
+        if (!any)
+            return 0;
         backBufferGraphics.setFont(fontRegular);
-        backBufferGraphics.setColor(Color.CYAN);
-        int y = 62;
-        for (String line : lines) {
-            int textWidth = backBufferGraphics.getFontMetrics().stringWidth(line);
-            backBufferGraphics.drawString(line,
-                    screen.getWidth() - textWidth - 10, y);
-            y += 20;
+        int iconTop = STATUS_STRIP_TOP + 2;
+        int iconSize = 7 * 2;
+        int x = STATUS_STRIP_MARGIN;
+        for (int p = 0; p < players.size(); p++) {
+            ItemStatus player = players.get(p);
+            if (p > 0) {
+                x += 4;
+                backBufferGraphics.setFont(fontRegular);
+                backBufferGraphics.setColor(Color.GRAY);
+                backBufferGraphics.drawString("|", x, statusStripBaseline());
+                x += fontRegularMetrics.stringWidth("|") + 8;
+            }
+            if (player.getGrenades() > 0) {
+                drawIcon(Icon.GRENADE, x, iconTop, 2);
+                x += iconSize + 2;
+                String count = Integer.toString(player.getGrenades());
+                backBufferGraphics.setFont(fontRegular);
+                backBufferGraphics.setColor(GameColors.EXPLOSION_ORANGE);
+                backBufferGraphics.drawString(count, x, statusStripBaseline());
+                x += fontRegularMetrics.stringWidth(count) + 8;
+            }
+            List<Icon> buffs = player.getBuffs();
+            for (int i = 0; i < buffs.size(); i++) {
+                if (player.isShown(i))
+                    drawIcon(buffs.get(i), x, iconTop, 2);
+                x += iconSize + 4;
+            }
         }
+        return x + 4;
     }
 
     /**

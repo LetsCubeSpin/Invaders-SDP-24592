@@ -49,4 +49,9 @@ public class ShieldItem extends Item {
     public String getName() {
         return "Energy Shield";
     }
+
+    @Override
+    public vfx.Icon getHudIcon() {
+        return vfx.Icon.SHIELD;
+    }
 }

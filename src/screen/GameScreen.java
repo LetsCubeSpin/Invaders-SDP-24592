@@ -44,6 +44,7 @@ import entity.Ship;
 import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
+import hud.ItemStatus;
 import records.RunSession;
 import records.StageClear;
 import records.RecordsService;
@@ -71,7 +72,6 @@ import java.util.IdentityHashMap;
 import java.util.UUID;
 import entity.Grenade;
 import entity.GrenadeFragment;
-import entity.item.BuffHud;
 import entity.item.ClusterGrenadeItem;
 import entity.item.Item;
 
@@ -272,6 +272,8 @@ public class GameScreen extends Screen {
     private RecordsService recordsService;
     private AchievementUnlock visibleAchievement;
     private long achievementNoticeUntil;
+    /** Where the status strip is free after the item icons, for the achievement notice. */
+    private int statusStripFreeFrom;
     private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
     private final Map<EnemyShip,String> defeatIds = new IdentityHashMap<EnemyShip,String>();
     /** Separates the enemy type from the random part of a defeat ID. */
@@ -1508,18 +1510,15 @@ public class GameScreen extends Screen {
 
 		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
 
-		// Item HUD: grenades left, active buffs and their time left.
-		drawManager.drawGrenadeCount(this, this.ship.getGrenadeCount());
-		List<String> activeBuffLines = new ArrayList<String>();
-		for (int index = 0; index < this.players.size(); index++) {
-			Ship playerShip = this.players.get(index).getShip();
-			for (String line : BuffHud.buildLines(
-					this.itemManager.getBuffManager(playerShip)
-							.getActiveBuffsRemainingTime(),
-					System.currentTimeMillis()))
-				activeBuffLines.add("P" + (index + 1) + ": " + line);
+		// Status strip under the HUD: each player's grenades and active buffs.
+		long now = System.currentTimeMillis();
+		List<ItemStatus> items = new ArrayList<ItemStatus>();
+		for (PlayerSlot player : this.players) {
+			Ship playerShip = player.getShip();
+			items.add(new ItemStatus(playerShip.getGrenadeCount(),
+					this.itemManager.getBuffManager(playerShip).getActiveBuffIcons(), now));
 		}
-		drawManager.drawBuffs(this, activeBuffLines);
+		this.statusStripFreeFrom = drawManager.drawItemStrip(this, items);
 
         drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
