@@ -1,5 +1,6 @@
 package engine;
 
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -68,8 +69,8 @@ record StoryDebugSelection(StoryRoute route, int stage, Difficulty difficulty, S
                     default -> throw new IllegalArgumentException("Invincible must be ON or OFF.");
                 };
                 case "--starting-lives" -> lives = Integer.parseInt(value);
-                case "--enemy-hp-multiplier" -> hp = multiplier(value);
-                case "--enemy-speed-multiplier" -> speed = multiplier(value);
+                case "--enemy-hp-multiplier" -> hp = multiplier("Enemy HP", value);
+                case "--enemy-speed-multiplier" -> speed = multiplier("Enemy speed", value);
                 default -> throw new IllegalArgumentException("Unknown option: " + option);
             }
         }
@@ -77,11 +78,16 @@ record StoryDebugSelection(StoryRoute route, int stage, Difficulty difficulty, S
                 new StoryDebugModifiers(invincible, lives, hp, speed));
     }
 
-    private static double multiplier(String value) {
+    private static double multiplier(String name, String value) {
         if (!value.matches("(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)")) {
             throw new IllegalArgumentException("Expected a decimal multiplier between 0.25 and 4.0.");
         }
-        return Double.parseDouble(value);
+        BigDecimal decimal = new BigDecimal(value);
+        if (decimal.compareTo(BigDecimal.valueOf(StoryDebugModifiers.MIN_MULTIPLIER)) < 0
+                || decimal.compareTo(BigDecimal.valueOf(StoryDebugModifiers.MAX_MULTIPLIER)) > 0) {
+            throw new IllegalArgumentException(name + " multiplier must be between 0.25 and 4.0.");
+        }
+        return decimal.doubleValue();
     }
 
     List<String> arguments() {
