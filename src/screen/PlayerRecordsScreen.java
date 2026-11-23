@@ -20,6 +20,8 @@ public final class PlayerRecordsScreen extends Screen {
     private int tab;
     /** Rank, from 0, of the run shown on the details tab. */
     private int selectedRun;
+    /** Index, from 0, of the first achievement shown on the achievements tab. */
+    private int firstAchievement;
     private long nextInputAt;
 
     public PlayerRecordsScreen(final int width, final int height,
@@ -39,7 +41,7 @@ public final class PlayerRecordsScreen extends Screen {
         super.update();
         this.drawManager.initDrawing(this);
         this.drawManager.drawRecordsPage(this, this.service, this.tab,
-                this.selectedRun);
+                this.selectedRun, this.firstAchievement);
         this.drawManager.completeDrawing(this);
         if (!this.inputDelay.checkFinished()
                 || System.currentTimeMillis() < this.nextInputAt)
@@ -59,6 +61,12 @@ public final class PlayerRecordsScreen extends Screen {
         } else if (this.tab == TAB_RUN_DETAILS
                 && this.inputManager.isKeyDown(KeyEvent.VK_DOWN)) {
             changeRun(1);
+        } else if (this.tab == TAB_ACHIEVEMENTS
+                && this.inputManager.isKeyDown(KeyEvent.VK_UP)) {
+            scrollAchievements(-1);
+        } else if (this.tab == TAB_ACHIEVEMENTS
+                && this.inputManager.isKeyDown(KeyEvent.VK_DOWN)) {
+            scrollAchievements(1);
         }
     }
 
@@ -66,6 +74,21 @@ public final class PlayerRecordsScreen extends Screen {
     private void changeTab(final int step) {
         this.tab = Math.floorMod(this.tab + step, TAB_COUNT);
         this.nextInputAt = System.currentTimeMillis() + 250;
+        AudioManager.playSFX("audio/sfx/menu_move.wav");
+    }
+
+    /**
+     * Scrolls the achievements by one, stopping when the first or last one
+     * is shown.
+     */
+    private void scrollAchievements(final int step) {
+        int last = Math.max(0, this.service.getAchievementStatuses().size()
+                - this.drawManager.getAchievementsPerPage(this));
+        int first = Math.max(0, Math.min(this.firstAchievement + step, last));
+        if (first == this.firstAchievement)
+            return;
+        this.firstAchievement = first;
+        this.nextInputAt = System.currentTimeMillis() + 150;
         AudioManager.playSFX("audio/sfx/menu_move.wav");
     }
 

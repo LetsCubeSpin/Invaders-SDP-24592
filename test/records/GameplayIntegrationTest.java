@@ -55,15 +55,15 @@ public final class GameplayIntegrationTest {
     private static void menusAndResults() throws Exception {
         // 3 of 12 bullets hit, though 5 enemies fell (grenades defeat without a hit).
         ScoreScreen accurate = new ScoreScreen(448,520,60,new GameState(1,100,0,12,5),
-                false,Collections.<Achievement>emptyList(),new RunStats(1,1,12,3,0,0,1));
+                false,Collections.<AchievementUnlock>emptyList(),new RunStats(1,1,12,3,0,0,1));
         check(Math.abs((Double)get(accurate,"accuracy")-0.25)<1e-9,
                 "score screen shows hits over shots, as the record does");
         ScoreScreen noStats = new ScoreScreen(448,520,60,new GameState(1,100,0,12,5),
-                false,Collections.<Achievement>emptyList());
+                false,Collections.<AchievementUnlock>emptyList());
         check((Double)get(noStats,"accuracy")==0, "score screen without run statistics shows no accuracy");
         for (boolean infinite : new boolean[]{false,true}) {
             ScoreScreen score = new ScoreScreen(448,520,60,new GameState(1,100,0,1,1),
-                    infinite,Arrays.asList(Achievement.FIRST_ENEMY));
+                    infinite,Arrays.asList(new AchievementUnlock(Achievement.FIRST_ENEMY,1)));
             set(score,"inputDelay",Core.getCooldown(0)); set(score,"isNewRecord",false);
             keys()[java.awt.event.KeyEvent.VK_SPACE]=true;
             try { call(score,"update"); }
@@ -75,12 +75,17 @@ public final class GameplayIntegrationTest {
         }
         ScoreScreen cleared = new ScoreScreen(448,520,60,
                 new GameState(campaign.CampaignStageData.getTotalStages()+1,500,3,0,20),
-                false,Arrays.asList(Achievement.FIRST_RUN,Achievement.FIRST_ENEMY,Achievement.TWENTY_ENEMIES,
+                false,firstTiers(Achievement.FIRST_RUN,Achievement.FIRST_ENEMY,Achievement.TWENTY_ENEMIES,
                         Achievement.SIXTY_SECONDS,Achievement.BEAT_HIGH_SCORE));
         call(cleared,"draw");
         check((Boolean)get(cleared,"gameCleared"),"campaign victory retained with achievement list");
         javax.imageio.ImageIO.write((java.awt.image.BufferedImage)get(Core.getDrawManager(),"backBuffer"),
                 "png",Paths.get("out","campaign-cleared-results.png").toFile());
+    }
+    private static java.util.List<AchievementUnlock> firstTiers(final Achievement... achievements) {
+        java.util.List<AchievementUnlock> unlocks=new java.util.ArrayList<AchievementUnlock>();
+        for (Achievement achievement : achievements) unlocks.add(new AchievementUnlock(achievement,1));
+        return unlocks;
     }
     private static void timingAndAbort(RecordsService service) throws Exception {
         service.startRun("timing"); RunSession session=new RunSession("timing");

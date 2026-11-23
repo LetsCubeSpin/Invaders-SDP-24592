@@ -11,7 +11,7 @@ import engine.Core;
 import engine.GameState;
 import engine.Score;
 import audio.AudioManager;
-import records.Achievement;
+import records.AchievementUnlock;
 import records.RecordsService;
 import records.RunStats;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ public class ScoreScreen extends Screen {
 	private int level;
 	/** Checks if the last stage was failed (no lives left). */
 	private boolean stageFailed;
-    private final List<Achievement> runUnlocks;
+    private final List<AchievementUnlock> runUnlocks;
   /** Checks if every campaign stage was cleared. */
   private boolean gameCleared;
 	/** Checks if the game that just ended was the infinite mode. */
@@ -76,14 +76,14 @@ public class ScoreScreen extends Screen {
 	 *            Current game state.
 	 */
     public ScoreScreen(final int width, final int height, final int fps, final GameState state) {
-        this(width,height,fps,state,false,Collections.<Achievement>emptyList());
+        this(width,height,fps,state,false,Collections.<AchievementUnlock>emptyList());
     }
     public ScoreScreen(final int width, final int height, final int fps,
             final GameState state, final boolean infiniteMode) {
-        this(width,height,fps,state,infiniteMode,Collections.<Achievement>emptyList());
+        this(width,height,fps,state,infiniteMode,Collections.<AchievementUnlock>emptyList());
     }
     public ScoreScreen(final int width, final int height, final int fps,
-            final GameState state, final List<Achievement> unlocks) {
+            final GameState state, final List<AchievementUnlock> unlocks) {
         this(width,height,fps,state,false,unlocks);
     }
     /**
@@ -94,7 +94,7 @@ public class ScoreScreen extends Screen {
      * shows 0% accuracy without any error.</p>
      */
     public ScoreScreen(final int width, final int height, final int fps,
-            final GameState gameState, final boolean infiniteMode, final List<Achievement> unlocks) {
+            final GameState gameState, final boolean infiniteMode, final List<AchievementUnlock> unlocks) {
         this(width,height,fps,gameState,infiniteMode,unlocks,RunStats.EMPTY);
     }
     /**
@@ -105,13 +105,13 @@ public class ScoreScreen extends Screen {
      *            score screen and the saved record agree.
      */
     public ScoreScreen(final int width, final int height, final int fps,
-            final GameState gameState, final boolean infiniteMode, final List<Achievement> unlocks,
+            final GameState gameState, final boolean infiniteMode, final List<AchievementUnlock> unlocks,
             final RunStats stats) {
         super(width,height,fps);
         if (stats == null)
             throw new IllegalArgumentException("stats must not be null.");
         this.accuracy = stats.getAccuracy();
-        this.runUnlocks = new ArrayList<Achievement>(unlocks);
+        this.runUnlocks = new ArrayList<AchievementUnlock>(unlocks);
 
 		this.infiniteMode = infiniteMode;
         this.modeLabel = infiniteMode ? "infinite mode"
@@ -153,7 +153,7 @@ public class ScoreScreen extends Screen {
         RecordsService recordsService = Core.getRecordsService();
         if (recordsService != null) {
             boolean hasNewAchievement = false;
-            Achievement achievement;
+            AchievementUnlock achievement;
             while ((achievement = recordsService.pollNotification()) != null) {
                 if (this.runUnlocks.contains(achievement)) {
                     hasNewAchievement = true;

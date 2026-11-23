@@ -11,7 +11,7 @@ import vfx.ParticleSystem;
 
 import audio.AudioManager;
 import records.RunSession;
-import records.Achievement;
+import records.AchievementUnlock;
 import records.RecordsService;
 import event.BulletHitEvent;
 import event.EnemyDefeatedEvent;
@@ -84,7 +84,7 @@ public class InfiniteGameScreen extends Screen {
 	private RunSession runSession;
 	private boolean abandoned;
 	private RecordsService recordsService;
-	private Achievement visibleAchievement;
+	private AchievementUnlock visibleAchievement;
 	private long achievementNoticeUntil;
 	private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
 	private final Map<Entity,String> defeatIds = new IdentityHashMap<Entity,String>();

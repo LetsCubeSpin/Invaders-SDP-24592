@@ -27,6 +27,18 @@ import story.Ending;
  * {@link RunMode#UNKNOWN} mode and {@link RunStats#EMPTY}. A version 1 file
  * stays valid, so it is backed up as usual before the first version 2 write
  * replaces it.</p>
+ *
+ * <p>Each achievement entry is the unlock time of one tier. An entry
+ * without a {@code tier} field is the first tier, the only one achievements
+ * had before tiers existed, so those profiles load unchanged. Achievement
+ * IDs are not checked against {@link Achievement#values()}: unknown ones are
+ * kept, so a profile written by a build with more achievements still
+ * loads.</p>
+ *
+ * <p>A version 2 record can also store the stages it cleared:
+ * {@code record.N.stages} and one {@code record.N.stage.M} entry per stage
+ * with the values of {@link StageClear}, separated by commas. Records
+ * without them cleared no saved stages.</p>
  */
 public final class ProfileStore {
     /** Version written by this class. */
@@ -103,13 +115,30 @@ public final class ProfileStore {
             properties.setProperty(prefix + "timesHit", Integer.toString(stats.getTimesHit()));
             properties.setProperty(prefix + "bosses", Integer.toString(stats.getBossesDefeated()));
             properties.setProperty(prefix + "items", Integer.toString(stats.getItemsUsed()));
+            List<StageClear> stages = record.getStagesCleared();
+            if (!stages.isEmpty()) {
+                properties.setProperty(prefix + "stages", Integer.toString(stages.size()));
+                for (int stage = 0; stage < stages.size(); stage++) {
+                    StringBuilder values = new StringBuilder();
+                    for (long value : stages.get(stage).toValues())
+                        values.append(values.length() == 0 ? "" : ",").append(value);
+                    properties.setProperty(prefix + "stage." + stage, values.toString());
+                }
+            }
         }
         properties.setProperty("achievement.count",
                 Integer.toString(snapshot.getUnlockTimes().size()));
         index = 0;
         for (Map.Entry<String, Long> entry : snapshot.getUnlockTimes().entrySet()) {
             String prefix = "achievement." + index++ + ".";
-            properties.setProperty(prefix + "id", entry.getKey());
+            String key = entry.getKey();
+            int separator = key.indexOf('#');
+            // The first tier keeps the plain ID, as profiles saved before
+            // tiers existed store it.
+            properties.setProperty(prefix + "id",
+                    separator < 0 ? key : key.substring(0, separator));
+            if (separator >= 0)
+                properties.setProperty(prefix + "tier", key.substring(separator + 1));
             properties.setProperty(prefix + "unlocked", Long.toString(entry.getValue()));
         }
         properties.setProperty("ending.count",
@@ -198,19 +227,36 @@ public final class ProfileStore {
                     records.add(new RunRecord(id,
                             RunMode.valueOf(required(properties, prefix + "mode")),
                             score, enemies, duration, completed,
-                            readStats(properties, prefix)));
+                            readStats(properties, prefix),
+                            readStages(properties, prefix)));
             } catch (IllegalArgumentException exception) {
                 throw new IOException("Invalid run record in profile.", exception);
             }
         }
-        int achievementCount = count(properties, "achievement.count",
-                Achievement.values().length);
+        int achievementCount = count(properties, "achievement.count", 100000);
         Map<String, Long> unlocked = new LinkedHashMap<String, Long>();
         for (int i = 0; i < achievementCount; i++) {
             String prefix = "achievement." + i + ".";
             String id = required(properties, prefix + "id");
-            if (Achievement.fromId(id) == null || unlocked.containsKey(id))
-                throw new IOException("Unknown or duplicate achievement ID.");
+            if (!id.matches("[a-z0-9_]+"))
+                throw new IOException("Invalid achievement ID.");
+            int tier = 1;
+            String tierValue = properties.getProperty(prefix + "tier");
+            if (tierValue != null) {
+                try {
+                    tier = Integer.parseInt(tierValue.trim());
+                } catch (NumberFormatException exception) {
+                    throw new IOException("Invalid achievement tier.", exception);
+                }
+                if (tier < 2 || tier > Achievement.MAX_TIERS)
+                    throw new IOException("Invalid achievement tier.");
+            }
+            // IDs this build does not define are kept rather than rejected,
+            // so a profile shared with a build that has more achievements
+            // still loads and keeps them.
+            String key = Achievement.unlockKey(id, tier);
+            if (unlocked.containsKey(key))
+                throw new IOException("Duplicate achievement unlock.");
             long time;
             try {
                 time = Long.parseLong(required(properties, prefix + "unlocked"));
@@ -219,7 +265,7 @@ public final class ProfileStore {
             }
             if (time <= 0)
                 throw new IOException("Invalid achievement time.");
-            unlocked.put(id, Long.valueOf(time));
+            unlocked.put(key, Long.valueOf(time));
         }
         return new ProfileSnapshot(records, unlocked, readEndings(properties));
     }
@@ -235,6 +281,29 @@ public final class ProfileStore {
                 Integer.parseInt(required(properties, prefix + "timesHit")),
                 Integer.parseInt(required(properties, prefix + "bosses")),
                 Integer.parseInt(required(properties, prefix + "items")));
+    }
+
+    /**
+     * Reads the stages a version 2 record cleared. Records saved before
+     * stage clears were stored have none, and the stage entries are extra
+     * keys that builds without them ignore, so the profile stays version 2.
+     */
+    private static List<StageClear> readStages(final Properties properties,
+            final String prefix) throws IOException {
+        List<StageClear> stages = new ArrayList<StageClear>();
+        if (properties.getProperty(prefix + "stages") == null)
+            return stages;
+        int count = count(properties, prefix + "stages", 10000);
+        for (int stage = 0; stage < count; stage++) {
+            String[] parts = required(properties, prefix + "stage." + stage).split(",");
+            if (parts.length != StageClear.VALUE_COUNT)
+                throw new IOException("Invalid stage clear in profile.");
+            long[] values = new long[parts.length];
+            for (int i = 0; i < parts.length; i++)
+                values[i] = Long.parseLong(parts[i].trim());
+            stages.add(StageClear.fromValues(values));
+        }
+        return stages;
     }
 
     /** Profiles saved before endings were stored have no ending entries. */

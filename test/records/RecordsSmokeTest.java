@@ -25,6 +25,7 @@ public final class RecordsSmokeTest {
         testWriteFailureAndLifecycle();
         testCompletionThresholdBoundary();
         testLatestMainDefeatAdapter();
+        testStageClearAdapter();
         testRecordsPageNavigationAndRender();
         testLatestMainMenuOrder();
         testRunRecordModeAndStats();
@@ -486,6 +487,35 @@ private static void testLatestMainDefeatAdapter() throws Exception {
         assertTrue(service.getUnlockTime(Achievement.TWENTY_ENEMIES)!=null,"shared publisher forwards twentieth distinct defeat");
     } finally { global.set(null,previous); service.close(); }
 }
+private static void testStageClearAdapter() throws Exception {
+    java.lang.reflect.Field global = engine.Core.class.getDeclaredField("recordsService");
+    global.setAccessible(true); Object previous = global.get(null);
+    java.lang.reflect.Field bus = screen.GameScreen.class.getDeclaredField("recordsEvents");
+    bus.setAccessible(true);
+    try {
+        for (boolean hit : new boolean[] { true, false }) {
+            RecordsService service = new RecordsService(testDirectory("stage-clear-" + hit)
+                    .resolve("profile.properties"));
+            global.set(null, service);
+            try {
+                service.startRun("stage-run");
+                RunSession session = new RunSession("stage-run", RunMode.CAMPAIGN);
+                screen.GameScreen game = new screen.GameScreen(new engine.GameState(1,0,3,0,0),
+                        new engine.GameSettings(2,2,40,1000),false,432,490,60,session);
+                session.stageStarted(1);
+                event.GameplayEventPublisher events = (event.GameplayEventPublisher) bus.get(game);
+                if (hit)
+                    events.publish(new event.PlayerHitEvent("stage-run", "hit-1",
+                            event.PlayerHitSource.ENEMY_BULLET, 1, 2));
+                events.publish(new event.LevelCompletedEvent(1, engine.GameplayConfig.EASY));
+                assertTrue(hit == (service.getUnlockTime(Achievement.UNTOUCHABLE) == null),
+                        "a stage clear on the screen's bus checks stage achievements, hit=" + hit);
+            } finally {
+                service.close();
+            }
+        }
+    } finally { global.set(null, previous); }
+}
 private static void testRecordsPageNavigationAndRender() {
 		RecordsService service = null;
 		try {
@@ -562,10 +592,45 @@ private static void testRecordsPageNavigationAndRender() {
 			assertEquals(9, runField.getInt(browser), "Up from the best run wraps to the last of the top ten");
 			changeRun.invoke(browser, 1);
 			assertEquals(0, runField.getInt(browser), "Down from the last run wraps to the best");
+			// More achievements than fit: Up/Down scrolls and stops at either end.
+			List<Achievement> many = new ArrayList<Achievement>();
+			for (int i = 0; i < 14; i++)
+				many.add(Achievement.define("many_" + i, "Achievement " + (i + 1),
+						"Defeat {target} enemies in total.")
+						.total(Stat.ENEMIES_DEFEATED, 10 + i, 100 + i, 1000 + i).build());
+			RecordsService crowded = new RecordsService(
+					testDirectory("crowded-profile").resolve("profile.properties"), many);
+			try {
+				crowded.completeRun(new RunRecord("crowded", 1, 105, 1, 1));
+				screen.PlayerRecordsScreen list = new screen.PlayerRecordsScreen(432, 490, 60, crowded);
+				java.lang.reflect.Method scroll = screen.PlayerRecordsScreen.class
+						.getDeclaredMethod("scrollAchievements", int.class);
+				java.lang.reflect.Field firstField = screen.PlayerRecordsScreen.class
+						.getDeclaredField("firstAchievement");
+				scroll.setAccessible(true);
+				firstField.setAccessible(true);
+				int perPage = draw.getAchievementsPerPage(page);
+				assertTrue(perPage >= 6 && perPage < many.size(),
+						"the six game achievements fit, fourteen do not: " + perPage);
+				scroll.invoke(list, -1);
+				assertEquals(0, firstField.getInt(list), "Up at the top stays at the top");
+				for (int i = 0; i < many.size(); i++)
+					scroll.invoke(list, 1);
+				assertEquals(many.size() - perPage, firstField.getInt(list),
+						"Down stops once the last achievement is shown");
+				draw.initDrawing(page);
+				draw.drawRecordsPage(page, crowded, screen.PlayerRecordsScreen.TAB_ACHIEVEMENTS,
+						0, firstField.getInt(list));
+				javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
+						"png", directory.resolve("achievements-scrolled.png").toFile());
+				draw.completeDrawing(page);
+			} finally {
+				crowded.close();
+			}
 			draw.initDrawing(page);
 			draw.drawAchievementResults(page, 10000, 0, 20, 0.5f, true,
 					new char[] { 'A', 'A', 'A' }, 0,
-					java.util.Arrays.asList(Achievement.values()), true, 0);
+					firstTiers(Achievement.values()), true, 0);
 			javax.imageio.ImageIO.write((java.awt.image.BufferedImage) buffer.get(null),
 					"png", directory.resolve("results.png").toFile());
 			draw.completeDrawing(page);
@@ -578,6 +643,12 @@ private static void testRecordsPageNavigationAndRender() {
 		}
 	}
 
+private static List<AchievementUnlock> firstTiers(final List<Achievement> achievements) {
+    List<AchievementUnlock> unlocks = new ArrayList<AchievementUnlock>();
+    for (Achievement achievement : achievements)
+        unlocks.add(new AchievementUnlock(achievement, 1));
+    return unlocks;
+}
 private static void testLatestMainMenuOrder() throws Exception {
     screen.TitleScreen menu = new screen.TitleScreen(432,490,60);
     java.lang.reflect.Field code = screen.Screen.class.getDeclaredField("returnCode"); code.setAccessible(true);

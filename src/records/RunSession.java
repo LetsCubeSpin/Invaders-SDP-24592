@@ -1,10 +1,14 @@
 package records;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import event.BossDefeatedEvent;
 import event.BulletHitEvent;
 import event.DeduplicatingListener;
+import event.EnemyDefeatedEvent;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
 import event.ItemUsedEvent;
@@ -40,6 +44,21 @@ public final class RunSession {
 	private int bossesDefeated;
 	/** Items used. */
 	private int itemsUsed;
+	/** Enemies defeated; only used for the values of a stage. */
+	private int enemiesDefeated;
+	/** Number of the stage being played, or 0 before the first. */
+	private int currentStage;
+	/**
+	 * Counts when the current stage started: shots, hits, times hit,
+	 * bosses, items, enemies and waves, in that order.
+	 */
+	private final int[] stageStartCounts = new int[7];
+	/** Active duration in nanoseconds when the current stage started. */
+	private long stageStartNanos;
+	/** Whether the current stage was already cleared. */
+	private boolean stageCleared;
+	/** Stages cleared in this run, saved with its record. */
+	private final List<StageClear> stagesCleared = new ArrayList<StageClear>();
 	/** Accumulated active duration in nanoseconds. */
 	private long activeDurationNanos;
 	/** Start time of the current active segment. */
@@ -125,6 +144,14 @@ public final class RunSession {
 					bossesDefeated = addCount(bossesDefeated, 1);
 			}
 		}));
+		events.subscribe(EnemyDefeatedEvent.class,
+				new DeduplicatingListener<EnemyDefeatedEvent>(
+						new GameplayEventListener<EnemyDefeatedEvent>() {
+			public void onEvent(final EnemyDefeatedEvent event) {
+				if (accepts(event.getRunId()))
+					enemiesDefeated = addCount(enemiesDefeated, 1);
+			}
+		}));
 		events.subscribe(ItemUsedEvent.class,
 				new DeduplicatingListener<ItemUsedEvent>(
 						new GameplayEventListener<ItemUsedEvent>() {
@@ -146,7 +173,8 @@ public final class RunSession {
 	}
 
 	/**
-	 * Records that a stage of the run started. Ignored after the run finished.
+	 * Records that a stage of the run started; {@link #stageCleared}
+	 * counts from here. Ignored after the run finished.
 	 *
 	 * @param stage
 	 *            1-based stage number.
@@ -154,8 +182,59 @@ public final class RunSession {
 	public void stageStarted(final int stage) {
 		if (stage < 1)
 			throw new IllegalArgumentException("stage must be 1 or greater.");
-		if (this.completedRecord == null)
-			this.stageReached = Math.max(this.stageReached, stage);
+		if (this.completedRecord != null)
+			return;
+		this.stageReached = Math.max(this.stageReached, stage);
+		this.currentStage = stage;
+		this.stageCleared = false;
+		int[] counts = stageCounts();
+		System.arraycopy(counts, 0, this.stageStartCounts, 0, counts.length);
+		this.stageStartNanos = this.activeDurationNanos;
+	}
+
+	private int[] stageCounts() {
+		return new int[] { this.shotsFired, this.hits, this.timesHit,
+				this.bossesDefeated, this.itemsUsed, this.enemiesDefeated,
+				this.wavesReached };
+	}
+
+	/**
+	 * Records that the current stage was cleared, with the values counted
+	 * since {@link #stageStarted}. The clear is kept with the run, so it is
+	 * saved, and counts towards stage totals, only if the run is completed.
+	 *
+	 * @param nowNanos
+	 *            Monotonic time, normally from System.nanoTime().
+	 * @return the cleared stage, or null if no stage started, the stage was
+	 *         already cleared, or the run finished.
+	 */
+	public StageClear stageCleared(final long nowNanos) {
+		if (this.completedRecord != null || this.currentStage == 0
+				|| this.stageCleared)
+			return null;
+		int[] counts = stageCounts();
+		int[] start = this.stageStartCounts;
+		long nanos = this.activeDurationNanos;
+		if (this.active) {
+			long elapsed = nowNanos - this.activeSegmentStartNanos;
+			if (elapsed > 0 && Long.MAX_VALUE - nanos >= elapsed)
+				nanos += elapsed;
+		}
+		StageClear clear = new StageClear(this.currentStage,
+				counts[5] - start[5], counts[6] - start[6],
+				counts[0] - start[0], counts[1] - start[1],
+				counts[2] - start[2], counts[3] - start[3],
+				counts[4] - start[4],
+				TimeUnit.NANOSECONDS.toSeconds(nanos - this.stageStartNanos));
+		this.stageCleared = true;
+		this.stagesCleared.add(clear);
+		return clear;
+	}
+
+	/** @return the stages cleared so far, in order. */
+	public List<StageClear> getStagesCleared() {
+		return Collections.unmodifiableList(
+				new ArrayList<StageClear>(this.stagesCleared));
 	}
 
 	/** Records that a wave started; waves add up over the whole run. */
@@ -220,7 +299,7 @@ public final class RunSession {
 		this.completedRecord = new RunRecord(this.runId, this.mode, score,
 				enemiesDefeated, TimeUnit.NANOSECONDS.toMillis(
 						this.activeDurationNanos), completionTimeMillis,
-				getStats());
+				getStats(), this.stagesCleared);
 		return this.completedRecord;
 	}
 

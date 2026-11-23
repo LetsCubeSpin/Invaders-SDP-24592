@@ -14,6 +14,10 @@ import story.Ending;
 /** Immutable persistence boundary for records, achievement unlock times and seen endings. */
 public final class ProfileSnapshot {
     private final List<RunRecord> records;
+    /**
+     * Unlock time of each achievement tier: the ID for the first tier,
+     * otherwise the ID, '#' and the tier.
+     */
     private final Map<String, Long> unlockTimes;
     private final Set<Ending> seenEndings;
 

@@ -45,8 +45,9 @@ import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
 import records.RunSession;
+import records.StageClear;
 import records.RecordsService;
-import records.Achievement;
+import records.AchievementUnlock;
 import story.StoryProgress;
 import story.StoryQuestion;
 import story.StoryStage;
@@ -269,7 +270,7 @@ public class GameScreen extends Screen {
     private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
-    private Achievement visibleAchievement;
+    private AchievementUnlock visibleAchievement;
     private long achievementNoticeUntil;
     private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
     private final Map<EnemyShip,String> defeatIds = new IdentityHashMap<EnemyShip,String>();
@@ -483,6 +484,19 @@ public class GameScreen extends Screen {
 				if (recordsService != null)
 					recordsService.enemyDefeated(event.getRunId(),
 							event.getEventId());
+			}
+		});
+		// The session keeps the cleared stage with the run, and stage
+		// achievements are checked against it at once.
+		this.recordsEvents.subscribe(LevelCompletedEvent.class,
+				new GameplayEventListener<LevelCompletedEvent>() {
+			public void onEvent(final LevelCompletedEvent event) {
+				RunSession session = GameScreen.this.runSession;
+				if (session == null)
+					return;
+				StageClear clear = session.stageCleared(System.nanoTime());
+				if (clear != null && recordsService != null)
+					recordsService.stageCleared(session.getRunId(), clear);
 			}
 		});
 

@@ -5,8 +5,8 @@ The local implementation covers team requirements 3.1–3.7. Its initial integra
 ## Usage
 
 - On the title screen, use Up/Down to select **Records & Achievements**, then press Space to open it. Records uses screen code 9, preserving the Infinite Mode shortcut I and screen code 8.
-- Use Left/Right to switch between **Run Records**, **Run Details** and **Achievements**. On **Run Details**, Up/Down selects one of the top ten runs and shows its mode and play statistics; Infinite runs show "-" for the stage and waves, and runs saved by version 1 profiles say their details were not recorded. Press Escape or Space to return to the menu.
-- When an achievement unlocks during gameplay, a notification appears at the top of the HUD for approximately three seconds. The results screen lists all achievements unlocked during that run.
+- Use Left/Right to switch between **Run Records**, **Run Details** and **Achievements**. On **Run Details**, Up/Down selects one of the top ten runs and shows its mode and play statistics; Infinite runs show "-" for the stage and waves, and runs saved by version 1 profiles say their details were not recorded. On **Achievements**, each entry shows its progress towards the next tier (for example `13/20`), and Up/Down scrolls when the list does not fit. Press Escape or Space to return to the menu.
+- When an achievement unlocks during gameplay, a notification appears at the top of the HUD for approximately three seconds. The results screen lists the achievements unlocked during that run, up to six rows; when more were unlocked, the last row reads `and N more`. A tiered achievement shows its tier in both places, for example `Exterminator (Bronze)`.
 - The profile is stored at `.space-invaders/records-achievements.properties` under the user's home directory. Run records and achievement unlock times are saved together; personal bests are recalculated from the complete record history.
 
 ## Local Data Protection
@@ -23,7 +23,7 @@ Each run record also keeps its game mode and play statistics:
 
 | Field | Source |
 | --- | --- |
-| `mode` | `CAMPAIGN`, `INFINITE` or `STORY`, set when Core starts the run. Custom levels leave no record. |
+| `mode` | `CAMPAIGN`, `INFINITE` or `STORY`, set when Core starts the run. Custom levels and Time Attack leave no record. |
 | `stage` | Highest stage started. Always 0 in Infinite Mode, which has no stages. |
 | `waves` | Waves started over the whole run, across every stage. Always 0 in Infinite Mode. |
 | `shots` | Sum of the bullet counts of `ShotFiredEvent`. |
@@ -36,11 +36,42 @@ Each run record also keeps its game mode and play statistics:
 
 Profiles are written as version 2. A version 1 profile still loads without losing records, achievements or endings; its records get the `UNKNOWN` mode and 0 for every statistic. The version 1 file stays valid, so the first version 2 write backs it up to `.bak` instead of quarantining it, and a version 1 backup can still restore a corrupt version 2 profile. During development, note that every branch shares the profile in the home directory, and a branch without version 2 support cannot read a version 2 profile. If the profile was saved only once as version 2, that branch restores the version 1 `.bak`, so runs and achievements recorded since then are not shown there. After a second version 2 save the `.bak` is version 2 as well, so that branch shows an empty profile and blocks writes. In both cases no file is overwritten, the profile reads normally again on a branch with version 2 support, and each start on the older branch adds `.corrupt-<id>` copies next to the profile. This goes away once every branch includes version 2.
 
+## Achievements
+
+Every achievement is defined in `records.Achievement`, and adding one means adding one constant there; `RecordsService` checks, saves and lists it without other changes. For example:
+
+```java
+public static final Achievement SHARPSHOOTER = add(define("sharpshooter",
+        "Sharpshooter", "Finish a run with {target}% accuracy (50+ shots).")
+        .run(Stat.ACCURACY_PERCENT, 50)
+        .atLeast(Stat.SHOTS_FIRED, 50));
+```
+
+A definition has:
+
+| Part | Meaning |
+| --- | --- |
+| ID | Saved in the profile. Never change the ID of an existing achievement. |
+| Name and condition | `{target}` in the condition is replaced by the target of the tier shown. |
+| Scope | `stage(...)`: one cleared Campaign or Story stage must reach the target, counting only that stage's values. `stageTotal(...)`: the values of every counted stage add up over the whole game. `run(...)`: one completed run must reach the target. `total(...)`: the values of every counted run add up over the whole game. Abandoned runs never count towards either total. |
+| Stat | The value compared with the targets (`records.Stat`): enemies, active seconds, score, high scores beaten, stage, waves, shots, bullet hits, accuracy percent, times hit, bosses, items, completed runs, stages cleared, or endings seen. Stage number and accuracy cannot be added up, so they are not for `total` or `stageTotal`; score, completed runs and high scores are not counted per stage; stages cleared is for stage scopes only; endings seen is for `total` without requirements. A new kind of value is added there. |
+| Targets | One to three increasing targets. With more than one they are the Bronze, Silver and Gold tiers, each unlocked and timed separately. |
+| Requirements | `atLeast(stat, n)` and `atMost(stat, n)` limit which stages or runs count, for conditions such as "without losing a life" (`atMost(Stat.TIMES_HIT, 0)`) or "with at least 50 shots". Runs saved by version 1 profiles have no play statistics, so they never meet a requirement on them. |
+| Hidden | `.hidden()`: the name and condition show as `???`, without progress, until the first tier unlocks. |
+
+When `GameScreen` receives `LevelCompletedEvent`, `RunSession.stageCleared` creates a `StageClear` with the stage's shots, hits, lives lost, bosses, items, enemies, waves and active seconds, counted from the moment the stage started, and keeps it with the run. A `stage` achievement is checked against it at once (`RecordsService.stageCleared`), so it unlocks even if the run is abandoned later. The stage clears are saved with the run record only when the run is completed, so a `stageTotal` achievement, checked when a run is completed, never counts the stages of an abandoned run. Progress for both comes from the saved stage clears. A `run` achievement whose stat and requirements only use enemies defeated and active seconds is also checked during play, as Ace Pilot is; any other `run` or `total` achievement is checked when a run is completed.
+
+Four examples show the parts: **Exterminator** has tiers for 100, 500 and 1000 enemies over every completed run, **Sharpshooter** needs 50% accuracy in a run with at least 50 shots, the hidden **Untouchable** needs a stage cleared without losing a life, and **Clean Sweep** has tiers for 10, 25 and 50 stages cleared without losing a life over every completed run.
+
+The records page shows a `run` achievement's progress from the best counted run, and a `total` one's from every counted run added up. Both are rebuilt from the saved runs, so progress is not stored separately. When a run is completed, `run` achievements are checked against the best counted run, so a newly added achievement that an earlier run already reached unlocks then.
+
+The existing six achievements (First Flight, First Contact, Ace Pilot, Still Flying, Top That and Every Ending) are single-tier definitions with their original IDs and conditions, so their unlock states and times load unchanged. Each saved achievement entry is one tier: an entry without a `tier` field is the first tier, so profiles saved before tiers existed load as they are, and single-tier achievements are still saved without one. Achievement IDs the build does not define are kept and saved again instead of rejecting the profile, so a profile written by a branch with more achievements still loads. A branch without this achievement system cannot do the same: it rejects achievement IDs it does not define, repeated IDs (as the tiers of one achievement are saved) and more achievement entries than it defines. Once the profile holds an unlock of a newer achievement or of a second tier, such a branch treats it as corrupt, as described for version 2 above: it restores the `.bak` if that is still readable, otherwise it shows an empty profile and blocks writes. No file is overwritten, and the profile reads normally again on a branch with this achievement system. A version 2 record can also store its stage clears as `record.N.stages` and `record.N.stage.M` (the nine `StageClear` values separated by commas); builds without them ignore these keys, and records without them have no saved stages, so the profile stays version 2.
+
 ## Gameplay Integration and Shared Interfaces
 
-Campaign mode covers normal and special enemies defeated by bullets, Orbital Annihilator beams, or Chameleon Hull contact. Infinite Mode covers Zigzag enemies defeated by bullets. All of these paths connect to requirement 3.5 through `EnemyDefeatedEvent` and the shared `GameplayEventPublisher`. Each enemy retains a stable event ID, and the service ignores duplicate events. Shield absorption, escaped enemies, and player collisions in Infinite Mode do not count as enemy defeats. The current main branch has no Boss implementation; future valid defeat paths must also use this interface.
+Campaign mode covers normal and special enemies defeated by bullets, Orbital Annihilator beams, or Chameleon Hull contact. Infinite Mode covers Zigzag enemies defeated by bullets. All of these paths connect to requirement 3.5 through `EnemyDefeatedEvent` and the shared `GameplayEventPublisher`. Each enemy retains a stable event ID, and the service ignores duplicate events. Shield absorption, escaped enemies, and player collisions in Infinite Mode do not count as enemy defeats. A defeated boss sends `EnemyDefeatedEvent` as well as `BossDefeatedEvent`, so it counts as an enemy defeat and as a boss; minions a boss summons do not count as enemy defeats. Future valid defeat paths must also use this interface.
 
-The Records page can be opened from the title menu and returns to it, preserving Settings navigation and the Infinite Mode shortcut. Both modes display HUD unlock notifications and a summary of achievements unlocked during the run. Campaign victory titles, Infinite Mode replay navigation, existing item rendering, and BGM transitions are preserved. The achievement proposed by Octopus for completing a Campaign stage for the first time is outside the five achievements registered for this project, so it is not added to the current achievement set.
+The Records page can be opened from the title menu and returns to it, preserving Settings navigation and the Infinite Mode shortcut. Both modes display HUD unlock notifications and a summary of achievements unlocked during the run. Campaign victory titles, Infinite Mode replay navigation, existing item rendering, and BGM transitions are preserved. The achievement proposed by Octopus for completing a Campaign stage for the first time is not in the current achievement set; with stage achievements it can be added as one `stage` definition (see [Achievements](#achievements)).
 
 ## Verification
 
@@ -49,13 +80,16 @@ Run the following commands from the game repository root:
 ```powershell
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\build.ps1
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\test-records.ps1
+.\gradlew.bat test --tests "records.*"
 ```
 
-The records tests cover field validation, run modes and statistics collected from the gameplay events, version 2 persistence across restarts, loading and converting version 1 profiles without losing data, version 1 backups, active-time accounting, duplicate completion handling, boundary conditions for all five achievements, ranking order and the ten-entry limit, recovery after restart, backup-recovery warnings, preservation of original files when recovery is unavailable, protection of the valid primary profile when backup writes fail, and event handling after a run has closed.
+`test-records.ps1` runs the standalone records, gameplay integration and course wave-list checks. They cover field validation, run modes and statistics collected from the gameplay events, version 2 persistence across restarts, loading and converting version 1 profiles without losing data, version 1 backups, active-time accounting, duplicate completion handling, boundary conditions for the existing achievements, scrolling the achievement list, ranking order and the ten-entry limit, recovery after restart, backup-recovery warnings, preservation of original files when recovery is unavailable, protection of the valid primary profile when backup writes fail, and event handling after a run has closed. The achievement definitions are tested by JUnit, which `test-records.ps1` does not run: `AchievementDefinitionTest` covers achievement progress, tiers, hidden entries, requirements, stage achievements, the example achievements and kept unlock times, and `AllEndingsAchievementTest` and `EndingSaveTest` cover Every Ending and saved endings.
 
-Verification on 2026-10-15: the build succeeded with 60 Java source files; 104 records checks, 35 gameplay integration checks, and the existing course wave-list checks passed. The added checks call the actual collision handlers and cover normal and special enemies across the three defeat paths, repeated calls, shield absorption, Infinite Mode defeats/escapes/collisions, exclusion of countdowns and ending animations, abandonment, the 60-second achievement trigger, natural-death records, the I shortcut, and replay in both modes.
+Verification on 2026-11-23: `testRecords` and `test` passed with 153 Java source files, with 409 records checks, 49 gameplay integration checks, the course wave-list checks and 587 JUnit tests, 42 of them in `AchievementDefinitionTest`.
 
-The tests also cover recovery of 80 queued records after a separate process exits, achievement-threshold rechecks on the final frame, and profile protection. Offscreen renders produced by the actual drawing code were inspected for rankings, achievements, failure results, Infinite Mode results, and a Campaign victory summary with all five achievements. Outputs are stored in the ignored `out/` directory. These checks do not establish that every stage has been manually played through, and the gameplay difficulty of the 20-defeat and 60-second thresholds has not been evaluated.
+The initial verification on 2026-10-15 ran with 60 Java source files, 104 records checks and 35 gameplay integration checks. Its checks call the actual collision handlers and cover normal and special enemies across the three defeat paths, repeated calls, shield absorption, Infinite Mode defeats/escapes/collisions, exclusion of countdowns and ending animations, abandonment, the 60-second achievement trigger, natural-death records, the I shortcut, and replay in both modes.
+
+The tests also cover recovery of 80 queued records after a separate process exits, achievement-threshold rechecks on the final frame, and profile protection. Offscreen renders produced by the actual drawing code were inspected for rankings, achievements, failure results, Infinite Mode results, and a Campaign victory summary with the five achievements of that time. Outputs are stored in the ignored `out/` directory. These checks do not establish that every stage has been manually played through, and the gameplay difficulty of the achievement targets, from the 20-defeat and 60-second thresholds to the tiers of Exterminator and Clean Sweep and Sharpshooter's 50% accuracy, has not been evaluated.
 
 ## Compatibility Boundaries and Team Workflow
 

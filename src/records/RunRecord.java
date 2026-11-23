@@ -1,5 +1,9 @@
 package records;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Immutable summary of one completed game run.
  */
@@ -19,6 +23,8 @@ public final class RunRecord {
 	private final RunMode mode;
 	/** Play statistics of the run. */
 	private final RunStats stats;
+	/** Stages cleared in the run, in order. */
+	private final List<StageClear> stagesCleared;
 
 	/**
 	 * Creates a record without a mode or play statistics, as version 1
@@ -64,6 +70,24 @@ public final class RunRecord {
 	public RunRecord(final String runId, final RunMode mode, final int score,
 			final int enemiesDefeated, final long activeDurationMillis,
 			final long completionTimeMillis, final RunStats stats) {
+		this(runId, mode, score, enemiesDefeated, activeDurationMillis,
+				completionTimeMillis, stats, Collections.<StageClear>emptyList());
+	}
+
+	/**
+	 * Creates a completed run record with the stages it cleared.
+	 *
+	 * @param stagesCleared
+	 *            Stages cleared in the run, in order; achievements that
+	 *            count stages read them.
+	 * @see #RunRecord(String, RunMode, int, int, long, long, RunStats)
+	 */
+	public RunRecord(final String runId, final RunMode mode, final int score,
+			final int enemiesDefeated, final long activeDurationMillis,
+			final long completionTimeMillis, final RunStats stats,
+			final List<StageClear> stagesCleared) {
+		if (stagesCleared == null || stagesCleared.contains(null))
+			throw new IllegalArgumentException("stagesCleared must not contain null.");
 		if (runId == null || runId.trim().length() == 0)
 			throw new IllegalArgumentException("runId must not be blank.");
 		if (enemiesDefeated < 0)
@@ -87,6 +111,8 @@ public final class RunRecord {
 		this.completionTimeMillis = completionTimeMillis;
 		this.mode = mode;
 		this.stats = stats;
+		this.stagesCleared = Collections.unmodifiableList(
+				new ArrayList<StageClear>(stagesCleared));
 	}
 
 	/** @return the unique run identifier. */
@@ -122,5 +148,10 @@ public final class RunRecord {
 	/** @return the play statistics of the run. */
 	public RunStats getStats() {
 		return this.stats;
+	}
+
+	/** @return the stages cleared in the run, in order. */
+	public List<StageClear> getStagesCleared() {
+		return this.stagesCleared;
 	}
 }
