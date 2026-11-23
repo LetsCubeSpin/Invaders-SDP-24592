@@ -16,9 +16,9 @@ import java.util.function.Consumer;
  * {@link EndingReachedEvent}:
  * {@code publisher.subscribe(EndingReachedEvent.class, new EndingBgm())}.
  *
- * <p>Not subscribed in the game yet, so no ending music plays. It is
- * ready to use once {@link story.EndingCollection} is connected (see that
- * class); {@link #pathFor(Ending)} can also be called on its own.</p>
+ * <p>Subscribed when the game starts, together with
+ * {@link story.EndingCollection} (see that class);
+ * {@link #pathFor(Ending)} can also be called on its own.</p>
  */
 public final class EndingBgm implements GameplayEventListener<EndingReachedEvent> {
 
