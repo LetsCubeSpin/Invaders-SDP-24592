@@ -32,6 +32,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import entity.Entity;
+import entity.Boss;
 import entity.Grenade;
 import entity.GrenadeFragment;
 import entity.item.ClusterGrenadeItem;
@@ -40,6 +41,7 @@ import entity.Bullet;
 import vfx.Icon;
 import vfx.RankBadge;
 import vfx.ShipSprites;
+import vfx.BossSprites;
 import screen.GameModeScreen;
 
 /**
@@ -259,6 +261,11 @@ public final class DrawManager {
             final int positionY) {
         boolean[][] image = spriteMap.get(entity.getSpriteType());
 
+        if (entity instanceof Boss && !((Boss) entity).isDefeated()) {
+            drawPixels(BossSprites.forType(((Boss) entity).getType()), positionX, positionY);
+            return;
+        }
+
         if (entity instanceof Ship
                 && entity.getSpriteType() == SpriteType.Ship) {
             image = ShipSprites.forType(((Ship) entity).getShipType());
@@ -384,7 +391,7 @@ public final class DrawManager {
             hud.drawString(health, right - metrics.stringWidth(health), 37);
             hud.setColor(Color.DARK_GRAY);
             hud.fillRect(barX, 31, barWidth, 6);
-            hud.setColor(Color.MAGENTA);
+            hud.setColor(boss.getBossType().getColor());
             hud.fillRect(barX, 31, filledWidth, 6);
             hud.setColor(Color.GRAY);
             hud.drawRect(barX - 1, 30, barWidth + 1, 7);
