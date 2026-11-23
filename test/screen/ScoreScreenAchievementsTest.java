@@ -65,6 +65,13 @@ class ScoreScreenAchievementsTest {
         buffer.setAccessible(true);
         draw.initDrawing(screen);
         BufferedImage image = (BufferedImage) buffer.get(null);
+        // Each screen has its own random stars, and where text is smoothed
+        // its edge pixels blend with them, so the results go on a plain
+        // background to come out the same on every draw.
+        java.awt.Graphics clear = image.getGraphics();
+        clear.setColor(Color.BLACK);
+        clear.fillRect(0, 0, image.getWidth(), image.getHeight());
+        clear.dispose();
         BufferedImage before = new BufferedImage(image.getWidth(), image.getHeight(),
                 BufferedImage.TYPE_INT_ARGB);
         before.getGraphics().drawImage(image, 0, 0, null);
