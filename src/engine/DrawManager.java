@@ -1814,9 +1814,32 @@ public final class DrawManager {
                 screen.getHeight() - spacing);
     }
 
-    /** Height of one achievement on the records page: two text rows and a gap. */
+    /** Side margin of the achievement rows on the records page. */
+    private static final int ACHIEVEMENT_MARGIN = 12;
+    /** Width of the icon column left of each achievement row. */
+    private static final int ACHIEVEMENT_ICON_COLUMN = 26;
+    /** Height of the progress bar between an achievement's name and condition. */
+    private static final int ACHIEVEMENT_BAR_HEIGHT = 3;
+    /** Smaller font for the achievement conditions; derived when first needed. */
+    private static Font fontSmall;
+
+    private Font smallFont() {
+        if (fontSmall == null)
+            fontSmall = fontRegular.deriveFont(12f);
+        return fontSmall;
+    }
+
+    /** Baseline of an achievement's condition below the baseline of its name. */
+    private int achievementConditionOffset() {
+        return fontRegularMetrics.getHeight() + ACHIEVEMENT_BAR_HEIGHT + 3;
+    }
+
+    /**
+     * Height of one achievement on the records page: its name, progress bar,
+     * condition and a gap.
+     */
     private int achievementRowHeight() {
-        return fontRegularMetrics.getHeight() * 2 + 8;
+        return achievementConditionOffset() + fontRegularMetrics.getHeight() + 6;
     }
 
     /** First baseline of the achievement rows, below the summary line. */
@@ -1831,13 +1854,15 @@ public final class DrawManager {
     public int getAchievementsPerPage(final Screen screen) {
         // Rows stop one line above the status line at the bottom.
         int bottom = screen.getHeight() - fontRegularMetrics.getHeight() * 2;
-        // The second text row of the last achievement must fit above it.
+        // The condition of the last achievement must fit above it.
         return Math.max(1, (bottom - achievementListTop(screen)
-                - fontRegularMetrics.getHeight() + achievementRowHeight())
-                / achievementRowHeight());
+                - achievementConditionOffset()) / achievementRowHeight() + 1);
     }
 
-    /** Draws the achievements of the records page from the first one shown. */
+    /**
+     * Draws the achievements of the records page from the first one shown:
+     * each with its medal or trophy, name, progress bar and condition.
+     */
     public void drawAchievementList(final Screen screen, final RecordsService service,
             final int firstShown) {
         List<AchievementStatus> statuses = service.getAchievementStatuses();
@@ -1847,28 +1872,66 @@ public final class DrawManager {
         for (AchievementStatus status : statuses)
             if (status.isUnlocked())
                 unlocked++;
-        backBufferGraphics.setColor(Color.GRAY);
         String summary = unlocked + "/" + statuses.size() + " unlocked";
         if (statuses.size() > perPage)
-            summary += String.format("   %d-%d   Up/Down: scroll", first + 1,
-                    Math.min(statuses.size(), first + perPage));
-        drawCenteredRegularString(screen, summary, getRecordsPageTop(screen));
+            drawCenteredSegments(screen, getRecordsPageTop(screen), Color.GRAY,
+                    summary + String.format("   %d-%d   ", first + 1,
+                            Math.min(statuses.size(), first + perPage)),
+                    Color.WHITE, "[Up/Down]", Color.GRAY, " Scroll");
+        else
+            drawCenteredSegments(screen, getRecordsPageTop(screen), Color.GRAY, summary);
         int y = achievementListTop(screen);
         for (int i = first; i < Math.min(statuses.size(), first + perPage); i++) {
-            AchievementStatus status = statuses.get(i);
-            Long time = status.getLastUnlockTime();
-            backBufferGraphics.setColor(time == null ? Color.WHITE : Color.GREEN);
-            drawCenteredRegularString(screen, status.getTitle() + (time == null ? " [Locked]"
-                    : " [" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                            .format(new Date(time)) + "]"),
-                    y);
-            backBufferGraphics.setColor(Color.GRAY);
-            String progress = status.getProgressText();
-            drawCenteredRegularString(screen, status.getCondition()
-                    + (progress.isEmpty() ? "" : "  " + progress),
-                    y + fontRegularMetrics.getHeight());
+            drawAchievementRow(screen, statuses.get(i), y);
             y += achievementRowHeight();
         }
+    }
+
+    /** Draws one achievement row whose name sits on the given baseline. */
+    private void drawAchievementRow(final Screen screen, final AchievementStatus status,
+            final int y) {
+        int left = ACHIEVEMENT_MARGIN + ACHIEVEMENT_ICON_COLUMN;
+        int right = screen.getWidth() - ACHIEVEMENT_MARGIN;
+        // The icon is centered on the row's text, from the name to the condition.
+        int middle = y + achievementConditionOffset() / 2 - 4;
+        if (status.isUnlocked() && status.getAchievement().getTierCount() > 1)
+            drawColorGrid(RankBadge.forTier(status.getUnlockedTiers()),
+                    ACHIEVEMENT_MARGIN, middle - RankBadge.HEIGHT, 2);
+        else if (status.isUnlocked())
+            drawIcon(Icon.HIGH_SCORES, ACHIEVEMENT_MARGIN,
+                    middle - Icon.HIGH_SCORES.getHeight(), 2);
+        else
+            drawDimmedIcon(Icon.HIGH_SCORES, ACHIEVEMENT_MARGIN,
+                    middle - Icon.HIGH_SCORES.getHeight(), 2);
+
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(status.isUnlocked() ? Color.GREEN : Color.WHITE);
+        backBufferGraphics.drawString(status.getTitle(), left, y);
+        // Complete achievements show when they were finished, the others
+        // their progress towards the next tier.
+        Long time = status.getLastUnlockTime();
+        String corner = status.isComplete() && time != null
+                ? DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                        .format(new Date(time))
+                : status.getProgressText();
+        backBufferGraphics.setColor(status.isComplete() ? Color.GREEN : Color.LIGHT_GRAY);
+        backBufferGraphics.drawString(corner,
+                right - fontRegularMetrics.stringWidth(corner), y);
+
+        if (status.isRevealed()) {
+            int barTop = y + 4;
+            backBufferGraphics.setColor(Color.DARK_GRAY);
+            backBufferGraphics.fillRect(left, barTop, right - left, ACHIEVEMENT_BAR_HEIGHT);
+            backBufferGraphics.setColor(status.isComplete() ? Color.GREEN : Color.WHITE);
+            backBufferGraphics.fillRect(left, barTop,
+                    (int) Math.round((right - left) * status.getProgressFraction()),
+                    ACHIEVEMENT_BAR_HEIGHT);
+        }
+
+        backBufferGraphics.setFont(smallFont());
+        backBufferGraphics.setColor(Color.GRAY);
+        backBufferGraphics.drawString(status.getCondition(), left,
+                y + achievementConditionOffset());
     }
 
     public void drawMenu(final Screen screen, final int option) {

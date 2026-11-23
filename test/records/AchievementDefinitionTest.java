@@ -116,6 +116,7 @@ class AchievementDefinitionTest {
 
                 assertEquals(13, records.getProgress(HITS));
                 assertEquals("13/20", status(records, HITS).getProgressText());
+                assertEquals(0.65, status(records, HITS).getProgressFraction(), 1e-9);
                 assertNull(records.getUnlockTime(HITS), "13 + 9 is not one run");
             } finally {
                 records.close();
@@ -131,6 +132,7 @@ class AchievementDefinitionTest {
                 AchievementStatus status = status(records, HITS);
                 assertTrue(status.isComplete());
                 assertEquals("20/20", status.getProgressText());
+                assertEquals(1.0, status.getProgressFraction(), "a complete bar is full");
                 assertEquals(Long.valueOf(5), status.getLastUnlockTime());
             } finally {
                 records.close();
@@ -217,6 +219,7 @@ class AchievementDefinitionTest {
                 assertEquals("Exterminator (Bronze)", status.getTitle());
                 assertEquals("Defeat 500 enemies in total.", status.getCondition());
                 assertEquals("120/500", status.getProgressText());
+                assertEquals(0.24, status.getProgressFraction(), 1e-9, "the bar fills towards the next tier");
             } finally {
                 records.close();
             }
@@ -304,6 +307,7 @@ class AchievementDefinitionTest {
                 assertEquals("???", status.getTitle());
                 assertEquals("???", status.getCondition());
                 assertEquals("", status.getProgressText(), "progress would give it away");
+                assertEquals(0.0, status.getProgressFraction(), "so would the bar");
             } finally {
                 records.close();
             }

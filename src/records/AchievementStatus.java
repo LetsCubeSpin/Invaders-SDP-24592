@@ -89,10 +89,24 @@ public final class AchievementStatus {
     public String getProgressText() {
         if (!isRevealed())
             return "";
-        long target = getTarget();
+        return shownProgress() + "/" + getTarget();
+    }
+
+    /**
+     * @return how far the progress text is towards its target, from 0 to 1,
+     *         for a progress bar; 1 once complete and 0 while hidden.
+     */
+    public double getProgressFraction() {
+        if (!isRevealed())
+            return 0;
+        return (double) shownProgress() / getTarget();
+    }
+
+    /** @return the progress shown, from the unlocked tier's target up to the next target. */
+    private long shownProgress() {
         long shown = Math.max(this.progress, isUnlocked()
                 ? this.achievement.getTarget(this.unlockedTiers) : 0);
-        return Math.min(shown, target) + "/" + target;
+        return Math.min(shown, getTarget());
     }
 
     private int shownTier() {

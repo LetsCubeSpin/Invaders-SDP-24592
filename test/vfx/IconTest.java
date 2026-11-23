@@ -63,6 +63,24 @@ public final class IconTest {
 				"Other ranks have no ribbon");
 		check(!RankBadge.forRank(1)[5][6].equals(RankBadge.forRank(2)[5][6]),
 				"Gold and silver medals differ");
+		for (int tier = 1; tier <= 3; tier++) {
+			java.awt.Color[][] medal = RankBadge.forTier(tier);
+			check(medal.length == RankBadge.WIDTH
+					&& medal[0].length == RankBadge.HEIGHT && medal[1][0] != null,
+					"Tier " + tier + " medal has the badge size and a ribbon");
+			check(medal[4][7].equals(RankBadge.forRank(4 - tier)[8][7]),
+					"Tier " + tier + " uses the medal color of rank " + (4 - tier));
+			// The middle of the digit area is part of the disc, not a number.
+			check(medal[4][7].equals(medal[4][6]),
+					"Tier " + tier + " medal has no number");
+		}
+		boolean rejected = false;
+		try {
+			RankBadge.forTier(4);
+		} catch (IllegalArgumentException expected) {
+			rejected = true;
+		}
+		check(rejected, "There is no fourth tier medal");
 
 		System.out.println("Icon checks passed.");
 	}
