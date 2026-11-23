@@ -27,8 +27,10 @@ import records.AchievementUnlock;
 import records.RecordsService;
 import records.RunRecord;
 import records.RunRecordFormatter;
-import java.text.DateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import entity.Entity;
 import entity.Grenade;
 import entity.GrenadeFragment;
@@ -63,6 +65,9 @@ public final class DrawManager {
 
     /** Most rows of newly unlocked achievements on the results screen. */
     private static final int MAX_RESULT_ACHIEVEMENTS = 6;
+
+    private static final DateTimeFormatter ACHIEVEMENT_TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm a", Locale.US);
 
     /**
      * Centers the complete achievement result block above the input prompt.
@@ -1876,8 +1881,8 @@ public final class DrawManager {
             Long time = status.getLastUnlockTime();
             backBufferGraphics.setColor(time == null ? Color.WHITE : Color.GREEN);
             drawCenteredRegularString(screen, status.getTitle() + (time == null ? " [Locked]"
-                    : " [" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                            .format(new Date(time)) + "]"),
+                    : " [" + ACHIEVEMENT_TIMESTAMP_FORMAT
+                            .format(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault())) + "]"),
                     y);
             backBufferGraphics.setColor(Color.GRAY);
             String progress = status.getProgressText();
