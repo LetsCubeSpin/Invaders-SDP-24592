@@ -45,10 +45,11 @@ import entity.Ship;
 import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
+import hud.AchievementToast;
+import hud.ItemStatus;
 import records.RunSession;
 import records.StageClear;
 import records.RecordsService;
-import records.AchievementUnlock;
 import story.StoryProgress;
 import story.StoryQuestion;
 import story.StoryStage;
@@ -72,7 +73,6 @@ import java.util.IdentityHashMap;
 import java.util.UUID;
 import entity.Grenade;
 import entity.GrenadeFragment;
-import entity.item.BuffHud;
 import entity.item.ClusterGrenadeItem;
 import entity.item.Item;
 
@@ -144,6 +144,11 @@ public class GameScreen extends Screen {
 	private long lastLaserShieldBlockSfxMillis;
 	/** Stages where a boss appears (agreed with the team, may change). */
 	static final int[] BOSS_LEVELS = { 3, 5, 7 };
+	/**
+	 * Top of the boss: under the bonus ship's path, and with its bottom no
+	 * lower than the top of the enemy formation, which starts at y 100.
+	 */
+	static final int BOSS_SPAWN_Y = 86;
     /** Chance for a destroyed enemy ship to drop a Cluster Grenade item. */
     private static final double GRENADE_DROP_CHANCE = 0.15;
     /** Fixed altitude (Y) where a grenade explodes if it hits nothing. */
@@ -276,8 +281,8 @@ public class GameScreen extends Screen {
     private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
-    private AchievementUnlock visibleAchievement;
-    private long achievementNoticeUntil;
+    /** Where the status strip is free after the item icons, for the achievement notice. */
+    private int statusStripFreeFrom;
     private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
     private final Map<EnemyShip,String> defeatIds = new IdentityHashMap<EnemyShip,String>();
     /** Separates the enemy type from the random part of a defeat ID. */
@@ -953,6 +958,10 @@ public class GameScreen extends Screen {
 	 */
 	public final void initialize() {
 		super.initialize();
+		// The time between the previous screen and this one does not count
+		// toward the achievement notice.
+		if (this.recordsService != null)
+			AchievementToast.of(this.recordsService).screenStarted();
 
 		enemyShipFormation = createFormation();
 		if (this.runSession != null) {
@@ -1001,7 +1010,7 @@ public class GameScreen extends Screen {
 		if (bossType != null)
 			this.bossManager.spawn(new BossSpawnRequest(
 					bossType,
-					this.width / 2 - Boss.WIDTH / 2, 78,
+					this.width / 2 - Boss.WIDTH / 2, BOSS_SPAWN_Y,
 					this.level, 0), this.modifiers);
 		this.bossExplosionCooldown = Core.getCooldown(BOSS_EXPLOSION_TIME);
 
@@ -1078,16 +1087,10 @@ public class GameScreen extends Screen {
 		super.update();
 		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
 				System.currentTimeMillis());
-		if (this.timeAttack == null && this.recordsService != null) {
-			long now = System.currentTimeMillis();
-			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
-				this.visibleAchievement = this.recordsService.pollNotification();
-				if (this.visibleAchievement != null) {
-					AudioManager.playSFX("audio/sfx/achievement_unlock.wav");
-				}
-				this.achievementNoticeUntil = this.visibleAchievement == null ? 0 : now + 3000;
-			}
-		}
+		if (this.timeAttack == null && this.recordsService != null
+				&& AchievementToast.of(this.recordsService)
+						.update(System.currentTimeMillis()) != null)
+			AudioManager.playSFX("audio/sfx/achievement_unlock.wav");
 
 		// Outside the input-delay check: a shield that runs out has to be
 		// announced even while the level is finishing.
@@ -1533,18 +1536,15 @@ public class GameScreen extends Screen {
 
 		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
 
-		// Item HUD: grenades left, active buffs and their time left.
-		drawManager.drawGrenadeCount(this, this.ship.getGrenadeCount());
-		List<String> activeBuffLines = new ArrayList<String>();
-		for (int index = 0; index < this.players.size(); index++) {
-			Ship playerShip = this.players.get(index).getShip();
-			for (String line : BuffHud.buildLines(
-					this.itemManager.getBuffManager(playerShip)
-							.getActiveBuffsRemainingTime(),
-					System.currentTimeMillis()))
-				activeBuffLines.add("P" + (index + 1) + ": " + line);
+		// Status strip under the HUD: each player's grenades and active buffs.
+		long now = System.currentTimeMillis();
+		List<ItemStatus> items = new ArrayList<ItemStatus>();
+		for (PlayerSlot player : this.players) {
+			Ship playerShip = player.getShip();
+			items.add(new ItemStatus(playerShip.getGrenadeCount(),
+					this.itemManager.getBuffManager(playerShip).getActiveBuffIcons(), now));
 		}
-		drawManager.drawBuffs(this, activeBuffLines);
+		this.statusStripFreeFrom = drawManager.drawItemStrip(this, items);
 
         drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
@@ -1567,8 +1567,9 @@ public class GameScreen extends Screen {
             drawStoryQuestion();
         drawManager.drawParticles(this.particleSystem);
 
-        if (this.visibleAchievement != null)
-            drawManager.drawAchievementNotice(this, this.visibleAchievement);
+        if (this.timeAttack == null && this.recordsService != null)
+            drawManager.drawAchievementToast(this,
+                    AchievementToast.of(this.recordsService), this.statusStripFreeFrom);
         drawManager.completeDrawing(this);
     }
 

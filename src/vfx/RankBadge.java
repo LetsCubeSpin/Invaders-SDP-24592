@@ -6,7 +6,8 @@ import engine.GameColors;
 
 /**
  * Numbered badges for the high score table: gold, silver and bronze medals
- * for the top three, and a plain badge for the rest.
+ * for the top three, and a plain badge for the rest. The same medals without
+ * a number mark the tiers of an achievement.
  */
 public final class RankBadge {
 
@@ -62,7 +63,49 @@ public final class RankBadge {
 	 */
 	public static Color[][] forRank(final int rank) {
 		boolean medal = rank >= 1 && rank <= MEDALS.length;
-		Color disc = medal ? MEDALS[rank - 1] : GameColors.TEXT_DIM;
+		Color[][] pixels = blank(medal ? MEDALS[rank - 1] : GameColors.TEXT_DIM, medal);
+		int discTop = HEIGHT - DISC.length;
+		String[] digit = DIGITS[Math.abs(rank) % 10];
+		for (int y = 0; y < digit.length; y++)
+			for (int x = 0; x < digit[y].length(); x++)
+				if (digit[y].charAt(x) == '#')
+					pixels[3 + x][discTop + 2 + y] = GameColors.BACKGROUND;
+		return pixels;
+	}
+
+	/**
+	 * Builds the medal of an achievement tier, without a number: bronze for
+	 * the first tier, silver for the second and gold for the third.
+	 *
+	 * @param tier
+	 *            Tier, from 1 to 3.
+	 * @return Pixel colors indexed [x][y]; null where empty.
+	 */
+	public static Color[][] forTier(final int tier) {
+		Color disc = tierColor(tier);
+		Color[][] pixels = blank(disc, true);
+		// A lighter glint on the upper left of the disc, where a number would be.
+		int discTop = HEIGHT - DISC.length;
+		Color glint = disc.brighter();
+		pixels[2][discTop + 2] = glint;
+		pixels[3][discTop + 2] = glint;
+		pixels[2][discTop + 3] = glint;
+		return pixels;
+	}
+
+	/**
+	 * @param tier
+	 *            Tier, from 1 to 3.
+	 * @return the color of the tier's medal: bronze, silver or gold.
+	 */
+	public static Color tierColor(final int tier) {
+		if (tier < 1 || tier > MEDALS.length)
+			throw new IllegalArgumentException("tier must be 1 to " + MEDALS.length + ".");
+		return MEDALS[MEDALS.length - tier];
+	}
+
+	/** @return a disc of the given color, with the ribbon of a medal or without. */
+	private static Color[][] blank(final Color disc, final boolean medal) {
 		Color[][] pixels = new Color[WIDTH][HEIGHT];
 
 		if (medal)
@@ -80,13 +123,6 @@ public final class RankBadge {
 			for (int x = 0; x < WIDTH; x++)
 				if (DISC[y].charAt(x) == '#')
 					pixels[x][discTop + y] = disc;
-
-		String[] digit = DIGITS[Math.abs(rank) % 10];
-		for (int y = 0; y < digit.length; y++)
-			for (int x = 0; x < digit[y].length(); x++)
-				if (digit[y].charAt(x) == '#')
-					pixels[3 + x][discTop + 2 + y] = GameColors.BACKGROUND;
-
 		return pixels;
 	}
 }

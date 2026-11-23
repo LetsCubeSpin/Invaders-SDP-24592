@@ -68,4 +68,17 @@ public class BuffManager {
 
         return remainingTimes;
     }
+
+    /**
+     * @return whole seconds left of each active buff, by its HUD icon; two
+     *         buffs with the same icon show the one that lasts longer.
+     */
+    public Map<vfx.Icon, Long> getActiveBuffIcons() {
+        Map<vfx.Icon, Long> remainingTimes = new HashMap<>();
+        long currentTime = System.currentTimeMillis();
+        for (Map.Entry<Item, Long> entry : this.activeBuffs.entrySet())
+            remainingTimes.merge(entry.getKey().getHudIcon(),
+                    Math.max(0, (entry.getValue() - currentTime) / 1000), Math::max);
+        return remainingTimes;
+    }
 }
