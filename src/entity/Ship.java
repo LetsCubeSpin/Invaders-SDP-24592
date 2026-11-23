@@ -326,19 +326,7 @@ public class Ship extends Entity {
      * Updates status and visual feedback of the ship.
      */
     public final void update() {
-        if (this.damageFeedbackCooldown != null
-                && !this.damageFeedbackCooldown.checkFinished()) {
-            // Alternate red and normal for 0.5s immediately after damage
-            long elapsed = System.currentTimeMillis() - this.damageFeedbackStartTime;
-            if ((elapsed / FLASH_INTERVAL) % 2 == 0) {
-                setColor(Color.RED);
-            } else {
-                setColor(this.baseColor);
-            }
-        } else {
-            // Restore default color once the feedback is over
-            setColor(this.baseColor);
-        }
+        setColor(isDamageFlashRed() ? Color.RED : this.baseColor);
 
         if (!this.destructionCooldown.checkFinished())
             this.spriteType = SpriteType.ShipDestroyed;
@@ -536,6 +524,15 @@ public class Ship extends Entity {
 
     public final double getMovementSpeed() {
         return this.speed;
+    }
+
+    public final boolean isDamageFeedbackActive() {
+        return this.damageFeedbackCooldown != null && !this.damageFeedbackCooldown.checkFinished();
+    }
+
+    public final boolean isDamageFlashRed() {
+        return isDamageFeedbackActive()
+                && ((System.currentTimeMillis() - this.damageFeedbackStartTime) / FLASH_INTERVAL) % 2 == 0;
     }
 
     /**

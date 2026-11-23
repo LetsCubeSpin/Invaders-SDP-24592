@@ -225,6 +225,8 @@ public class GameScreen extends Screen {
     private long gameStartTime;
     /** Checks if the stage was cleared. */
     private boolean stageCleared;
+    private TimeAttackClock timeAttack;
+    private int timeAttackClearSeconds;
     /** Checks if the level is finished. */
     private boolean levelFinished;
     /** Checks if a bonus life is received. */
@@ -1014,6 +1016,18 @@ public class GameScreen extends Screen {
 		}
 	}
 
+    public static GameScreen forTimeAttack(final GameState state, final GameSettings settings,
+            final int width, final int height, final int fps) {
+        return forTimeAttack(state, settings, width, height, fps, new TimeAttackClock(System::nanoTime));
+    }
+
+    static GameScreen forTimeAttack(final GameState state, final GameSettings settings,
+            final int width, final int height, final int fps, final TimeAttackClock clock) {
+        GameScreen screen = new GameScreen(state, settings, false, width, height, fps);
+        screen.timeAttack = clock;
+        return screen;
+    }
+
     /**
      * Starts the action.
      *
@@ -1024,7 +1038,7 @@ public class GameScreen extends Screen {
         finally { if (this.runSession != null) this.runSession.stopActiveSegment(System.nanoTime()); }
 
         // Life bonus is only awarded when the stage was cleared.
-        if (this.stageCleared)
+        if (this.stageCleared && this.timeAttack == null)
 			this.score += LIFE_SCORE * (getLivesRemaining() - 1);
         this.logger.info("Screen cleared with a score of " + this.score);
 
@@ -1039,7 +1053,7 @@ public class GameScreen extends Screen {
 		super.update();
 		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
 				System.currentTimeMillis());
-		if (this.recordsService != null) {
+		if (this.timeAttack == null && this.recordsService != null) {
 			long now = System.currentTimeMillis();
 			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
 				this.visibleAchievement = this.recordsService.pollNotification();
@@ -1055,10 +1069,16 @@ public class GameScreen extends Screen {
 		for (PlayerSlot player : this.players)
 			player.getStatus().update();
 		// Sends the current number of lives remaining to the DifficultyAdjustWhilePlaying class
-		DifficultyAdjustWhilePlaying.getInstance().update(getLivesRemaining());
+		if (this.timeAttack == null)
+			DifficultyAdjustWhilePlaying.getInstance().update(getLivesRemaining());
 		// Reconcile shields active outside the item-collision path.
 		for (PlayerSlot player : this.players)
 			clearSlowIfEnergyShieldActive(player);
+
+        if (this.timeAttack != null && !this.levelFinished && this.inputDelay.checkFinished()) {
+            this.timeAttack.start();
+            if (this.timeAttack.remainingNanos() == 0) failStage();
+        }
 
         if (this.inputDelay.checkFinished() && !this.levelFinished) {
             if (this.runSession != null) this.runSession.startActiveSegment(System.nanoTime());
@@ -1310,12 +1330,10 @@ public class GameScreen extends Screen {
     /** Progression shared by official and custom stages. */
     void advanceStageIfReady() {
         if (!this.levelFinished) {
-            if (getLivesRemaining() <= 0 || !hasLivingPlayer()) {
-                this.levelFinished = true;
-                this.stageCleared = false;
-                AudioManager.playSFX("audio/sfx/game_over.wav");
-                this.screenFinishedCooldown.reset();
-                this.logger.info("Stage " + this.level + " failed.");
+            int remainingSeconds = this.timeAttack == null ? 0 : this.timeAttack.remainingSeconds();
+            if (this.timeAttack == null ? getLivesRemaining() <= 0 || !hasLivingPlayer()
+                    : remainingSeconds == 0) {
+                failStage();
             } else if (this.enemyShipFormation.isEmpty()
                     && this.summonedEnemies.isEmpty() && isBossCleared()) {
                 if (this.currentWave < this.waves.size() - 1) {
@@ -1323,19 +1341,29 @@ public class GameScreen extends Screen {
                 } else {
                     this.levelFinished = true;
                     this.stageCleared = true;
+                    if (this.timeAttack != null)
+                        this.timeAttackClearSeconds = remainingSeconds;
                     AudioManager.playSFX("audio/sfx/level_clear.wav");
                     this.screenFinishedCooldown.reset();
                     this.logger.info("Stage " + this.level + " cleared.");
-                    publishLevelCompleted();
-
-                    // Notify the difficulty adjustment system when a level is cleared.
-                    DifficultyAdjustWhilePlaying.getInstance().onLevelCleared();
+                    if (this.timeAttack == null) {
+                        publishLevelCompleted();
+                        DifficultyAdjustWhilePlaying.getInstance().onLevelCleared();
+                    }
                 }
             }
         }
 
         if (this.levelFinished && this.runSession != null)
             this.runSession.stopActiveSegment(System.nanoTime());
+    }
+
+    private void failStage() {
+        this.levelFinished = true;
+        this.stageCleared = false;
+        AudioManager.playSFX("audio/sfx/game_over.wav");
+        this.screenFinishedCooldown.reset();
+        this.logger.info("Stage " + this.level + " failed.");
     }
 
 	/**
@@ -1394,6 +1422,11 @@ public class GameScreen extends Screen {
      */
     private void draw() {
         drawManager.initDrawing(this);
+        if (this.timeAttack != null && !this.levelFinished && this.inputDelay.checkFinished()) {
+            int seconds = this.timeAttack.countdownSeconds();
+            if (seconds > 0)
+                drawManager.drawTimeAttackCountdown(this, seconds, this.timeAttack.countdownOpacity(seconds));
+        }
 
 		for (FallingObstacle obstacle : this.fallingObstacles)
 			drawManager.drawEntity(obstacle, obstacle.getPositionX(),
@@ -1459,11 +1492,19 @@ public class GameScreen extends Screen {
 
 		// Interface.
 		drawManager.drawScore(this, this.score);
-		if (this.maxSharedLives > this.shipType.getMaxLives())
-			drawManager.drawLifeCount(getLivesRemaining(), this.maxSharedLives);
-		else
-			drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
-		drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
+        if (this.timeAttack != null) {
+            drawManager.drawLevel(this, this.level, TimeAttackResultScreen.STAGE_COUNT);
+            int seconds = this.stageCleared ? this.timeAttackClearSeconds : this.timeAttack.remainingSeconds();
+            boolean timerRed = this.ship.isDamageFeedbackActive()
+                    ? this.ship.isDamageFlashRed() : seconds <= 10;
+            drawManager.drawTimeAttackHud(seconds, timerRed);
+        } else {
+            if (this.maxSharedLives > this.shipType.getMaxLives())
+                drawManager.drawLifeCount(getLivesRemaining(), this.maxSharedLives);
+            else
+                drawManager.drawLives(this, getLivesRemaining(), this.maxSharedLives);
+            drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
+        }
 
 		drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
 
@@ -1609,6 +1650,7 @@ public class GameScreen extends Screen {
             return;
         Set<Bullet> recyclable = new HashSet<Bullet>();
         for (Bullet bullet : this.bullets) {
+            if (this.levelFinished) break;
             if (bullet.isEnemyBullet()) {
 				for (PlayerSlot player : this.players) {
 					if (player.isAlive()
@@ -1702,6 +1744,7 @@ public class GameScreen extends Screen {
         }
         this.bullets.removeAll(recyclable);
         BulletPool.recycle(recyclable);
+        if (this.levelFinished) return;
 
         Set<BossBullet> hitBossBullets = new HashSet<BossBullet>();
         for (BossBullet bossBullet : this.bossBullets) {
@@ -1809,6 +1852,9 @@ public class GameScreen extends Screen {
 
 	private boolean damagePlayer(final PlayerSlot player, final int damage,
 			final PlayerHitSource source, final String logMessage, final boolean playBlockSound) {
+        if (this.timeAttack != null && (this.levelFinished || !this.inputDelay.checkFinished()))
+            return false;
+
 		Ship playerShip = player.getShip();
 		PlayerStatus status = player.getStatus();
 		// Still inside the recovery period from an earlier hit. This outlasts
@@ -1830,10 +1876,24 @@ public class GameScreen extends Screen {
 		if (this.modifiers.invincible()) {
 			if (status.isShieldActive()) {
 				status.announceDamageBlocked(damage);
-				AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+				if (playBlockSound)
+					AudioManager.playSFX(SHIELD_BLOCK_SOUND);
 			}
 			return false;
 		}
+        if (this.timeAttack != null) {
+            if (status.isShieldActive()) {
+                status.announceDamageBlocked(damage);
+                if (playBlockSound) AudioManager.playSFX(SHIELD_BLOCK_SOUND);
+                return false;
+            }
+            this.timeAttack.deductHit();
+            this.floatingScoreHud.showTimePenalty(playerShip, TimeAttackClock.HIT_PENALTY_SECONDS);
+            AudioManager.playSFX("audio/sfx/player_hit.wav");
+            playerShip.triggerDamageFeedback();
+            if (this.timeAttack.remainingNanos() == 0) failStage();
+            return true;
+        }
 		// PlayerStatus owns the timed shield, so its answer decides whether
 		// the hit lands at all; the effects below must not run otherwise.
 		int livesBefore = status.getLives();
@@ -2021,7 +2081,8 @@ public class GameScreen extends Screen {
 	private boolean isBossCleared() {
 		return this.bossManager.getStatus().getBattleState()
 				!= BossStatus.BattleState.IN_BATTLE
-				&& getBossOnScreen() == null;
+				&& (getBossOnScreen() == null
+                        || (this.timeAttack != null && this.bossManager.getBoss().isDefeated()));
 	}
 
 	/**
