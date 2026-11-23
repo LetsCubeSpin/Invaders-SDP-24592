@@ -3,6 +3,7 @@ package entity;
 import java.awt.Color;
 
 import engine.DrawManager.SpriteType;
+import engine.GameColors;
 import engine.StoryDebugModifiers;
 
 /**
@@ -27,13 +28,13 @@ public class Boss extends Entity {
     /** Kinds of bosses and their base values. */
     public enum BossType {
         /** Slow boss. */
-        BOSS_A(850, 1, 0.5, 0.25, 500),
+        BOSS_A(850, 1, 0.5, 0.25, 500, GameColors.BOSS_A),
         /** Fast boss, gets stronger earlier. */
-        BOSS_B(800, 3, 0.7, 0.4, 800),
+        BOSS_B(800, 3, 0.7, 0.4, 800, GameColors.BOSS_B),
         /** VESPERA, summons minions **/
-        BOSS_C(800, 3, 0.7, 0.4, 1000),
+        BOSS_C(800, 3, 0.7, 0.4, 1000, GameColors.BOSS_C),
 		/** OBELISK, periodic shield in phase 2 and laser beam in phase 3. */
-		BOSS_D(1000, 2, 0.7, 0.4, 1500);
+		BOSS_D(1000, 2, 0.7, 0.4, 1500, GameColors.BOSS_D);
         /** Maximum health of this kind of boss. */
         private final int maxHealth;
         /** Base horizontal speed in pixels per frame. */
@@ -44,15 +45,18 @@ public class Boss extends Entity {
         private final double phase3Threshold;
         /** Score given to the player for defeating this boss (temporary). */
         private final int pointValue;
+        /** Base color shared by the sprite and health bar. */
+        private final Color color;
 
         BossType(final int maxHealth, final int speed,
                  final double phase2Threshold, final double phase3Threshold,
-                 final int pointValue) {
+                 final int pointValue, final Color color) {
             this.maxHealth = maxHealth;
             this.speed = speed;
             this.phase2Threshold = phase2Threshold;
             this.phase3Threshold = phase3Threshold;
             this.pointValue = pointValue;
+            this.color = color;
         }
 
         public int getMaxHealth() {
@@ -74,6 +78,10 @@ public class Boss extends Entity {
         /** @return Score given for defeating this kind of boss. */
         public int getPointValue() {
             return this.pointValue;
+        }
+
+        public Color getColor() {
+            return this.color;
         }
     }
 
@@ -118,8 +126,8 @@ public class Boss extends Entity {
     /** Scales only this boss's maximum health and movement. */
     public Boss(final int positionX, final int positionY, final BossType type,
             final StoryDebugModifiers modifiers) {
-        // Temporarily reuses the bonus ship sprite (16 x 7 cells, 2px each).
-        super(positionX, positionY, WIDTH, HEIGHT, Color.MAGENTA);
+        // Keeps the 16x7 cell bounds; DrawManager chooses the type's sprite.
+        super(positionX, positionY, WIDTH, HEIGHT, type.getColor());
         this.spriteType = SpriteType.EnemyShipSpecial;
 
         this.type = type;
