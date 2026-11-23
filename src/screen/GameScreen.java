@@ -44,11 +44,11 @@ import entity.Ship;
 import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
+import hud.AchievementToast;
 import hud.ItemStatus;
 import records.RunSession;
 import records.StageClear;
 import records.RecordsService;
-import records.AchievementUnlock;
 import story.StoryProgress;
 import story.StoryQuestion;
 import story.StoryStage;
@@ -270,8 +270,6 @@ public class GameScreen extends Screen {
     private boolean introSpaceWasDown = true;
 	private RunSession runSession;
     private RecordsService recordsService;
-    private AchievementUnlock visibleAchievement;
-    private long achievementNoticeUntil;
     /** Where the status strip is free after the item icons, for the achievement notice. */
     private int statusStripFreeFrom;
     private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
@@ -1055,16 +1053,10 @@ public class GameScreen extends Screen {
 		super.update();
 		updateStoryIntro(inputManager.isKeyDown(KeyEvent.VK_SPACE),
 				System.currentTimeMillis());
-		if (this.timeAttack == null && this.recordsService != null) {
-			long now = System.currentTimeMillis();
-			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
-				this.visibleAchievement = this.recordsService.pollNotification();
-				if (this.visibleAchievement != null) {
-					AudioManager.playSFX("audio/sfx/achievement_unlock.wav");
-				}
-				this.achievementNoticeUntil = this.visibleAchievement == null ? 0 : now + 3000;
-			}
-		}
+		if (this.timeAttack == null && this.recordsService != null
+				&& AchievementToast.of(this.recordsService)
+						.update(System.currentTimeMillis()) != null)
+			AudioManager.playSFX("audio/sfx/achievement_unlock.wav");
 
 		// Outside the input-delay check: a shield that runs out has to be
 		// announced even while the level is finishing.
@@ -1541,8 +1533,9 @@ public class GameScreen extends Screen {
             drawStoryQuestion();
         drawManager.drawParticles(this.particleSystem);
 
-        if (this.visibleAchievement != null)
-            drawManager.drawAchievementNotice(this, this.visibleAchievement);
+        if (this.timeAttack == null && this.recordsService != null)
+            drawManager.drawAchievementToast(this,
+                    AchievementToast.of(this.recordsService), this.statusStripFreeFrom);
         drawManager.completeDrawing(this);
     }
 

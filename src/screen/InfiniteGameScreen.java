@@ -11,7 +11,7 @@ import vfx.ParticleSystem;
 
 import audio.AudioManager;
 import records.RunSession;
-import records.AchievementUnlock;
+import hud.AchievementToast;
 import records.RecordsService;
 import event.BulletHitEvent;
 import event.EnemyDefeatedEvent;
@@ -84,8 +84,6 @@ public class InfiniteGameScreen extends Screen {
 	private RunSession runSession;
 	private boolean abandoned;
 	private RecordsService recordsService;
-	private AchievementUnlock visibleAchievement;
-	private long achievementNoticeUntil;
 	private final GameplayEventPublisher recordsEvents = new GameplayEventPublisher();
 	private final Map<Entity,String> defeatIds = new IdentityHashMap<Entity,String>();
 	private ParticleSystem particleSystem;
@@ -225,16 +223,9 @@ public class InfiniteGameScreen extends Screen {
 
 	protected final void update() {
 		super.update();
-		if (this.recordsService != null) {
-			long now = System.currentTimeMillis();
-			if (this.visibleAchievement == null || now >= this.achievementNoticeUntil) {
-				this.visibleAchievement = this.recordsService.pollNotification();
-                if (this.visibleAchievement != null) {
-                    AudioManager.playSFX("audio/sfx/achievement_unlock.wav");
-                }
-				this.achievementNoticeUntil = this.visibleAchievement == null ? 0 : now + 3000;
-			}
-		}
+		if (this.recordsService != null && AchievementToast.of(this.recordsService)
+				.update(System.currentTimeMillis()) != null)
+			AudioManager.playSFX("audio/sfx/achievement_unlock.wav");
 
 
 		// Difficulty adjustment follows the shared team pool in 2P mode.
@@ -407,8 +398,10 @@ public class InfiniteGameScreen extends Screen {
 		drawManager.drawLives(this, this.lives, this.maxLives);
 		drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
-		if (this.visibleAchievement != null)
-			drawManager.drawAchievementNotice(this, this.visibleAchievement);
+		// Infinite Mode has no items, so the whole status strip is free.
+		if (this.recordsService != null)
+			drawManager.drawAchievementToast(this,
+					AchievementToast.of(this.recordsService), 0);
 		drawManager.drawParticles(this.particleSystem);
 
 		if (!this.inputDelay.checkFinished()) {
