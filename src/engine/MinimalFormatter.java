@@ -1,35 +1,36 @@
 package engine;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.logging.Formatter;
 import java.util.logging.LogRecord;
 
-/**
- * Implements a simple logging format.
- *
- * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
- *
- */
+/** Uses a locale-independent header for game and test logs. */
 public class MinimalFormatter extends Formatter {
+    private static final DateTimeFormatter TIMESTAMP =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
 
-	/** Format for the date. */
-	private static final DateFormat FORMAT = new SimpleDateFormat("h:mm:ss");
-	/** System line separator. */
-	private static final String LINE_SEPARATOR = System
-			.getProperty("line.separator");
-
-	@Override
-	public final String format(final LogRecord logRecord) {
-
-		StringBuilder output = new StringBuilder().append("[")
-				.append(logRecord.getLevel()).append('|')
-				.append(FORMAT.format(new Date(logRecord.getMillis())))
-				.append("]: ").append(logRecord.getMessage()).append(' ')
-				.append(LINE_SEPARATOR);
-
-		return output.toString();
-	}
-
+    @Override
+    public final String format(final LogRecord record) {
+        String source = record.getSourceClassName();
+        if (source == null) {
+            source = record.getLoggerName();
+        }
+        StringBuilder output = new StringBuilder()
+                .append(TIMESTAMP.format(record.getInstant().atZone(ZoneId.systemDefault())))
+                .append(" [").append(record.getLevel().getName()).append("] ");
+        if (source != null) {
+            output.append(source).append(": ");
+        }
+        output.append(formatMessage(record)).append(System.lineSeparator());
+        if (record.getThrown() != null) {
+            StringWriter trace = new StringWriter();
+            record.getThrown().printStackTrace(new PrintWriter(trace));
+            output.append(trace);
+        }
+        return output.toString();
+    }
 }

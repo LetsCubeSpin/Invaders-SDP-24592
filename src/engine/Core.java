@@ -97,11 +97,16 @@ public final class Core {
 		try {
 			LOGGER.setUseParentHandlers(false);
 
+			MinimalFormatter formatter = new MinimalFormatter();
 			fileHandler = new FileHandler("log");
-			fileHandler.setFormatter(new MinimalFormatter());
+			fileHandler.setFormatter(formatter);
 
 			consoleHandler = new ConsoleHandler();
-			consoleHandler.setFormatter(new MinimalFormatter());
+			consoleHandler.setFormatter(formatter);
+			for (Handler handler : Logger.getLogger("").getHandlers()) {
+				if (handler instanceof ConsoleHandler)
+					handler.setFormatter(formatter);
+			}
 
 			LOGGER.addHandler(fileHandler);
 			LOGGER.addHandler(consoleHandler);

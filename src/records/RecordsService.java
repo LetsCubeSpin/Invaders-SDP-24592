@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -318,22 +317,32 @@ public final class RecordsService {
                 new ArrayList<AchievementUnlock>(this.currentRunUnlocks));
     }
 
+    /** @return the ten best completed runs, in {@link RunOrder#SCORE} order. */
     public synchronized List<RunRecord> getTopRuns() {
-        List<RunRecord> result = new ArrayList<RunRecord>(this.records.values());
-        Collections.sort(result, new Comparator<RunRecord>() {
-            public int compare(final RunRecord first, final RunRecord second) {
-                int scoreOrder = Integer.compare(second.getScore(), first.getScore());
-                if (scoreOrder != 0)
-                    return scoreOrder;
-                int timeOrder = Long.compare(first.getCompletionTimeMillis(),
-                        second.getCompletionTimeMillis());
-                return timeOrder != 0 ? timeOrder
-                        : first.getRunId().compareTo(second.getRunId());
-            }
-        });
-        if (result.size() > 10)
-            result = new ArrayList<RunRecord>(result.subList(0, 10));
+        List<RunRecord> result = getRuns(RunOrder.SCORE, RunFilter.ALL);
+        return result.size() > 10 ? result.subList(0, 10) : result;
+    }
+
+    /**
+     * @return every completed run the filter shows, in the given order, for
+     *         the run list of the records page.
+     */
+    public synchronized List<RunRecord> getRuns(final RunOrder order,
+            final RunFilter filter) {
+        if (order == null || filter == null)
+            throw new IllegalArgumentException("order and filter must not be null.");
+        List<RunRecord> result = new ArrayList<RunRecord>();
+        for (RunRecord record : this.records.values())
+            if (filter.matches(record))
+                result.add(record);
+        result.sort(order.comparator());
         return Collections.unmodifiableList(result);
+    }
+
+    /** @return the values of every completed run added up, for the stats tab. */
+    public synchronized CumulativeStats getCumulativeStats() {
+        return new CumulativeStats(this.records.values(), this.seenEndings.size(),
+                Ending.values().length);
     }
 
     public synchronized int getHighestScore() {
