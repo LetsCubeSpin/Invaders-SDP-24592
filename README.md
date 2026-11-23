@@ -59,12 +59,13 @@ pwsh -NoProfile -File .\scripts\run-story-debug.ps1
 The script uses `JAVA_HOME`, or `javac` on PATH. To select a JDK explicitly, add `-JdkRoot 'C:\Program Files\Java\jdk-17'`, replacing that example with your installation directory (the parent of `bin`). A desktop session is required.
 
 1. Select a **Story route** and **Stage (1–7)**. Set **Invincible** (default OFF), **Starting lives** (1–99, default 4), **Enemy HP multiplier** and **Enemy speed multiplier** (defaults 1.0×). Both multiplier menus offer 0.25×, 0.5×, 1.0×, 2.0× and 4.0×. Click **Start stage**.
-2. After a clear, defeat or battle-window close, **Replay same settings** restarts the same stage with all four modifiers. **Change selection** reopens all six controls at their previous values.
-3. **Exit tool**, **Cancel** or closing the selection/result dialog exits the tool.
+2. To stop a developer-tool battle, press **Esc** and select **개발자 도구로 복귀**, or press **Ctrl+Shift+D** in the battle window. The picker reopens with your previous settings. This works with invincibility on or off, including boss fights. An interrupted battle awards no clear or defeat and saves no campaign progress or score. Normal games have no launcher-return controls.
+3. After a clear, defeat or battle-window close, **Replay same settings** restarts the same stage with all four modifiers. **Change selection** reopens all six controls at their previous values.
+4. **Exit tool**, **Cancel** or closing the selection/result dialog exits the tool.
 
 The tool compiles once per launch. Each battle starts in a fresh JVM with the selected starting lives, zero score, fresh enemies, memory-only preferences and its own temporary save directory. Left/Right moves, Space fires and G throws a grenade when available.
 
-For a single battle, supply the route, stage, `EASY` and `STANDARD`. Omitted modifiers use their defaults. This example starts TRUCE stage 7 with invincibility, 15 lives, double enemy HP and half enemy speed.
+For a single battle, supply the route, stage, `EASY` and `STANDARD`. A clear, defeat or window close ends this one-shot run. Explicitly returning to the picker switches to repeat testing. Omitted modifiers use their defaults. This example starts TRUCE stage 7 with invincibility, 15 lives, double enemy HP and half enemy speed.
 
 ```powershell
 pwsh -NoProfile -File .\scripts\run-story-debug.ps1 -Route TRUCE -Stage 7 -Difficulty EASY -Ship STANDARD -Invincible ON -StartingLives 15 -EnemyHpMultiplier 2 -EnemySpeedMultiplier 0.5

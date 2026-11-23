@@ -1,14 +1,19 @@
 package screen;
 
+import java.awt.Canvas;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
 import engine.GameSettings;
 import engine.GameState;
+import engine.Core;
 import engine.StoryDebugModifiers;
 import entity.BonusEnemyManager;
 import entity.Boss;
@@ -68,6 +73,59 @@ class StoryGameScreenTest {
         audio.AudioManager.setMuted(true);
         screen.initialize();
         return screen;
+    }
+
+    @Test
+    void laterCampaignStoryAndDebugWithoutControlsIgnoreLauncherKeys() throws Exception {
+        GameState state = new GameState(1, 0, 3, 0, 0);
+        Canvas source = new Canvas();
+        boolean wasMuted = audio.AudioManager.isMuted();
+        audio.AudioManager.setMuted(true);
+        try {
+            AtomicBoolean returning = new AtomicBoolean();
+            GameScreen previous = GameScreen.forStoryDebugStage(new GameState(7, 0, 3, 0, 0),
+                    progress(StoryRoute.TRUCE), UnaryOperator.identity(), 448, 520, 60,
+                    StoryDebugModifiers.defaults(), returning::get);
+            previous.initialize();
+            previous.updateStoryIntro(false, System.currentTimeMillis() + 2000);
+            assertFalse(previous.isStoryIntroHolding());
+            Boss activeBoss = boss(previous);
+            int firstX = activeBoss.getPositionX();
+            previous.update();
+            int combatX = activeBoss.getPositionX();
+            assertTrue(firstX != combatX);
+            returning.set(true);
+            assertEquals(GameScreen.RETURN_TO_STORY_DEBUG, previous.run());
+            assertEquals(combatX, activeBoss.getPositionX());
+            assertFalse(activeBoss.isDefeated());
+
+            GameScreen campaign = new GameScreen(state, new GameSettings(1, 1, 1000, 10000), false, 448, 520, 60);
+            GameScreen story = GameScreen.forStoryStage(state, progress(StoryRoute.HYBRID), UnaryOperator.identity(),
+                    false, 448, 520, 60, ShipType.STANDARD, null);
+            GameScreen noControls = GameScreen.forStoryDebugStage(state, progress(StoryRoute.HYBRID),
+                    UnaryOperator.identity(), 448, 520, 60, new StoryDebugModifiers(true, 15, 1, 1));
+            for (GameScreen screen : List.of(campaign, story, noControls)) {
+                screen.initialize();
+                screen.isRunning = true;
+                int normalCode = screen.returnCode;
+                Core.getInputManager().keyPressed(new KeyEvent(source, KeyEvent.KEY_PRESSED, 0,
+                        0, KeyEvent.VK_ESCAPE, KeyEvent.CHAR_UNDEFINED));
+                screen.update();
+                Core.getInputManager().keyReleased(new KeyEvent(source, KeyEvent.KEY_RELEASED, 0,
+                        0, KeyEvent.VK_ESCAPE, KeyEvent.CHAR_UNDEFINED));
+                for (int key : new int[]{KeyEvent.VK_CONTROL, KeyEvent.VK_SHIFT, KeyEvent.VK_D}) {
+                    Core.getInputManager().keyPressed(new KeyEvent(source, KeyEvent.KEY_PRESSED, 0,
+                            InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK, key, KeyEvent.CHAR_UNDEFINED));
+                }
+                screen.update();
+                assertTrue(screen.isRunning);
+                assertEquals(normalCode, screen.returnCode);
+                Core.getInputManager().releaseAllInputs();
+            }
+        } finally {
+            Core.getInputManager().releaseAllInputs();
+            audio.AudioManager.setMuted(wasMuted);
+        }
     }
 
     @Test
