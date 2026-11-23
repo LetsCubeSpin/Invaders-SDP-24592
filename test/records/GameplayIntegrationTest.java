@@ -44,7 +44,8 @@ public final class GameplayIntegrationTest {
             timingAndAbort(service);
             service.startRun("abandoned"); service.abandonRun("abandoned");
             check(!service.enemyDefeated("abandoned", "late"), "abandoned run rejects late events");
-            check(service.getRecordCount() == 1, "only natural death creates a completed record");
+            check(service.getRecordCount() == 2,
+                    "only the infinite run ended with Escape after playing and the natural death are recorded");
         } finally { global.set(null, previous); service.close(); }
         System.out.println("GameplayIntegrationTest passed: " + checks + " checks.");
     }
@@ -100,9 +101,22 @@ public final class GameplayIntegrationTest {
         try { call(game,"update"); }
         finally { Arrays.fill(keys(),false); }
         long stopped=session.getActiveDurationMillis(System.nanoTime());
-        check(game.isAbandoned(),"Escape marks infinite run abandoned");
+        check(!game.isAbandoned(),"Escape after playing ends the infinite run instead of abandoning it");
         check(session.getActiveDurationMillis(System.nanoTime()+5000000000L)==stopped,"Escape stops active timing");
-        check(!service.enemyDefeated("timing","late"),"Escape invalidates active achievement events");
+        RunRecord escaped=session.finish(250,7,System.currentTimeMillis());
+        check(escaped.getActiveDurationMillis()>=60000,"the escaped run keeps its play time");
+        check(service.completeRun(escaped),"Escape after playing creates a completed record, as Core does");
+        check(service.getRecordCount()==1,"the escaped infinite run is recorded");
+        check(!service.enemyDefeated("timing","late"),"events after the escaped run ended are ignored");
+        service.startRun("instant"); RunSession instantSession=new RunSession("instant");
+        InfiniteGameScreen instant=new InfiniteGameScreen(new GameState(1,0,3,0,0),448,520,60,instantSession);
+        instant.initialize(); set(instant,"inputDelay",Core.getCooldown(0));
+        keys()[java.awt.event.KeyEvent.VK_ESCAPE]=true;
+        try { call(instant,"update"); }
+        finally { Arrays.fill(keys(),false); }
+        check(instant.isAbandoned(),"Escape before any active play abandons the run");
+        check(!service.enemyDefeated("instant","late"),"the abandoned run rejects later events");
+        check(service.getRecordCount()==1,"a run left before playing leaves no record");
         service.startRun("death"); RunSession deadSession=new RunSession("death");
         InfiniteGameScreen dead=new InfiniteGameScreen(new GameState(1,100,0,2,1),448,520,60,deadSession);
         dead.initialize(); set(dead,"inputDelay",Core.getCooldown(0)); call(dead,"update");

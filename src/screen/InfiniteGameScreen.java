@@ -250,9 +250,15 @@ public class InfiniteGameScreen extends Screen {
 			if (runSession != null && recordsService != null)
 				recordsService.activeDuration(runSession.getRunId(), runSession.getActiveDurationMillis(System.nanoTime()));
 			if (inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
-				this.abandoned = true;
-				if (recordsService != null && runSession != null) recordsService.abandonRun(runSession.getRunId());
-				if (runSession != null) runSession.stopActiveSegment(System.nanoTime());
+				long now = System.nanoTime();
+				if (runSession != null) runSession.stopActiveSegment(now);
+				// Infinite Mode never ends unless every life is lost, so Esc
+				// ends the run like a game over and Core records it. Only a
+				// run left before any active play has nothing to record.
+				if (runSession != null && runSession.getActiveDurationMillis(now) == 0) {
+					this.abandoned = true;
+					if (recordsService != null) recordsService.abandonRun(runSession.getRunId());
+				}
 				// Leaving with Esc plays the same back sound as the menu screens.
 				AudioManager.playSFX("audio/sfx/menu_back.wav");
 				this.isRunning = false;
@@ -575,6 +581,11 @@ public class InfiniteGameScreen extends Screen {
 		return distanceX < maxDistanceX && distanceY < maxDistanceY;
 	}
 
+	/**
+	 * @return whether the run was left with Esc before any active play, so it
+	 *         leaves no record. A run ended with Esc after playing is not
+	 *         abandoned: Core records it like a game over.
+	 */
 	public boolean isAbandoned() { return this.abandoned; }
 
 	public final int getPlayerCount() {
