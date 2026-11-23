@@ -83,6 +83,7 @@ tasks.named('test', Test) {
     useJUnitPlatform()
     systemProperty 'java.awt.headless', 'true'
     systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'java.util.logging.config.class', 'engine.DevelopmentLogging'
     def testClasspath = sourceSets.test.runtimeClasspath
     def coverage = extensions.getByType(JacocoTaskExtension)
     // Resolve arguments when the test JVM launches, including isolated child JVM coverage.
@@ -154,6 +155,7 @@ def smokeTasks = smokeTestClasses.collect { className ->
         enableAssertions = true
         systemProperty 'java.awt.headless', 'true'
         systemProperty 'file.encoding', 'UTF-8'
+        systemProperty 'java.util.logging.config.class', 'engine.DevelopmentLogging'
         def workDirectory = layout.buildDirectory.dir("smoke-work/${className}").get().asFile
         workingDir = workDirectory
         systemProperty 'user.home', new File(workDirectory, 'home').absolutePath
