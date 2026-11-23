@@ -98,9 +98,15 @@ public class EnemyShip extends Entity {
 		this(1);
 	}
 
+	/**
+	 * Height the bonus ship flies at. The band above it, under the HUD, is
+	 * the status strip for items and achievement notices.
+	 */
+	public static final int BONUS_SHIP_Y = 70;
+
 	/** Creates a bonus enemy with the battle's effective health. */
 	EnemyShip(final int health) {
-		super(-32, 60, 16 * 2, 7 * 2, GameColors.ENEMY_SPECIAL);
+		super(-32, BONUS_SHIP_Y, 16 * 2, 7 * 2, GameColors.ENEMY_SPECIAL);
 		if (health <= 0)
 			throw new IllegalArgumentException("health must be positive");
 		this.health = health;

@@ -26,6 +26,10 @@ public final class AchievementToast {
     public static final long SHORT_SHOW_MILLIS = 2000;
     /** How long it stays when two or more are waiting. */
     public static final long SHORTEST_SHOW_MILLIS = 1400;
+    /** How long the border flashes once the notice has slid in. */
+    public static final long FLASH_MILLIS = 600;
+    /** Time the border stays lit, and then dark, while it flashes. */
+    static final long FLASH_PERIOD_MILLIS = 100;
     /**
      * Longest time between two updates that counts; a longer gap means no
      * game screen was shown in between.
@@ -110,6 +114,17 @@ public final class AchievementToast {
             return 0;
         long in = Math.min(this.elapsed, this.duration - this.elapsed);
         return Math.max(0, Math.min(1, (double) in / SLIDE_MILLIS));
+    }
+
+    /**
+     * @return whether the notice's border is lit now: it flashes a few
+     *         times once it has slid in, to catch the eye.
+     */
+    public boolean isFlashing() {
+        if (this.current == null)
+            return false;
+        long since = this.elapsed - SLIDE_MILLIS;
+        return since >= 0 && since < FLASH_MILLIS && (since / FLASH_PERIOD_MILLIS) % 2 == 0;
     }
 
     /** Hides the notice shown, when the run it belongs to ends. */

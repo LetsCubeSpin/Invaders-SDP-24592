@@ -1548,14 +1548,21 @@ public final class DrawManager {
      * the path of the bonus ship, where no gameplay object goes.
      */
     public static final int STATUS_STRIP_TOP = 41;
-    /** Height of the status strip; the bonus ship flies from y 60. */
-    public static final int STATUS_STRIP_HEIGHT = 18;
+    /** Height of the status strip, down to the bonus ship's path. */
+    public static final int STATUS_STRIP_HEIGHT =
+            entity.EnemyShip.BONUS_SHIP_Y - 1 - STATUS_STRIP_TOP;
     /** Left edge of the item icons on the status strip. */
     private static final int STATUS_STRIP_MARGIN = 10;
 
-    /** Baseline of text on the status strip. */
+    /** Baseline of text in the given font, centered on the status strip. */
+    private static int statusStripBaseline(final FontMetrics metrics) {
+        return STATUS_STRIP_TOP + (STATUS_STRIP_HEIGHT + metrics.getAscent()
+                - metrics.getDescent()) / 2;
+    }
+
+    /** Baseline of regular text on the status strip. */
     private int statusStripBaseline() {
-        return STATUS_STRIP_TOP + STATUS_STRIP_HEIGHT - 3;
+        return statusStripBaseline(fontRegularMetrics);
     }
 
     /**
@@ -1574,8 +1581,8 @@ public final class DrawManager {
         if (!any)
             return 0;
         backBufferGraphics.setFont(fontRegular);
-        int iconTop = STATUS_STRIP_TOP + 2;
         int iconSize = 7 * 2;
+        int iconTop = STATUS_STRIP_TOP + (STATUS_STRIP_HEIGHT - iconSize) / 2;
         int x = STATUS_STRIP_MARGIN;
         for (int p = 0; p < players.size(); p++) {
             ItemStatus player = players.get(p);
@@ -1772,11 +1779,23 @@ public final class DrawManager {
     /** Gap between the achievement notice and the right edge of the screen. */
     private static final int TOAST_MARGIN = 6;
 
+    /** Font of the achievement notice; derived when first needed. */
+    private static Font fontToast;
+    /** Border of the achievement notice between its flashes. */
+    private static final Color TOAST_BORDER = new Color(20, 110, 55);
+
+    private Font toastFont() {
+        if (fontToast == null)
+            fontToast = fontRegular.deriveFont(16f);
+        return fontToast;
+    }
+
     /**
      * Draws the achievement notice on the status strip, right of the item
-     * icons: the medal of the unlocked tier or a trophy, the achievement's
-     * name and tier, and how many more notices wait. It slides in from the
-     * right edge and back out, and never leaves the strip.
+     * icons: a green box with the medal of the unlocked tier or a trophy,
+     * the achievement's name and tier, and how many more notices wait. It
+     * slides in from the right edge, flashes its border, and slides back
+     * out, and never leaves the strip.
      *
      * @param screen Screen to draw on.
      * @param toast Notice to draw; nothing is drawn while it shows none.
@@ -1788,10 +1807,11 @@ public final class DrawManager {
         AchievementUnlock unlock = toast.getCurrent();
         if (unlock == null || toast.getShown() <= 0)
             return;
-        Font font = smallFont();
+        Font font = toastFont();
         FontMetrics metrics = backBufferGraphics.getFontMetrics(font);
-        int padding = 4;
-        int iconWidth = RankBadge.WIDTH;
+        int padding = 5;
+        int scale = 2;
+        int iconWidth = RankBadge.WIDTH * scale;
         int waiting = toast.getWaiting();
         String more = waiting > 0 ? "+" + waiting : "";
         int moreWidth = more.isEmpty() ? 0 : metrics.stringWidth(more) + padding * 2;
@@ -1807,28 +1827,26 @@ public final class DrawManager {
         int top = STATUS_STRIP_TOP + 1;
         int height = STATUS_STRIP_HEIGHT - 2;
 
-        backBufferGraphics.setColor(new Color(GameColors.BACKGROUND.getRed(),
-                GameColors.BACKGROUND.getGreen(), GameColors.BACKGROUND.getBlue(), 230));
+        backBufferGraphics.setColor(GameColors.HIGHLIGHT);
         backBufferGraphics.fillRect(x, top, width, height);
-        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.setColor(toast.isFlashing() ? GameColors.EXPLOSION_YELLOW : TOAST_BORDER);
         backBufferGraphics.drawRect(x, top, width - 1, height - 1);
+        backBufferGraphics.drawRect(x + 1, top + 1, width - 3, height - 3);
 
         int iconX = x + padding;
         if (unlock.getAchievement().getTierCount() > 1)
             drawColorGrid(RankBadge.forTier(unlock.getTier()), iconX,
-                    top + (height - RankBadge.HEIGHT) / 2, 1);
+                    top + (height - RankBadge.HEIGHT * scale) / 2, scale);
         else
             drawIcon(Icon.HIGH_SCORES, iconX,
-                    top + (height - Icon.HIGH_SCORES.getHeight()) / 2, 1);
+                    top + (height - Icon.HIGH_SCORES.getHeight() * scale) / 2, scale);
         int baseline = top + (height + metrics.getAscent() - metrics.getDescent()) / 2;
         backBufferGraphics.setFont(font);
-        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.setColor(GameColors.BACKGROUND);
         backBufferGraphics.drawString(title, iconX + iconWidth + padding, baseline);
-        if (!more.isEmpty()) {
-            backBufferGraphics.setColor(Color.LIGHT_GRAY);
+        if (!more.isEmpty())
             backBufferGraphics.drawString(more,
                     x + width - padding - metrics.stringWidth(more), baseline);
-        }
     }
 
     /** @return the text, cut short with ".." when it is wider than the room. */
