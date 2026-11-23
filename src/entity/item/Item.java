@@ -31,6 +31,11 @@ public abstract class Item extends Entity {
 
     public abstract String getName();
 
+    /** @return the icon of this item while it is an active buff. */
+    public vfx.Icon getHudIcon() {
+        return vfx.Icon.BUFF;
+    }
+
     public boolean isCollected() {
         return this.isCollected;
     }

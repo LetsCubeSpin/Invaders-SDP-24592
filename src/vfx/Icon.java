@@ -158,6 +158,37 @@ public enum Icon {
 			"..##....",
 			"...#...."),
 
+	/** Grenades left, on the status strip under the HUD. */
+	GRENADE("OYDW", new Color[] { GameColors.EXPLOSION_ORANGE,
+			GameColors.EXPLOSION_YELLOW, GameColors.TEXT_DIM, GameColors.TEXT },
+			"..YYY..",
+			"...D...",
+			".OOOOO.",
+			"OOWOOOO",
+			"OOOOOOO",
+			"OOOOOOO",
+			".OOOOO."),
+
+	/** Active energy shield, on the status strip under the HUD. */
+	SHIELD("BW", new Color[] { GameColors.POWERUP_SHIELD, GameColors.TEXT },
+			"BBBBBBB",
+			"BWBBBBB",
+			"BWBBBBB",
+			"BBBBBBB",
+			".BBBBB.",
+			"..BBB..",
+			"...B..."),
+
+	/** Any other active buff, on the status strip under the HUD. */
+	BUFF(GameColors.POWERUP_RAPID_FIRE,
+			"...#...",
+			"..###..",
+			".#####.",
+			"#######",
+			"..###..",
+			"..###..",
+			"..###.."),
+
 	/** Title screen hero ship. */
 	TITLE_SHIP("WBGR", new Color[] { GameColors.ICON_UI,
 			GameColors.POWERUP_SHIELD, GameColors.TEXT_DIM,
