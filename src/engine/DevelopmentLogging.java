@@ -13,7 +13,7 @@ public final class DevelopmentLogging {
                 .level = INFO
                 java.util.logging.ConsoleHandler.level = INFO
                 java.util.logging.ConsoleHandler.formatter = %s
-                """.formatted(DevelopmentLogFormatter.class.getName());
+                """.formatted(MinimalFormatter.class.getName());
         LogManager.getLogManager().readConfiguration(
                 new ByteArrayInputStream(configuration.getBytes(StandardCharsets.US_ASCII)));
     }
