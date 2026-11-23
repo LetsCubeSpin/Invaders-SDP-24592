@@ -311,6 +311,11 @@ public final class RecordsService {
         return this.notifications.pollFirst();
     }
 
+    /** @return how many unlock notices wait for {@link #pollNotification}. */
+    public synchronized int getPendingNotificationCount() {
+        return this.notifications.size();
+    }
+
     /** @return the tiers unlocked since the current run started, in order. */
     public synchronized List<AchievementUnlock> getCurrentRunUnlocks() {
         return Collections.unmodifiableList(

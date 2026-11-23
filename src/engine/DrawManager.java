@@ -22,6 +22,7 @@ import screen.PlayerRecordsScreen;
 import screen.Screen;
 import screen.ShipCustomization;
 import hud.FloatingScoreHud;
+import hud.AchievementToast;
 import hud.ItemStatus;
 import records.AchievementStatus;
 import records.AchievementUnlock;
@@ -1790,14 +1791,77 @@ public final class DrawManager {
         }
     }
 
-    public void drawAchievementNotice(final Screen screen,
-            final AchievementUnlock achievement) {
+    /** Gap between the achievement notice and the right edge of the screen. */
+    private static final int TOAST_MARGIN = 6;
+
+    /**
+     * Draws the achievement notice on the status strip, right of the item
+     * icons: the medal of the unlocked tier or a trophy, the achievement's
+     * name and tier, and how many more notices wait. It slides in from the
+     * right edge and back out, and never leaves the strip.
+     *
+     * @param screen Screen to draw on.
+     * @param toast Notice to draw; nothing is drawn while it shows none.
+     * @param freeFrom x where the strip is free, from
+     *        {@link #drawItemStrip}; 0 when the whole strip is free.
+     */
+    public void drawAchievementToast(final Screen screen, final AchievementToast toast,
+            final int freeFrom) {
+        AchievementUnlock unlock = toast.getCurrent();
+        if (unlock == null || toast.getShown() <= 0)
+            return;
+        Font font = smallFont();
+        FontMetrics metrics = backBufferGraphics.getFontMetrics(font);
+        int padding = 4;
+        int iconWidth = RankBadge.WIDTH;
+        int waiting = toast.getWaiting();
+        String more = waiting > 0 ? "+" + waiting : "";
+        int moreWidth = more.isEmpty() ? 0 : metrics.stringWidth(more) + padding * 2;
+        int right = screen.getWidth() - TOAST_MARGIN;
+        int left = Math.max(freeFrom, TOAST_MARGIN);
+        int room = right - left - padding * 3 - iconWidth - moreWidth;
+        String title = fitText(unlock.getTitle(), metrics, room);
+        int width = Math.min(right - left,
+                padding * 3 + iconWidth + metrics.stringWidth(title) + moreWidth);
+        // Slides from off the right edge to its place, ending at the margin.
+        int x = right - width + (int) Math.round((1 - toast.getShown())
+                * (width + TOAST_MARGIN));
+        int top = STATUS_STRIP_TOP + 1;
+        int height = STATUS_STRIP_HEIGHT - 2;
+
+        backBufferGraphics.setColor(new Color(GameColors.BACKGROUND.getRed(),
+                GameColors.BACKGROUND.getGreen(), GameColors.BACKGROUND.getBlue(), 230));
+        backBufferGraphics.fillRect(x, top, width, height);
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredRegularString(screen, "Achievement unlocked: "
-                + achievement.getTitle(), screen.getHeight() / 7);
-        backBufferGraphics.setColor(Color.WHITE);
-        drawCenteredRegularString(screen, achievement.getCondition(),
-                screen.getHeight() / 7 + fontRegularMetrics.getHeight());
+        backBufferGraphics.drawRect(x, top, width - 1, height - 1);
+
+        int iconX = x + padding;
+        if (unlock.getAchievement().getTierCount() > 1)
+            drawColorGrid(RankBadge.forTier(unlock.getTier()), iconX,
+                    top + (height - RankBadge.HEIGHT) / 2, 1);
+        else
+            drawIcon(Icon.HIGH_SCORES, iconX,
+                    top + (height - Icon.HIGH_SCORES.getHeight()) / 2, 1);
+        int baseline = top + (height + metrics.getAscent() - metrics.getDescent()) / 2;
+        backBufferGraphics.setFont(font);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawString(title, iconX + iconWidth + padding, baseline);
+        if (!more.isEmpty()) {
+            backBufferGraphics.setColor(Color.LIGHT_GRAY);
+            backBufferGraphics.drawString(more,
+                    x + width - padding - metrics.stringWidth(more), baseline);
+        }
+    }
+
+    /** @return the text, cut short with ".." when it is wider than the room. */
+    private static String fitText(final String text, final FontMetrics metrics,
+            final int room) {
+        if (metrics.stringWidth(text) <= room)
+            return text;
+        String cut = text;
+        while (!cut.isEmpty() && metrics.stringWidth(cut + "..") > room)
+            cut = cut.substring(0, cut.length() - 1);
+        return cut.trim() + "..";
     }
     public void drawAchievementResults(final Screen screen, final int score,
             final int lives, final int enemies, final float accuracy,

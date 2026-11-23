@@ -152,6 +152,8 @@ public class ScoreScreen extends Screen {
 
         RecordsService recordsService = Core.getRecordsService();
         if (recordsService != null) {
+            // The run is over: its notices give way to the list of unlocks below.
+            hud.AchievementToast.of(recordsService).clear();
             boolean hasNewAchievement = false;
             AchievementUnlock achievement;
             while ((achievement = recordsService.pollNotification()) != null) {
