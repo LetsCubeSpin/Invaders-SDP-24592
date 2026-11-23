@@ -89,6 +89,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-story-debu
 붙일 수 있습니다. 변경 후에는 위 실행 경로에 같은 형식이 표시되어야 합니다.
 예외 로그가 나오면 메시지 아래에 스택 트레이스도 있는지 확인합니다.
 
+### 검증 결과
+
+- 기존 Windows PowerShell 실행에서 스토리 디버그 전투 로그의 한글 머리말이
+  깨졌고, 콘솔을 UTF-8로 바꾸자 정상 표시됐습니다.
+- 한국어 Windows에서 수정 버전 `5fc949c`의 스토리 디버그 전투, 일반 게임
+  콘솔과 `log` 파일, JUnit 결과 XML의 표준 오류에 새 머리말이 표시되는 것을
+  확인했습니다. 일반 게임의 파일 로그에서는 `FINE` 레벨도 확인했습니다.
+- Linux의 한국어 로캘에서는 Gradle 스모크 테스트에서 새 머리말과 예외 스택
+  트레이스를 확인했습니다.
+
 ## CI and local files
 
 [GitHub Actions](../.github/workflows/ci.yml) runs `clean build` with JDK 17 on Windows and Linux for pull requests and pushes to `main`. These two jobs verify the minimum supported Java version; JDK 21 and 25 are checked separately when changing JDK support or build tooling. Available test and coverage reports are kept as workflow artifacts for seven days, including on failed builds.
