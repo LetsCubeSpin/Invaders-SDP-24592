@@ -35,10 +35,18 @@ import screen.ControlsSettingsScreen;
 import screen.StoryNarrationScreen;
 import screen.TimeAttackResultScreen;
 import story.DialogueStoryScenes;
+import story.Ending;
+import story.EndingCollection;
 import story.PlaceholderStoryScenes;
 import story.StoryProgress;
+import story.StoryRoute;
 import story.StoryScenes;
 import story.StoryScript;
+import audio.EndingBgm;
+import event.AllEndingsSeenEvent;
+import event.EndingReachedEvent;
+import event.GameplayEventListener;
+import event.GameplayEventPublisher;
 
 /**
  * Implements core game logic.
@@ -64,6 +72,8 @@ public final class Core {
 	/** Screen currently shown. */
 	private static Screen currentScreen;
 	private static RecordsService recordsService;
+	/** Story endings seen so far, shared by every story run. */
+	private static EndingCollection endings;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
 			.getSimpleName());
@@ -115,6 +125,7 @@ public final class Core {
 			LOGGER.warning(recordsService.getSaveError());
 		if (recordsService.getLoadWarning() != null)
 			LOGGER.warning(recordsService.getLoadWarning());
+		endings = createEndingCollection(recordsService, new EndingBgm());
 
 		GameState gameState;
 		ShipType selectedShip = ShipType.STANDARD;
@@ -385,8 +396,13 @@ public final class Core {
 					gameState.getShipsDestroyed());
 		}
 
-		if (gameState.getLevel() > StoryProgress.TOTAL_STAGES)
-			scenes.showEnding(progress.getRoute());
+		if (gameState.getLevel() > StoryProgress.TOTAL_STAGES) {
+			StoryRoute route = progress.getRoute();
+			// Recorded before the scene, so the ending music plays during it
+			// and the ending is kept even if the game is closed meanwhile.
+			recordEnding(endings, route);
+			scenes.showEnding(route);
+		}
 
 		RunRecord storyRecord = runSession.finish(gameState.getScore(),
 				gameState.getShipsDestroyed(), System.currentTimeMillis());
@@ -439,6 +455,51 @@ public final class Core {
 			progress.chooseFirst(scenes.askFirst());
 		else if (stage == StoryProgress.MID_BOSS_STAGE)
 			progress.chooseSecond(scenes.askSecond(progress.getFirstChoice()));
+	}
+
+	/**
+	 * Creates the collection of seen story endings and connects it to the
+	 * records: the endings saved in the profile are restored, and each ending
+	 * seen from now on is saved, plays its music and counts towards the
+	 * Every Ending achievement.
+	 *
+	 * @param records
+	 *            Records service that saves the seen endings.
+	 * @param music
+	 *            Plays the music of each ending that is seen.
+	 * @return The connected ending collection.
+	 */
+	static EndingCollection createEndingCollection(final RecordsService records,
+			final GameplayEventListener<EndingReachedEvent> music) {
+		if (records == null || music == null)
+			throw new IllegalArgumentException(
+					"records and music must not be null.");
+		GameplayEventPublisher events = new GameplayEventPublisher();
+		EndingCollection collection = new EndingCollection(events);
+		collection.restore(records.getSeenEndings());
+		events.subscribe(EndingReachedEvent.class,
+				event -> records.endingSeen(event.getEnding()));
+		events.subscribe(EndingReachedEvent.class, music);
+		events.subscribe(AllEndingsSeenEvent.class,
+				event -> records.allEndingsSeen());
+		return collection;
+	}
+
+	/**
+	 * Records the ending of a finished story route.
+	 *
+	 * @param collection
+	 *            Collection of seen endings.
+	 * @param route
+	 *            Route the player finished.
+	 * @return Whether this is the first time the ending was seen.
+	 */
+	static boolean recordEnding(final EndingCollection collection,
+			final StoryRoute route) {
+		if (collection == null || route == null)
+			throw new IllegalArgumentException(
+					"collection and route must not be null.");
+		return collection.see(Ending.fromNumber(route.getEndingNumber()));
 	}
 
 	/**

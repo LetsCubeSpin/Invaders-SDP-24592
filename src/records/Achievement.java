@@ -85,10 +85,7 @@ public final class Achievement {
     public static final Achievement BEAT_HIGH_SCORE = add(define("beat_high_score",
             "Top That", "Beat a previous run's high score.")
             .run(Stat.HIGH_SCORES_BEATEN, 1));
-    /**
-     * Listed on the achievements page, but it cannot be unlocked in the game
-     * until story.EndingCollection is connected (see that class).
-     */
+    /** Unlocked when a story run reaches the last ending not seen yet. */
     public static final Achievement ALL_ENDINGS = add(define("all_endings",
             "Every Ending", "See all four story endings.")
             .total(Stat.ENDINGS_SEEN, Ending.values().length));

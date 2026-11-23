@@ -17,11 +17,8 @@ import java.util.Set;
  * saves the seen endings in the profile; fill the collection from the save
  * with {@link #restore(Collection)}.
  *
- * <p>Not connected to the game yet: nothing creates this class during
- * play, so the ending events, the ending music, the ending save and the
- * all-endings achievement do not happen in the game. Everything is ready
- * and tested, so take it and connect it when the story endings need it,
- * for example when the game starts:</p>
+ * <p>{@code engine.Core.createEndingCollection} creates one collection when
+ * the game starts and connects it like this:</p>
  *
  * <pre>{@code
  * EndingCollection endings = new EndingCollection(publisher);
@@ -31,8 +28,8 @@ import java.util.Set;
  * publisher.subscribe(AllEndingsSeenEvent.class, e -> records.allEndingsSeen());
  * }</pre>
  *
- * and {@code endings.see(ending)} where a story ending is shown
- * ({@code StoryScenes.showEnding}).
+ * and story mode calls {@code endings.see(ending)} right before the ending
+ * scene ({@code StoryScenes.showEnding}).
  */
 public final class EndingCollection {
 
