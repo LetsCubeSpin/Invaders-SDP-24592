@@ -65,8 +65,20 @@ public final class DrawManager {
                 + fontBigMetrics.getAscent()) / 2;
     }
 
-    /** Most rows of newly unlocked achievements on the results screen. */
+    /** Most rows of newly unlocked achievements on one results page. */
     private static final int MAX_RESULT_ACHIEVEMENTS = 6;
+    /** Gap between an achievement's icon and its name on the results screen. */
+    private static final int RESULT_ICON_GAP = 6;
+
+    /**
+     * @param achievementCount
+     *            Number of achievements the run unlocked.
+     * @return how many pages the results screen needs to list them all.
+     */
+    public static int getResultAchievementPageCount(final int achievementCount) {
+        return Math.max(1, (achievementCount + MAX_RESULT_ACHIEVEMENTS - 1)
+                / MAX_RESULT_ACHIEVEMENTS);
+    }
 
     private static final DateTimeFormatter ACHIEVEMENT_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm a", Locale.US);
@@ -80,23 +92,25 @@ public final class DrawManager {
      *                    If the score is a new high score.
      * @param failedStage
      *                    Failed stage number, or zero when no stage failed.
+     * @param resultRows
+     *                    Number of result rows, the mode included.
      * @param achievementCount
-     *                    Number of newly unlocked achievements.
+     *                    Number of achievement rows on a page.
      * @return Baseline for the game-over title.
      */
     private int getAchievementResultsTitleY(final Screen screen,
             final boolean isNewRecord, final int failedStage,
-            final int achievementCount) {
+            final int resultRows, final int achievementCount) {
         int spacing = fontRegularMetrics.getHeight();
         int lastLineOffset = 0;
 
         if (failedStage > 0)
             lastLineOffset += spacing;
 
-        // Gap before the four result rows, including the increment after the
+        // Gap before the result rows, including the increment after the
         // last row used by drawAchievementResults.
         lastLineOffset += spacing * 2;
-        lastLineOffset += spacing * 4;
+        lastLineOffset += spacing * resultRows;
 
         if (isNewRecord) {
             // Gap before the three name-input rows and the increment after
@@ -1904,8 +1918,30 @@ public final class DrawManager {
             final boolean isNewRecord, final char[] name, final int selected,
             final List<AchievementUnlock> achievements, final boolean acceptsInput,
             final int failedStage, final boolean gameCleared, final String modeLabel) {
+        drawAchievementResults(screen, score, lives, enemies, accuracy,
+                isNewRecord, name, selected, achievements, acceptsInput,
+                failedStage, gameCleared, modeLabel, 0);
+    }
+
+    /**
+     * Draws the results screen of a run that unlocked achievements. Each
+     * achievement has its medal or trophy, and a tiered one's name is in its
+     * tier's color; when they do not fit on one page, the given page of them
+     * is shown and the heading says which.
+     *
+     * @param achievementPage
+     *            Page of the achievements to list, from 0; see
+     *            {@link #getResultAchievementPageCount}.
+     */
+    public void drawAchievementResults(final Screen screen, final int score,
+            final int lives, final int enemies, final float accuracy,
+            final boolean isNewRecord, final char[] name, final int selected,
+            final List<AchievementUnlock> achievements, final boolean acceptsInput,
+            final int failedStage, final boolean gameCleared, final String modeLabel,
+            final int achievementPage) {
         int spacing = fontRegularMetrics.getHeight();
         int y = getAchievementResultsTitleY(screen, isNewRecord, failedStage,
+                modeLabel == null ? 4 : 5,
                 Math.min(achievements.size(), MAX_RESULT_ACHIEVEMENTS));
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, gameCleared ? "Game Cleared!" : "Game Over", y);
@@ -1932,20 +1968,43 @@ public final class DrawManager {
         }
         y += spacing;
         backBufferGraphics.setColor(Color.GREEN);
-        drawCenteredRegularString(screen, "New achievements:", y);
-        backBufferGraphics.setColor(Color.WHITE);
-        // A run can unlock more tiers than fit; the last row counts the rest.
-        int rows = Math.min(achievements.size(), MAX_RESULT_ACHIEVEMENTS);
-        boolean overflow = achievements.size() > rows;
-        for (int i = 0; i < rows; i++) {
+        int pages = getResultAchievementPageCount(achievements.size());
+        int page = Math.floorMod(achievementPage, pages);
+        drawCenteredRegularString(screen, pages > 1
+                ? "New achievements: " + (page + 1) + "/" + pages
+                : "New achievements:", y);
+        int first = page * MAX_RESULT_ACHIEVEMENTS;
+        int last = Math.min(achievements.size(), first + MAX_RESULT_ACHIEVEMENTS);
+        for (int i = first; i < last; i++) {
             y += spacing;
-            drawCenteredRegularString(screen, overflow && i == rows - 1
-                    ? "and " + (achievements.size() - i) + " more"
-                    : achievements.get(i).getTitle(), y);
+            drawResultAchievement(screen, achievements.get(i), y);
         }
         backBufferGraphics.setColor(acceptsInput ? Color.GREEN : Color.GRAY);
         drawCenteredRegularString(screen, "Space: play again   Esc: menu",
                 screen.getHeight() - spacing);
+    }
+
+    /**
+     * Draws one achievement row of the results screen, centered: its medal
+     * and its name in the tier's color, or a trophy and its name in white.
+     */
+    private void drawResultAchievement(final Screen screen,
+            final AchievementUnlock unlock, final int baseline) {
+        boolean tiered = unlock.getAchievement().getTierCount() > 1;
+        String title = unlock.getTitle();
+        int iconWidth = tiered ? RankBadge.WIDTH : Icon.HIGH_SCORES.getWidth();
+        int iconHeight = tiered ? RankBadge.HEIGHT : Icon.HIGH_SCORES.getHeight();
+        int x = screen.getWidth() / 2 - (iconWidth + RESULT_ICON_GAP
+                + fontRegularMetrics.stringWidth(title)) / 2;
+        int middle = baseline - (fontRegularMetrics.getAscent()
+                - fontRegularMetrics.getDescent()) / 2;
+        if (tiered)
+            drawColorGrid(RankBadge.forTier(unlock.getTier()), x, middle - iconHeight / 2, 1);
+        else
+            drawIcon(Icon.HIGH_SCORES, x, middle - iconHeight / 2, 1);
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(tiered ? RankBadge.tierColor(unlock.getTier()) : Color.WHITE);
+        backBufferGraphics.drawString(title, x + iconWidth + RESULT_ICON_GAP, baseline);
     }
 
     /** Side margin of the achievement rows on the records page. */

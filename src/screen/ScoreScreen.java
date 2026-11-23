@@ -32,12 +32,16 @@ public class ScoreScreen extends Screen {
 	private static final int FIRST_CHAR = 65;
 	/** Code of last mayus character. */
 	private static final int LAST_CHAR = 90;
+	/** How long each page of new achievements stays before the next. */
+	static final long ACHIEVEMENT_PAGE_MILLIS = 3000;
 
 	/** Level (stage) that was being played when the game ended. */
 	private int level;
 	/** Checks if the last stage was failed (no lives left). */
 	private boolean stageFailed;
     private final List<AchievementUnlock> runUnlocks;
+    /** When the screen was made, for turning the pages of new achievements. */
+    private final long createdAt = System.currentTimeMillis();
   /** Checks if every campaign stage was cleared. */
   private boolean gameCleared;
 	/** Checks if the game that just ended was the infinite mode. */
@@ -255,6 +259,19 @@ public class ScoreScreen extends Screen {
 		}
 	}
 	/**
+	 * @param achievementCount
+	 *            Number of achievements the run unlocked.
+	 * @param elapsedMillis
+	 *            Time since the screen opened.
+	 * @return the page of new achievements to show: the pages take turns,
+	 *         each staying {@link #ACHIEVEMENT_PAGE_MILLIS}.
+	 */
+	static int achievementPage(final int achievementCount, final long elapsedMillis) {
+		int pages = engine.DrawManager.getResultAchievementPageCount(achievementCount);
+		return (int) (Math.max(0, elapsedMillis) / ACHIEVEMENT_PAGE_MILLIS % pages);
+	}
+
+	/**
 	 * Draws the elements associated with the screen.
 	 */
 	private void draw() {
@@ -265,7 +282,8 @@ public class ScoreScreen extends Screen {
                     this.shipsDestroyed,accuracy,this.isNewRecord,this.name,this.nameCharSelected,
                     this.runUnlocks,this.inputDelay.checkFinished(),
                     this.stageFailed && !this.infiniteMode ? this.level : 0, this.gameCleared,
-                    this.modeLabel);
+                    this.modeLabel, achievementPage(this.runUnlocks.size(),
+                            System.currentTimeMillis() - this.createdAt));
             drawManager.completeDrawing(this); return;
         }
 

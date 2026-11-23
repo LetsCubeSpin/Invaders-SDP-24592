@@ -82,9 +82,7 @@ public final class RankBadge {
 	 * @return Pixel colors indexed [x][y]; null where empty.
 	 */
 	public static Color[][] forTier(final int tier) {
-		if (tier < 1 || tier > MEDALS.length)
-			throw new IllegalArgumentException("tier must be 1 to " + MEDALS.length + ".");
-		Color disc = MEDALS[MEDALS.length - tier];
+		Color disc = tierColor(tier);
 		Color[][] pixels = blank(disc, true);
 		// A lighter glint on the upper left of the disc, where a number would be.
 		int discTop = HEIGHT - DISC.length;
@@ -93,6 +91,17 @@ public final class RankBadge {
 		pixels[3][discTop + 2] = glint;
 		pixels[2][discTop + 3] = glint;
 		return pixels;
+	}
+
+	/**
+	 * @param tier
+	 *            Tier, from 1 to 3.
+	 * @return the color of the tier's medal: bronze, silver or gold.
+	 */
+	public static Color tierColor(final int tier) {
+		if (tier < 1 || tier > MEDALS.length)
+			throw new IllegalArgumentException("tier must be 1 to " + MEDALS.length + ".");
+		return MEDALS[MEDALS.length - tier];
 	}
 
 	/** @return a disc of the given color, with the ribbon of a medal or without. */
