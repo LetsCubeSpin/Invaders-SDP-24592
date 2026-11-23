@@ -25,6 +25,11 @@ public final class GameColors {
     public static final Color ENEMY_C = new Color(240, 100, 200);
     public static final Color ENEMY_SPECIAL = new Color(235, 64, 64);
 
+    public static final Color BOSS_A = new Color(255, 174, 64);
+    public static final Color BOSS_B = new Color(84, 222, 255);
+    public static final Color BOSS_C = new Color(197, 127, 255);
+    public static final Color BOSS_D = new Color(255, 92, 114);
+
     public static final Color ENEMY_BULLET = new Color(255, 150, 40);
 
     public static final Color ENEMY_BULLET_GLOW = new Color(255, 80, 80);
