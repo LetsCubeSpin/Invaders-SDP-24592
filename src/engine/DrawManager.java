@@ -2148,9 +2148,20 @@ public final class DrawManager {
         }
     }
 
+    /** Font of the key help on the records page; derived when first needed. */
+    private static Font fontKeyHelp;
+
+    /** @return a step smaller than the regular font, so key help reads below the tabs. */
+    private Font keyHelpFont() {
+        if (fontKeyHelp == null)
+            fontKeyHelp = fontRegular.deriveFont(12f);
+        return fontKeyHelp;
+    }
+
     /**
-     * Draws key help centered on one line, each key in brackets and white
-     * and its action in gray, such as "[J] Sort   [K] Mode".
+     * Draws key help centered on one line in a smaller font, each key in
+     * brackets and light gray and its action in gray, such as
+     * "[J] Sort   [K] Mode", so it stays quieter than the tab names.
      *
      * @param keysAndActions
      *            Each key followed by its action.
@@ -2159,13 +2170,13 @@ public final class DrawManager {
             final String... keysAndActions) {
         Object[] segments = new Object[keysAndActions.length * 2];
         for (int i = 0; i < keysAndActions.length; i += 2) {
-            segments[i * 2] = Color.WHITE;
+            segments[i * 2] = Color.LIGHT_GRAY;
             segments[i * 2 + 1] = "[" + keysAndActions[i] + "]";
             segments[i * 2 + 2] = Color.GRAY;
             segments[i * 2 + 3] = " " + keysAndActions[i + 1]
                     + (i + 2 < keysAndActions.length ? "   " : "");
         }
-        drawCenteredSegments(screen, y, segments);
+        drawCenteredSegments(screen, y, keyHelpFont(), segments);
     }
 
     /**
@@ -2176,16 +2187,23 @@ public final class DrawManager {
      */
     private void drawCenteredSegments(final Screen screen, final int y,
             final Object... colorsAndTexts) {
-        backBufferGraphics.setFont(fontRegular);
+        drawCenteredSegments(screen, y, fontRegular, colorsAndTexts);
+    }
+
+    /** Draws colored texts one after another in the given font, centered together. */
+    private void drawCenteredSegments(final Screen screen, final int y,
+            final Font font, final Object... colorsAndTexts) {
+        backBufferGraphics.setFont(font);
+        FontMetrics metrics = backBufferGraphics.getFontMetrics(font);
         int width = 0;
         for (int i = 1; i < colorsAndTexts.length; i += 2)
-            width += fontRegularMetrics.stringWidth((String) colorsAndTexts[i]);
+            width += metrics.stringWidth((String) colorsAndTexts[i]);
         int x = (screen.getWidth() - width) / 2;
         for (int i = 0; i < colorsAndTexts.length; i += 2) {
             String text = (String) colorsAndTexts[i + 1];
             backBufferGraphics.setColor((Color) colorsAndTexts[i]);
             backBufferGraphics.drawString(text, x, y);
-            x += fontRegularMetrics.stringWidth(text);
+            x += metrics.stringWidth(text);
         }
     }
 
