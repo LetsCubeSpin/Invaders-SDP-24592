@@ -62,7 +62,8 @@ try {
     Test-LauncherFailure '7' 1 @('Route TRUCE   |   Stage 7   |   EASY   |   STANDARD', 'HeadlessException') -Difficulty 'easy' -Ship 'standard'
     Test-LauncherFailure '7' 1 @('Invincible: ON   Starting lives: 15', 'Enemy HP: 2.0x   Enemy speed: 0.5x', 'HeadlessException') `
         -Modifiers @('-StartingLives', '15', '-EnemyHpMultiplier', '2.0', '-Invincible', 'ON', '-EnemySpeedMultiplier', '0.5')
-    Test-LauncherFailure '7' 1 'Enemy speed multiplier must be between 0.25 and 4.0.' -Modifiers @('-EnemySpeedMultiplier', '4.01')
+    Test-LauncherFailure '7' 1 'Enemy HP multiplier must be between 0.25 and 4.0.' -Modifiers @('-EnemyHpMultiplier', '4.00000000000000001')
+    Test-LauncherFailure '7' 1 'Enemy speed multiplier must be between 0.25 and 4.0.' -Modifiers @('-EnemySpeedMultiplier', '0.2499999999999999999')
 } finally {
     $env:JDK_JAVAC_OPTIONS = $oldCompilerOptions
     $env:JAVA_TOOL_OPTIONS = $oldJavaOptions
