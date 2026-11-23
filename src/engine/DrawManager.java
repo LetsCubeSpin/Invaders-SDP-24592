@@ -1250,24 +1250,46 @@ public final class DrawManager {
 
     /** Draws the ship preview and the custom color editing controls. */
     public void drawShipColorSelection(final Screen screen,
-            final Ship previewShip, final Rectangle colorBar,
-            final boolean editingCustomColor) {
+            final Ship previewShip, final Ship secondPlayerPreviewShip,
+            final Rectangle colorBar,
+            final boolean editingCustomColor, final int selectedPlayerIndex) {
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, "Ship Color", screen.getHeight() / 5);
         drawEntity(previewShip, previewShip.getPositionX(), previewShip.getPositionY());
+        drawEntity(secondPlayerPreviewShip,
+                secondPlayerPreviewShip.getPositionX(),
+                secondPlayerPreviewShip.getPositionY());
 
-        boolean custom = ShipCustomization.isCustomColor();
+        Ship selectedShip = selectedPlayerIndex == 0
+                ? previewShip : secondPlayerPreviewShip;
+        int markerCenterX = selectedShip.getPositionX()
+                + selectedShip.getWidth() / 2;
+        int markerTopY = selectedShip.getPositionY() - 12;
+        backBufferGraphics.setColor(GameColors.HIGHLIGHT);
+        backBufferGraphics.fillPolygon(
+                new int[] {markerCenterX - 5, markerCenterX + 5, markerCenterX},
+                new int[] {markerTopY, markerTopY, markerTopY + 6}, 3);
+
+        boolean custom = ShipCustomization.isCustomColor(selectedPlayerIndex);
         backBufferGraphics.setColor(Color.WHITE);
-        String label = "Color: " + ShipCustomization.getColorName();
+        String label = "Color: "
+                + ShipCustomization.getColorName(selectedPlayerIndex);
         if (custom) {
-            drawShipColorBar(colorBar, ShipCustomization.getCustomHue(), editingCustomColor);
-            label += String.format(" #%06X", previewShip.getColor().getRGB() & 0xFFFFFF);
+            drawShipColorBar(colorBar,
+                    ShipCustomization.getCustomHue(selectedPlayerIndex),
+                    editingCustomColor);
+            label += String.format(" #%06X",
+                    selectedShip.getColor().getRGB() & 0xFFFFFF);
             drawCenteredRegularString(screen, editingCustomColor
                     ? "Left/Right or drag: adjust color"
-                    : "Enter or drag: edit custom color", screen.getHeight() - 85);
+                    : "Enter or drag: edit custom color",
+                    screen.getHeight() - 110);
         }
         drawCenteredRegularString(screen, label,
                 screen.getHeight() / 2 + (custom ? 75 : 45));
+        String playerOrdinal = selectedPlayerIndex == 0 ? "1st" : "2nd";
+        drawCenteredRegularString(screen, "Change the " + playerOrdinal
+                + " ship's color (Up/Down)", screen.getHeight() - 85);
         drawCenteredRegularString(screen, editingCustomColor
                 ? "Enter: done" : "Left/Right: choose color", screen.getHeight() - 60);
         drawCenteredRegularString(screen, "Esc: back to settings", screen.getHeight() - 35);

@@ -20,25 +20,33 @@ class ShipColorScreenTest {
     private ShipColorScreen screen;
     private String previousSelection;
     private float previousHue;
+    private String previousSecondPlayerSelection;
+    private float previousSecondPlayerHue;
     private boolean previousMute;
 
     @BeforeEach
     void setUp() {
         previousSelection = ShipCustomization.getColorName();
         previousHue = ShipCustomization.getCustomHue();
+        previousSecondPlayerSelection = ShipCustomization.getColorName(1);
+        previousSecondPlayerHue = ShipCustomization.getCustomHue(1);
         previousMute = AudioManager.isMuted();
         AudioManager.setMuted(true);
         releaseInput();
-        select("Green");
-        ShipCustomization.setCustomHue(0f);
+        select(0, "Green");
+        select(1, "Blue");
+        ShipCustomization.setCustomHue(0, 0f);
+        ShipCustomization.setCustomHue(1, 0f);
         openScreen();
     }
 
     @AfterEach
     void cleanUp() {
         releaseInput();
-        select(previousSelection);
-        ShipCustomization.setCustomHue(previousHue);
+        select(0, previousSelection);
+        select(1, previousSecondPlayerSelection);
+        ShipCustomization.setCustomHue(0, previousHue);
+        ShipCustomization.setCustomHue(1, previousSecondPlayerHue);
         AudioManager.setMuted(previousMute);
     }
 
@@ -54,6 +62,54 @@ class ShipColorScreenTest {
         }
         tap(KeyEvent.VK_LEFT);
         assertTrue(ShipCustomization.isCustomColor());
+    }
+
+    @Test
+    void playerColorKeepsPlayerOneSelectionAndDefaultsPlayerTwoToBlue() {
+        ShipCustomization.changeColor(1);
+        assertEquals(ShipCustomization.getColor(),
+                ShipCustomization.getColor(0));
+        assertEquals(Color.BLUE, ShipCustomization.getColor(1));
+        assertThrows(IllegalArgumentException.class,
+                () -> ShipCustomization.getColor(2));
+    }
+
+    @Test
+    void colorPreviewPlacesPlayerOneLeftOfBluePlayerTwo() throws Exception {
+        Field firstField = ShipColorScreen.class.getDeclaredField("previewShip");
+        Field secondField = ShipColorScreen.class
+                .getDeclaredField("secondPlayerPreviewShip");
+        firstField.setAccessible(true);
+        secondField.setAccessible(true);
+
+        Ship firstPlayerShip = (Ship) firstField.get(screen);
+        Ship secondPlayerShip = (Ship) secondField.get(screen);
+
+        assertTrue(firstPlayerShip.getPositionX()
+                < secondPlayerShip.getPositionX());
+        assertEquals(ShipCustomization.getColor(), firstPlayerShip.getColor());
+        assertEquals(Color.BLUE, secondPlayerShip.getColor());
+    }
+
+    @Test
+    void upDownChoosePlayerAndLeftRightChangesOnlyThatPlayersColor()
+            throws Exception {
+        tap(KeyEvent.VK_DOWN);
+        assertEquals(1, selectedPlayerIndex());
+        tap(KeyEvent.VK_RIGHT);
+        assertEquals("Custom", ShipCustomization.getColorName(1));
+        assertEquals("Green", ShipCustomization.getColorName(0));
+
+        tap(KeyEvent.VK_ENTER);
+        tap(KeyEvent.VK_RIGHT);
+        assertTrue(ShipCustomization.getCustomHue(1) > 0f);
+        assertEquals(0f, ShipCustomization.getCustomHue(0));
+
+        tap(KeyEvent.VK_UP);
+        assertEquals(0, selectedPlayerIndex());
+        tap(KeyEvent.VK_RIGHT);
+        assertEquals("Cyan", ShipCustomization.getColorName(0));
+        assertEquals("Custom", ShipCustomization.getColorName(1));
     }
 
     @Test
@@ -184,11 +240,22 @@ class ShipColorScreenTest {
     }
 
     private static void select(String name) {
+        select(0, name);
+    }
+
+    private static void select(final int playerIndex, final String name) {
         for (int i = 0; i < 7; i++) {
-            if (name.equals(ShipCustomization.getColorName())) return;
-            ShipCustomization.changeColor(1);
+            if (name.equals(ShipCustomization.getColorName(playerIndex))) return;
+            ShipCustomization.changeColor(playerIndex, 1);
         }
         fail("Unknown color: " + name);
+    }
+
+    private int selectedPlayerIndex() throws Exception {
+        Field field = ShipColorScreen.class
+                .getDeclaredField("selectedPlayerIndex");
+        field.setAccessible(true);
+        return field.getInt(screen);
     }
 
     private void tap(int code) throws Exception {
