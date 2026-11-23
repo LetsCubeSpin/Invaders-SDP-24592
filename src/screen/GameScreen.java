@@ -144,6 +144,11 @@ public class GameScreen extends Screen {
 	private long lastLaserShieldBlockSfxMillis;
 	/** Stages where a boss appears (agreed with the team, may change). */
 	static final int[] BOSS_LEVELS = { 3, 5, 7 };
+	/**
+	 * Top of the boss: under the bonus ship's path, and with its bottom no
+	 * lower than the top of the enemy formation, which starts at y 100.
+	 */
+	static final int BOSS_SPAWN_Y = 86;
     /** Chance for a destroyed enemy ship to drop a Cluster Grenade item. */
     private static final double GRENADE_DROP_CHANCE = 0.15;
     /** Fixed altitude (Y) where a grenade explodes if it hits nothing. */
@@ -1001,7 +1006,7 @@ public class GameScreen extends Screen {
 		if (bossType != null)
 			this.bossManager.spawn(new BossSpawnRequest(
 					bossType,
-					this.width / 2 - Boss.WIDTH / 2, 78,
+					this.width / 2 - Boss.WIDTH / 2, BOSS_SPAWN_Y,
 					this.level, 0), this.modifiers);
 		this.bossExplosionCooldown = Core.getCooldown(BOSS_EXPLOSION_TIME);
 

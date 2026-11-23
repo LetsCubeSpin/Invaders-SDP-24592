@@ -139,6 +139,27 @@ class AchievementToastTest {
     }
 
     @Test
+    void itsBorderFlashesOnlyJustAfterSlidingIn() {
+        this.queue.add(FIRST);
+        this.toast.update(0);
+        int lit = 0;
+        int dark = 0;
+        for (long now = FRAME; now < AchievementToast.SHOW_MILLIS; now += FRAME) {
+            this.toast.update(now);
+            boolean flashing = this.toast.isFlashing();
+            boolean flashTime = now >= AchievementToast.SLIDE_MILLIS
+                    && now < AchievementToast.SLIDE_MILLIS + AchievementToast.FLASH_MILLIS;
+            if (!flashTime)
+                assertTrue(!flashing, "no flash at " + now + " ms");
+            else if (flashing)
+                lit++;
+            else
+                dark++;
+        }
+        assertTrue(lit > 0 && dark > 0, "it goes on and off: " + lit + " lit, " + dark + " dark");
+    }
+
+    @Test
     void clearingHidesTheNotice() {
         this.queue.add(FIRST);
         this.toast.update(0);
