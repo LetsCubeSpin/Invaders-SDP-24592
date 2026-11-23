@@ -2079,9 +2079,8 @@ public final class DrawManager {
             final RunFilter filter, final int selectedRun, final int firstRun,
             final int firstAchievement) {
         drawRecordsTabBar(screen, tab);
-        backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen,
-                "Left/Right: tab   Esc/Space: return", screen.getHeight() / 6);
+        drawKeyHelp(screen, screen.getHeight() / 6,
+                "Left/Right", "Tab", "Esc/Space", "Return");
         if (tab == PlayerRecordsScreen.TAB_RECORDS)
             drawRunList(screen, service.getRuns(order, filter), order, filter,
                     selectedRun, firstRun);
@@ -2118,6 +2117,59 @@ public final class DrawManager {
                 backBufferGraphics.fillRect(x, y + 4, nameWidth, 2);
             x += nameWidth + gap;
         }
+    }
+
+    /**
+     * Draws key help centered on one line, each key in brackets and white
+     * and its action in gray, such as "[J] Sort   [K] Mode".
+     *
+     * @param keysAndActions
+     *            Each key followed by its action.
+     */
+    private void drawKeyHelp(final Screen screen, final int y,
+            final String... keysAndActions) {
+        Object[] segments = new Object[keysAndActions.length * 2];
+        for (int i = 0; i < keysAndActions.length; i += 2) {
+            segments[i * 2] = Color.WHITE;
+            segments[i * 2 + 1] = "[" + keysAndActions[i] + "]";
+            segments[i * 2 + 2] = Color.GRAY;
+            segments[i * 2 + 3] = " " + keysAndActions[i + 1]
+                    + (i + 2 < keysAndActions.length ? "   " : "");
+        }
+        drawCenteredSegments(screen, y, segments);
+    }
+
+    /**
+     * Draws texts of different colors one after another, centered together.
+     *
+     * @param colorsAndTexts
+     *            Each Color followed by the String drawn in it.
+     */
+    private void drawCenteredSegments(final Screen screen, final int y,
+            final Object... colorsAndTexts) {
+        backBufferGraphics.setFont(fontRegular);
+        int width = 0;
+        for (int i = 1; i < colorsAndTexts.length; i += 2)
+            width += fontRegularMetrics.stringWidth((String) colorsAndTexts[i]);
+        int x = (screen.getWidth() - width) / 2;
+        for (int i = 0; i < colorsAndTexts.length; i += 2) {
+            String text = (String) colorsAndTexts[i + 1];
+            backBufferGraphics.setColor((Color) colorsAndTexts[i]);
+            backBufferGraphics.drawString(text, x, y);
+            x += fontRegularMetrics.stringWidth(text);
+        }
+    }
+
+    /**
+     * Draws a label from the left edge and its value up to the right edge,
+     * so the labels and values of a list line up.
+     */
+    private void drawLabelValue(final String label, final String value,
+            final int left, final int right, final int y) {
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.drawString(label, left, y);
+        backBufferGraphics.drawString(value,
+                right - fontRegularMetrics.stringWidth(value), y);
     }
 
     /** @return width of the tab names in a row, two spaces apart. */
@@ -2162,9 +2214,15 @@ public final class DrawManager {
             final int firstRun) {
         int line = fontRegularMetrics.getHeight();
         int y = getRecordsPageTop(screen);
-        backBufferGraphics.setColor(Color.WHITE);
-        drawCenteredRegularString(screen, "J Sort: " + order.getDisplayName()
-                + "    K Mode: " + filter.getDisplayName(), y);
+        int selected = Math.max(0, Math.min(selectedRun, runs.size() - 1));
+        String sortAndMode = "Sort: " + order.getDisplayName()
+                + "   Mode: " + filter.getDisplayName();
+        if (runs.isEmpty())
+            drawCenteredSegments(screen, y, Color.WHITE, sortAndMode);
+        else
+            drawCenteredSegments(screen, y, Color.WHITE, sortAndMode,
+                    Color.GRAY, "   " + (selected + 1) + "/" + runs.size());
+        drawKeyHelp(screen, y + line, "J", "Sort", "K", "Mode", "Up/Down", "Select");
         if (runs.isEmpty()) {
             backBufferGraphics.setColor(Color.GRAY);
             drawCenteredRegularString(screen, filter == RunFilter.ALL
@@ -2173,16 +2231,13 @@ public final class DrawManager {
             return;
         }
         int perPage = getRunsPerPage(screen);
-        int selected = Math.max(0, Math.min(selectedRun, runs.size() - 1));
         int first = Math.max(0, Math.min(firstRun, runs.size() - perPage));
         if (selected < first)
             first = selected;
         else if (selected >= first + perPage)
             first = selected - perPage + 1;
-        backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, "Up/Down: select   Run "
-                + (selected + 1) + " of " + runs.size(), y + line);
         y = runListTop(screen);
+        backBufferGraphics.setColor(Color.GRAY);
         drawRunRow(screen, "#", "Score", "Mode", "Date", y);
         DateFormat date = new SimpleDateFormat("yy-MM-dd HH:mm");
         for (int i = first; i < Math.min(runs.size(), first + perPage); i++) {
@@ -2228,11 +2283,15 @@ public final class DrawManager {
             return;
         }
         int rows = RUN_DETAIL_LINES - 1;
-        backBufferGraphics.setFont(fontRegular);
-        for (int i = 0; i < details.size(); i++)
-            backBufferGraphics.drawString(details.get(i),
-                    screen.getWidth() * (i < rows ? 6 : 54) / 100,
+        int width = screen.getWidth();
+        for (int i = 0; i < details.size(); i++) {
+            // Each detail line is "Label: value".
+            String[] parts = details.get(i).split(": ", 2);
+            boolean left = i < rows;
+            drawLabelValue(parts[0], parts.length > 1 ? parts[1] : "",
+                    width * (left ? 4 : 52) / 100, width * (left ? 45 : 96) / 100,
                     y + line * (i % rows + 1));
+        }
     }
 
     /** Draws the personal bests and the cumulative stats. */
@@ -2241,47 +2300,50 @@ public final class DrawManager {
         int y = getRecordsPageTop(screen);
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, "Personal bests", y);
+        // Labels start and values end at the same place on every line.
+        int left = screen.getWidth() * 16 / 100;
+        int right = screen.getWidth() * 84 / 100;
         backBufferGraphics.setColor(Color.WHITE);
         if (service.getRecordCount() == 0) {
             drawCenteredRegularString(screen, "No completed runs yet.", y + line);
             y += line * 2;
         } else {
-            drawCenteredRegularString(screen, "Highest score: "
-                    + service.getHighestScore(), y + line);
-            drawCenteredRegularString(screen, "Most enemies: "
-                    + service.getMostEnemiesDefeated(), y + line * 2);
-            drawCenteredRegularString(screen, "Longest survival: "
-                    + formatPlayTime(service.getLongestSurvivalMillis()), y + line * 3);
+            drawLabelValue("Highest score", Integer.toString(service.getHighestScore()),
+                    left, right, y + line);
+            drawLabelValue("Most enemies", Integer.toString(service.getMostEnemiesDefeated()),
+                    left, right, y + line * 2);
+            drawLabelValue("Longest survival",
+                    formatPlayTime(service.getLongestSurvivalMillis()), left, right, y + line * 3);
             y += line * 4;
         }
         CumulativeStats stats = service.getCumulativeStats();
         // Values version 1 runs did not record are marked when such runs exist.
         String mark = stats.getRunsWithoutStats() > 0 ? "*" : "";
-        String[] totals = {
-                "Completed runs: " + stats.getRunsCompleted(),
-                "Enemies defeated: " + stats.getEnemiesDefeated(),
-                "Play time: " + formatPlayTime(stats.getActiveDurationMillis()),
-                "Stages cleared: " + stats.getStagesCleared(),
-                "Endings seen: " + stats.getEndingsSeen() + "/" + stats.getEndingCount(),
-                "Shots fired" + mark + ": " + stats.getShotsFired(),
-                "Hits" + mark + ": " + stats.getHits() + String.format(
-                        java.util.Locale.ROOT, " (%.1f%%)", stats.getAccuracy() * 100),
-                "Times hit" + mark + ": " + stats.getTimesHit(),
-                "Bosses defeated" + mark + ": " + stats.getBossesDefeated(),
-                "Items used" + mark + ": " + stats.getItemsUsed() };
+        String[][] totals = {
+                { "Completed runs", Integer.toString(stats.getRunsCompleted()) },
+                { "Enemies defeated", Long.toString(stats.getEnemiesDefeated()) },
+                { "Play time", formatPlayTime(stats.getActiveDurationMillis()) },
+                { "Stages cleared", Long.toString(stats.getStagesCleared()) },
+                { "Endings seen", stats.getEndingsSeen() + "/" + stats.getEndingCount() },
+                { "Shots fired" + mark, Long.toString(stats.getShotsFired()) },
+                { "Hits" + mark, stats.getHits() + String.format(java.util.Locale.ROOT,
+                        " (%.1f%%)", stats.getAccuracy() * 100) },
+                { "Times hit" + mark, Long.toString(stats.getTimesHit()) },
+                { "Bosses defeated" + mark, Long.toString(stats.getBossesDefeated()) },
+                { "Items used" + mark, Long.toString(stats.getItemsUsed()) } };
         y += line;
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, "Totals", y);
         backBufferGraphics.setColor(Color.WHITE);
-        for (String total : totals) {
+        for (String[] total : totals) {
             y += line;
-            drawCenteredRegularString(screen, total, y);
+            drawLabelValue(total[0], total[1], left, right, y);
         }
         if (!mark.isEmpty()) {
             backBufferGraphics.setColor(Color.GRAY);
-            int left = stats.getRunsWithoutStats();
-            drawCenteredRegularString(screen, "* Leaves out " + left
-                    + (left == 1 ? " older run" : " older runs"), y + line * 3 / 2);
+            int leftOut = stats.getRunsWithoutStats();
+            drawCenteredRegularString(screen, "* Leaves out " + leftOut
+                    + (leftOut == 1 ? " older run" : " older runs"), y + line * 3 / 2);
         }
     }
 
