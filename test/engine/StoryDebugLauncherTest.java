@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import screen.GameScreen;
@@ -134,9 +135,24 @@ class StoryDebugLauncherTest {
     }
 
     @ParameterizedTest
+    @CsvSource({
+            "0.25, 0.25", "4.0, 4.0", "1.75, 1.75",
+            "0.2500000000000000001, 0.25", "3.99999999999999999, 4.0",
+            ".2500, 0.25", "4., 4.0"
+    })
+    void acceptsInRangeDecimalMultipliers(String input, double expected) {
+        var selection = StoryDebugSelection.parse(new String[]{"TRUCE", "7", "EASY", "STANDARD",
+                "--enemy-hp-multiplier", input, "--enemy-speed-multiplier", input});
+        assertEquals(expected, selection.modifiers().enemyHpMultiplier());
+        assertEquals(expected, selection.modifiers().enemySpeedMultiplier());
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"--invincible yes", "--invincible", "--starting-lives 0", "--starting-lives 100",
             "--starting-lives 1.25", "--enemy-hp-multiplier NaN", "--enemy-hp-multiplier Infinity",
             "--enemy-hp-multiplier 0.249", "--enemy-speed-multiplier 4.001", "--enemy-speed-multiplier ABC",
+            "--enemy-hp-multiplier 4.00000000000000001", "--enemy-speed-multiplier 4.00000000000000001",
+            "--enemy-hp-multiplier 0.2499999999999999999", "--enemy-speed-multiplier 0.2499999999999999999",
             "--starting-lives 15 --starting-lives 9", "--unknown 3"})
     void rejectsInvalidModifierArguments(String options) {
         var args = new ArrayList<>(List.of("HOMECOMING", "3", "EASY", "STANDARD"));

@@ -157,8 +157,10 @@ run_case 'real JDK modified direct mode reaches GUI' 1 --route TRUCE --stage 7 -
 grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'modified launch failed before GUI'
 grep -F 'Invincible: ON   Starting lives: 15' "$logs/output" >/dev/null || die 'wrong player modifiers'
 grep -F 'Enemy HP: 2.0x   Enemy speed: 0.5x' "$logs/output" >/dev/null || die 'wrong enemy modifiers'
-run_case 'real JDK rejects out-of-range multiplier' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD --enemy-speed-multiplier 4.01
-grep -F 'Enemy speed multiplier must be between 0.25 and 4.0.' "$logs/output" >/dev/null || die 'modifier was not rejected during parsing'
+run_case 'real JDK rejects HP above the upper bound' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD --enemy-hp-multiplier 4.00000000000000001
+grep -F 'Enemy HP multiplier must be between 0.25 and 4.0.' "$logs/output" >/dev/null || die 'HP multiplier was not rejected during parsing'
+run_case 'real JDK rejects speed below the lower bound' 1 --route TRUCE --stage 7 --difficulty EASY --ship STANDARD --enemy-speed-multiplier 0.2499999999999999999
+grep -F 'Enemy speed multiplier must be between 0.25 and 4.0.' "$logs/output" >/dev/null || die 'speed multiplier was not rejected during parsing'
 run_case 'real JDK picker fails headlessly and cleans' 1
 grep -F 'HeadlessException' "$logs/output" >/dev/null || die 'picker did not reach the GUI boundary'
 launcher=$project/scripts/run-story-debug.sh
