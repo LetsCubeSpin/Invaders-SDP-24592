@@ -57,7 +57,10 @@ public enum Stat {
         RUN_STATS,
         /** The whole profile rather than a run. */
         PROFILE,
-        /** A cleared stage only, not saved with the run. */
+        /**
+         * A cleared stage only, read from the {@link StageClear}s saved
+         * with the run rather than from the run's own values.
+         */
         STAGE
     }
 

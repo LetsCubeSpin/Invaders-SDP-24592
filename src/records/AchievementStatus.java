@@ -20,7 +20,9 @@ public final class AchievementStatus {
      *            Tiers unlocked, from 0 to the tier count.
      * @param progress
      *            Current value of its stat: the best completed run for a
-     *            RUN achievement, the whole game for a TOTAL one.
+     *            RUN achievement, the whole game for a TOTAL one, and the
+     *            same over the saved stage clears for STAGE and
+     *            STAGE_TOTAL.
      * @param lastUnlockTime
      *            Unlock time of the highest unlocked tier, or null.
      */
