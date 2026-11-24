@@ -22,7 +22,7 @@ import java.util.ArrayList;
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
  *
  */
-public class ScoreScreen extends Screen {
+public class ScoreScreen extends MenuScreen {
 
 	/** Milliseconds between changes in user selection. */
 	private static final int SELECTION_TIME = 200;
@@ -192,14 +192,14 @@ public class ScoreScreen extends Screen {
 
 		draw();
 		if (this.inputDelay.checkFinished()) {
-			if (inputManager.isBackDown()) {
+			if (backPressed || clicked == BACK) {
 				// Return to main menu.
 				AudioManager.playSFX("audio/sfx/menu_back.wav");
 				this.returnCode = 1;
 				this.isRunning = false;
 				if (this.isNewRecord)
 					saveScore();
-			} else if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
+			} else if (confirmPressed || inputManager.isKeyDown(KeyEvent.VK_SPACE) || clicked == NEXT) {
 				// Play again.
 				AudioManager.playSFX("audio/sfx/menu_select.wav");
 				// The infinite mode (8) restarts itself instead of the campaign.
@@ -209,6 +209,12 @@ public class ScoreScreen extends Screen {
 					saveScore();
 			}
 
+			if (isNewRecord && hovered >= 0) nameCharSelected = hovered;
+			if (isNewRecord && clicked >= 0) {
+				nameCharSelected = clicked;
+				name[clicked] = name[clicked] == LAST_CHAR ? FIRST_CHAR : (char) (name[clicked] + 1);
+				AudioManager.playSFX("audio/sfx/name_char_change.wav");
+			}
 			if (this.isNewRecord && this.selectionCooldown.checkFinished()) {
 				if (inputManager.isKeyDown(KeyEvent.VK_RIGHT)) {
 					this.nameCharSelected = this.nameCharSelected == 2 ? 0
