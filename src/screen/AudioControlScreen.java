@@ -11,7 +11,7 @@ import engine.Core;
  * Implements the audio settings screen.
  * Lets the player change the BGM volume, the SFX volume, and the mute state.
  */
-public class AudioControlScreen extends Screen {
+public class AudioControlScreen extends MenuScreen {
 
 	/** Milliseconds between changes in user selection. */
 	private static final int SELECTION_TIME = 200;
@@ -46,8 +46,10 @@ public class AudioControlScreen extends Screen {
 	/** Option under the mouse on the last frame, -1 if none. */
 	private int lastHoveredOption = -1;
 
-	/** Starts true so a click held from the previous screen is ignored. */
-	private boolean wasMousePressed = true;
+	/** Volume controls use consecutive IDs, one per option. */
+	public static final int VOLUME_DOWN = 10;
+	public static final int VOLUME_UP = 12;
+	public static final int VOLUME_BAR = 14;
 
 	/**
 	 * Constructor, establishes the properties of the screen.
@@ -92,7 +94,7 @@ public class AudioControlScreen extends Screen {
 		handleMouse();
 		// Accept input only after the screen has been open for a moment and
 		// the last input's cooldown has finished.
-		if (this.selectionCooldown.checkFinished() && this.inputDelay.checkFinished()) {
+		if ((backPressed || confirmPressed || this.selectionCooldown.checkFinished()) && menuReady()) {
 			// Up and down move the selection between the options.
 			if (inputManager.isKeyDown(KeyEvent.VK_UP)
 					|| inputManager.isKeyDown(KeyEvent.VK_W)) {
@@ -106,7 +108,7 @@ public class AudioControlScreen extends Screen {
 				this.selectionCooldown.reset();
 				AudioManager.playSFX("audio/sfx/menu_move.wav");
 			}
-			if (inputManager.isKeyDown(KeyEvent.VK_SPACE)
+			if (confirmPressed
         	&& this.selectedOption == MUTE_OPTION) {
 				AudioControls.toggleMute();
     		this.selectionCooldown.reset();
@@ -146,7 +148,7 @@ public class AudioControlScreen extends Screen {
 				this.selectionCooldown.reset();
 			}
 			// Esc closes the screen.
-			if (inputManager.isBackDown()){
+			if (backPressed){
 				AudioManager.playSFX("audio/sfx/menu_back.wav");
 				this.isRunning = false;
 		}
@@ -181,16 +183,24 @@ public class AudioControlScreen extends Screen {
 			}
 		}
 
-		boolean mousePressed = inputManager.isMousePressed();
-		boolean newMouseClick = mousePressed && !this.wasMousePressed;
-		this.wasMousePressed = mousePressed;
-
-		if (newMouseClick && hoveredOption == MUTE_OPTION
-				&& this.inputDelay.checkFinished()) {
-			this.selectedOption = MUTE_OPTION;
+		if (clicked == NONE) return;
+		if (clicked == BACK) {
+			isRunning = false;
+		} else if (clicked == MUTE_OPTION) {
+			selectedOption = MUTE_OPTION;
 			AudioControls.toggleMute();
-			this.selectionCooldown.reset();
+		} else {
+			int control = clicked >= VOLUME_BAR ? VOLUME_BAR : clicked >= VOLUME_UP ? VOLUME_UP : VOLUME_DOWN;
+			selectedOption = clicked - control;
+			int amount = control == VOLUME_UP ? VOLUME_STEP : -VOLUME_STEP;
+			if (control == VOLUME_BAR) {
+				int current = selectedOption == BGM_VOLUME_OPTION ? AudioManager.getBGMVolume() : AudioManager.getSFXVolume();
+				amount = drawManager.volumeAt(this, inputPressX()) - current;
+			}
+			if (selectedOption == BGM_VOLUME_OPTION) changeBGMVolume(amount);
+			else changeSFXVolume(amount);
 		}
+		selectionCooldown.reset();
 	}
 
 	/**

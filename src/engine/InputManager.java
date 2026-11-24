@@ -5,6 +5,8 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 
 /**
  * Manages keyboard input for the provided screen.
@@ -12,7 +14,7 @@ import java.awt.event.MouseMotionListener;
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
  *
  */
-public final class InputManager implements KeyListener, MouseListener, MouseMotionListener {
+public final class InputManager implements KeyListener, MouseListener, MouseMotionListener, MouseWheelListener {
 
     /** Releases controls whose release events may have been consumed by a modal dialog. */
     public void releaseAllInputs() {
@@ -34,6 +36,24 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 	/** Mouse position relative to the window content. */
 	private volatile int mouseX = -1;
 	private volatile int mouseY = -1;
+
+	/** A distinct press is retained even when released between two rendered frames. */
+	public record MenuPress(int x, int y) {}
+	private volatile MenuPress lastMenuPress;
+	private volatile int backPressCount;
+	private volatile int confirmPressCount;
+
+	public int getConfirmPressCount() {
+		return confirmPressCount;
+	}
+
+	public int getBackPressCount() {
+		return backPressCount;
+	}
+
+	public MenuPress getLastMenuPress() {
+		return lastMenuPress;
+	}
 
 	/** Left mouse button state. */
 	private volatile boolean mousePressed = false;
@@ -91,6 +111,8 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 		if (key.getKeyCode() >= 0 && key.getKeyCode() < NUM_KEYS) {
 			if (!keys[key.getKeyCode()]) {
 				lastPressedKey = key.getKeyCode();
+				if (lastPressedKey == KeyEvent.VK_ESCAPE) backPressCount++;
+				if (lastPressedKey == KeyEvent.VK_ENTER || lastPressedKey == KeyEvent.VK_SPACE) confirmPressCount++;
 			}
 			keys[key.getKeyCode()] = true;
 		}
@@ -147,9 +169,13 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 	@Override
 	public void mousePressed(MouseEvent e) {
 		if (e.getButton() == MouseEvent.BUTTON1) {
+			mouseX = e.getX();
+			mouseY = e.getY();
+			lastMenuPress = new MenuPress(mouseX, mouseY);
 			mousePressed = true;
 		} else if (e.getButton() == MouseEvent.BUTTON3) {
 			rightMousePressed = true;
+			backPressCount++;
 		}
 	}
 
@@ -185,6 +211,17 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 		mouseX = e.getX();
 		mouseY = e.getY();
 	}
+
+    private volatile int wheelRotation;
+
+    public int getWheelRotation() {
+        return wheelRotation;
+    }
+
+    @Override
+    public void mouseWheelMoved(MouseWheelEvent event) {
+        wheelRotation += event.getWheelRotation();
+    }
 
 	@Override
 	public void mouseClicked(MouseEvent e) {

@@ -5,7 +5,7 @@ import audio.AudioManager;
 import engine.Cooldown;
 import engine.Core;
 
-public class GameModeScreen extends Screen { // Implementation of the game mode selection screen.
+public class GameModeScreen extends MenuScreen { // Implementation of the game mode selection screen.
 
     private static final int SELECTION_TIME = 200;
     /** Choices of the mode step: 0 Endless, 1 Campaign, 2 Story, 3 Custom, 4 Time Attack, 5 Back. */
@@ -49,78 +49,58 @@ public class GameModeScreen extends Screen { // Implementation of the game mode 
         super.update();
 
         draw();
-        if (this.selectionCooldown.checkFinished()
-                && this.inputDelay.checkFinished()) {
-
-            if (inputManager.isKeyDown(KeyEvent.VK_UP)
-                    || inputManager.isKeyDown(KeyEvent.VK_W)) {
-                this.selected = this.selected == 0
-                        ? choiceCount(this.menuStep) - 1
-                        : this.selected - 1;
-                this.selectionCooldown.reset();
-                AudioManager.playSFX("audio/sfx/menu_move.wav");   // 추가 (두 곳 모두)
+        if (hovered >= 0 && hovered != selected) {
+            selected = hovered;
+            AudioManager.playSFX("audio/sfx/menu_move.wav");
+        }
+        if (!menuReady()) return;
+        if (backPressed) {
+            goBack();
+        } else if (clicked >= 0 || confirmPressed) {
+            if (clicked >= 0) selected = clicked;
+            if (selected == choiceCount(menuStep) - 1) {
+                goBack();
+            } else {
+                choose();
             }
-            if (inputManager.isKeyDown(KeyEvent.VK_DOWN)
-                    || inputManager.isKeyDown(KeyEvent.VK_S)) {
-                this.selected = (this.selected + 1)
-                        % choiceCount(this.menuStep);
-                this.selectionCooldown.reset();
+        } else if (selectionCooldown.checkFinished()) {
+            int direction = 0;
+            if (inputManager.isKeyDown(KeyEvent.VK_UP) || inputManager.isKeyDown(KeyEvent.VK_W))
+                direction = -1;
+            else if (inputManager.isKeyDown(KeyEvent.VK_DOWN) || inputManager.isKeyDown(KeyEvent.VK_S))
+                direction = 1;
+            if (direction != 0) {
+                selected = Math.floorMod(selected + direction, choiceCount(menuStep));
+                selectionCooldown.reset();
                 AudioManager.playSFX("audio/sfx/menu_move.wav");
             }
-
-            if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
-                if (this.menuStep == 0) {
-                    // [1단계] 모드 선택 처리
-                    if (this.selected == MODE_BACK) { // Back
-                        this.returnCode = 1;
-                        this.isRunning = false;
-                        AudioManager.playSFX("audio/sfx/menu_back.wav");
-                    } else if (this.selected == STORY_MODE || this.selected == CUSTOM_MODE
-                            || this.selected == TIME_ATTACK_MODE) {
-                        // Single-player modes bypass the player-count selection.
-                        this.returnCode = returnCodeFor(this.selected);
-                        this.isRunning = false;
-                        AudioManager.playSFX("audio/sfx/menu_select.wav");
-                    } else { // Endless(0) 또는 Campaign(1) 선택 시 2단계(인원 선택)로 전진
-                        this.selectedMode = this.selected;
-                        this.menuStep = 1;
-                        this.selected = 0; // 커서 위치 초기화
-                        this.selectionCooldown.reset();
-                        AudioManager.playSFX("audio/sfx/menu_select.wav");
-                    }
-                } else if (this.menuStep == 1) {
-                    // [2단계] 인원 선택 처리
-                    if (this.selected == 2) { // Back 선택 시 다시 1단계(모드 선택)로 복귀
-                        this.menuStep = 0;
-                        this.selected = this.selectedMode;
-                        this.selectionCooldown.reset();
-                        AudioManager.playSFX("audio/sfx/menu_back.wav");
-                    } else {
-                        // 1P(0) 또는 2P(1) 최종 확정
-                        this.is2P = (this.selected == 1);
-
-                        // 기존 returnCode 유지 (Endless: 8, Campaign: 2)
-                        this.returnCode = returnCodeFor(this.selectedMode);
-                        this.isRunning = false;
-                        AudioManager.playSFX("audio/sfx/menu_select.wav");
-                    }
-                }
-            }
-
-            // ESC / 우클릭 처리 (뒤로가기)
-            if (inputManager.isBackDown()) {
-                if (this.menuStep == 1) {
-                    this.menuStep = 0; // 2단계에서는 1단계로 복귀
-                    this.selected = this.selectedMode;
-                    this.selectionCooldown.reset();
-                    AudioManager.playSFX("audio/sfx/menu_back.wav");
-                } else {
-                    this.returnCode = 1; // 1단계에서는 메인 메뉴로 복귀
-                    this.isRunning = false;
-                    AudioManager.playSFX("audio/sfx/menu_back.wav");
-                }
-            }
         }
+    }
+
+    private void choose() {
+        if (menuStep == 0 && selected < STORY_MODE) {
+            selectedMode = selected;
+            menuStep = 1;
+            selected = 0;
+        } else {
+            is2P = menuStep == 1 && selected == 1;
+            returnCode = returnCodeFor(menuStep == 0 ? selected : selectedMode);
+            isRunning = false;
+        }
+        selectionCooldown.reset();
+        AudioManager.playSFX("audio/sfx/menu_select.wav");
+    }
+
+    private void goBack() {
+        if (menuStep == 1) {
+            menuStep = 0;
+            selected = selectedMode;
+            selectionCooldown.reset();
+        } else {
+            returnCode = 1;
+            isRunning = false;
+        }
+        AudioManager.playSFX("audio/sfx/menu_back.wav");
     }
 
     public final int getSelectedGameMode() {
