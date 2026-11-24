@@ -1011,7 +1011,7 @@ public class GameScreen extends Screen {
 			this.bossManager.spawn(new BossSpawnRequest(
 					bossType,
 					this.width / 2 - Boss.WIDTH / 2, BOSS_SPAWN_Y,
-					this.level, 0), this.modifiers);
+					this.level, 0), this.modifiers, bossAttackIntervalScale());
 		this.bossExplosionCooldown = Core.getCooldown(BOSS_EXPLOSION_TIME);
 
         // Special input delay / countdown.
@@ -2016,6 +2016,15 @@ public class GameScreen extends Screen {
 
             this.summonedEnemies.clear();
 		}
+	}
+
+	/**
+	 * @return How much longer the boss waits between normal attacks: longer
+	 *         in story mode, which is easier, and unchanged elsewhere.
+	 */
+	double bossAttackIntervalScale() {
+		return this.storyStage == null ? 1.0
+				: GameplayConfig.getStoryBossIntervalScale();
 	}
 
 	/**

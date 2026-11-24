@@ -71,7 +71,7 @@ Esc 메뉴에서 **계속하기**를 선택하면 같은 전투를 이어 간다
 
 ## 시작 상태와 현재 장비 제한
 
-매번 새 `StoryProgress`와 점수 0의 `GameState`를 만든다. 1에서는 선택을 적용하지 않고 2~3에서는 첫 번째 답만, 4~7에서는 두 답을 적용한다. 디버그 진입점 `GameScreen.forStoryDebugStage`는 일반 Story 팩토리와 같은 생성 경로를 사용해 이 진행 상태와 레벨에서 `StoryStageData`의 웨이브·적 행·소행성대·보스를 읽는다. `Core.applyDifficulty`와 `GameplayConfig`가 일반 Story와 같은 방식으로 난이도를 적용한다.
+매번 새 `StoryProgress`와 점수 0의 `GameState`를 만든다. 1에서는 선택을 적용하지 않고 2~3에서는 첫 번째 답만, 4~7에서는 두 답을 적용한다. 디버그 진입점 `GameScreen.forStoryDebugStage`는 일반 Story 팩토리와 같은 생성 경로를 사용해 이 진행 상태와 레벨에서 `StoryStageData`의 웨이브·적 행·소행성대·보스를 읽는다. `Core.applyStoryDifficulty`가 일반 Story와 같은 스토리 전용 배율(`GameplayConfig.getStoryMultiplier()`, 1.5)을 적용하고, 스토리 보스는 기본 공격 간격이 `GameplayConfig.getStoryBossIntervalScale()`(1.2)배로 늘어난다. 다른 모드는 기존 배율(1.25)을 그대로 쓴다.
 
 | 시점 | 스토리 데이터 | 현재 전투 |
 | --- | --- | --- |

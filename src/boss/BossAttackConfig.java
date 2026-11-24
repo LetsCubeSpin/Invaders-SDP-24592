@@ -340,6 +340,27 @@ public final class BossAttackConfig {
         return this.baseIntervalMilliseconds;
     }
 
+    /**
+     * Returns this setup with a longer or shorter time between normal
+     * attacks. The phases, damage and special attack stay the same.
+     *
+     * @param scale
+     *            Multiplier of the base attack interval; 1 keeps it.
+     * @return This setup when the scale is 1, otherwise a copy with the base
+     *         interval multiplied by the scale and rounded.
+     */
+    public BossAttackConfig withIntervalScale(final double scale) {
+        if (!(scale > 0) || Double.isInfinite(scale))
+            throw new IllegalArgumentException(
+                    "Interval scale must be positive.");
+        if (scale == 1.0)
+            return this;
+        return new BossAttackConfig(
+                Math.max(1, (int) Math.round(
+                        this.baseIntervalMilliseconds * scale)),
+                this.damage, this.phases, this.specialAttack);
+    }
+
     public int getDamage() {
         return this.damage;
     }
