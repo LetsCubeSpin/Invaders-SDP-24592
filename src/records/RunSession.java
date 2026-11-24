@@ -69,20 +69,6 @@ public final class RunSession {
 	private RunRecord completedRecord;
 
 	/**
-	 * Creates a session whose record has the {@link RunMode#UNKNOWN} mode.
-	 *
-	 * <p>For tests only. A real run must pass its mode to
-	 * {@link #RunSession(String, RunMode)}; otherwise its record is saved
-	 * as UNKNOWN without any error.</p>
-	 *
-	 * @param runId
-	 *            Unique, non-blank run identifier.
-	 */
-	public RunSession(final String runId) {
-		this(runId, RunMode.UNKNOWN);
-	}
-
-	/**
 	 * Creates a session for one complete game run.
 	 *
 	 * @param runId

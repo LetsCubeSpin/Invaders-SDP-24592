@@ -85,13 +85,12 @@ class RunBrowsingTest {
     }
 
     @Test
-    void eachModeFilterShowsItsModeAndVersionOneRunsOnlyShowUnderAll() {
+    void eachModeFilterShowsOnlyItsModeAndAllShowsEveryRun() {
         RecordsService records = service();
         records.completeRun(run("campaign", RunMode.CAMPAIGN, 1, 1));
         records.completeRun(run("infinite", RunMode.INFINITE, 2, 2));
         records.completeRun(run("story", RunMode.STORY, 3, 3));
-        records.completeRun(new RunRecord("v1", 4, 0, 0, 4));
-        assertEquals(Arrays.asList("v1", "story", "infinite", "campaign"),
+        assertEquals(Arrays.asList("story", "infinite", "campaign"),
                 ids(records.getRuns(RunOrder.SCORE, RunFilter.ALL)));
         assertEquals(Arrays.asList("campaign"),
                 ids(records.getRuns(RunOrder.SCORE, RunFilter.CAMPAIGN)));
@@ -131,7 +130,6 @@ class RunBrowsingTest {
     void cumulativeStatsWithoutRunsAreZero() {
         CumulativeStats stats = service().getCumulativeStats();
         assertEquals(0, stats.getRunsCompleted());
-        assertEquals(0, stats.getRunsWithoutStats());
         assertEquals(0, stats.getEnemiesDefeated());
         assertEquals(0, stats.getActiveDurationMillis());
         assertEquals(0, stats.getShotsFired());
@@ -142,7 +140,7 @@ class RunBrowsingTest {
     }
 
     @Test
-    void cumulativeStatsAddUpRunsAndLeaveVersionOneRunsOutOfPlayStats() {
+    void cumulativeStatsAddUpEveryRun() {
         RecordsService records = service();
         StageClear stage = new StageClear(1, 10, 3, 50, 30, 0, 0, 1, 40);
         records.completeRun(new RunRecord("campaign", RunMode.CAMPAIGN, 1000, 40,
@@ -150,14 +148,12 @@ class RunBrowsingTest {
                 Arrays.asList(stage, new StageClear(2, 30, 3, 150, 90, 1, 1, 1, 50))));
         records.completeRun(new RunRecord("infinite", RunMode.INFINITE, 500, 25,
                 30500, 2, new RunStats(0, 0, 100, 30, 3, 0, 4)));
-        records.completeRun(new RunRecord("v1", 700, 15, 20000, 3));
         records.endingSeen(Ending.ENDING2);
 
         CumulativeStats stats = records.getCumulativeStats();
-        assertEquals(3, stats.getRunsCompleted());
-        assertEquals(1, stats.getRunsWithoutStats());
-        assertEquals(80, stats.getEnemiesDefeated(), "version 1 runs keep their enemies");
-        assertEquals(140500, stats.getActiveDurationMillis(), "and their play time");
+        assertEquals(2, stats.getRunsCompleted());
+        assertEquals(65, stats.getEnemiesDefeated());
+        assertEquals(120500, stats.getActiveDurationMillis());
         assertEquals(300, stats.getShotsFired());
         assertEquals(150, stats.getHits());
         assertEquals(0.5, stats.getAccuracy(), 1e-9);
@@ -184,12 +180,12 @@ class RunBrowsingTest {
         RecordsService records = service();
         records.completeRun(new RunRecord("campaign", RunMode.CAMPAIGN, 1000, 40,
                 90000, 1, new RunStats(2, 6, 200, 120, 1, 1, 2)));
-        records.completeRun(new RunRecord("v1", 700, 15, 20000, 3));
+        records.completeRun(new RunRecord("infinite", RunMode.INFINITE, 700, 15,
+                20000, 3, new RunStats(0, 0, 50, 10, 0, 0, 0)));
         records.close();
         CumulativeStats stats = service().getCumulativeStats();
         assertEquals(2, stats.getRunsCompleted());
-        assertEquals(1, stats.getRunsWithoutStats());
         assertEquals(55, stats.getEnemiesDefeated());
-        assertEquals(200, stats.getShotsFired());
+        assertEquals(250, stats.getShotsFired());
     }
 }

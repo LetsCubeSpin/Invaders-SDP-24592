@@ -11,6 +11,7 @@ import java.util.Random;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import records.RunMode;
 import records.RunSession;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,7 +66,7 @@ class GameScreenTargetSelectionTest {
     private static GameScreen twoPlayerGame() {
         GameScreen game = new GameScreen(new GameState(3, 0, 3, 0, 0),
                 new GameSettings(3, 5, 1, 100000), false, 448, 520, 60,
-                ShipType.STANDARD, new RunSession("target-selection"),
+                ShipType.STANDARD, new RunSession("target-selection", RunMode.CAMPAIGN),
                 2);
         game.initialize();
         return game;

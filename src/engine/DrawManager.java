@@ -31,7 +31,6 @@ import records.RunRecord;
 import records.RunRecordFormatter;
 import records.CumulativeStats;
 import records.RunFilter;
-import records.RunMode;
 import records.RunOrder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -2561,13 +2560,6 @@ public final class DrawManager {
                 formatPlayTime(run.getActiveDurationMillis())), y);
         backBufferGraphics.setColor(Color.WHITE);
         List<String> details = RunRecordFormatter.detailLines(run);
-        if (run.getMode() == RunMode.UNKNOWN) {
-            for (String detail : details) {
-                y += line;
-                drawCenteredRegularString(screen, detail, y);
-            }
-            return;
-        }
         int rows = RUN_DETAIL_LINES - 1;
         int width = screen.getWidth();
         for (int i = 0; i < details.size(); i++) {
@@ -2603,20 +2595,18 @@ public final class DrawManager {
             y += line * 4;
         }
         CumulativeStats stats = service.getCumulativeStats();
-        // Values version 1 runs did not record are marked when such runs exist.
-        String mark = stats.getRunsWithoutStats() > 0 ? "*" : "";
         String[][] totals = {
                 { "Completed runs", Integer.toString(stats.getRunsCompleted()) },
                 { "Enemies defeated", Long.toString(stats.getEnemiesDefeated()) },
                 { "Play time", formatPlayTime(stats.getActiveDurationMillis()) },
                 { "Stages cleared", Long.toString(stats.getStagesCleared()) },
                 { "Endings seen", stats.getEndingsSeen() + "/" + stats.getEndingCount() },
-                { "Shots fired" + mark, Long.toString(stats.getShotsFired()) },
-                { "Hits" + mark, stats.getHits() + String.format(java.util.Locale.ROOT,
+                { "Shots fired", Long.toString(stats.getShotsFired()) },
+                { "Hits", stats.getHits() + String.format(java.util.Locale.ROOT,
                         " (%.1f%%)", stats.getAccuracy() * 100) },
-                { "Times hit" + mark, Long.toString(stats.getTimesHit()) },
-                { "Bosses defeated" + mark, Long.toString(stats.getBossesDefeated()) },
-                { "Items used" + mark, Long.toString(stats.getItemsUsed()) } };
+                { "Times hit", Long.toString(stats.getTimesHit()) },
+                { "Bosses defeated", Long.toString(stats.getBossesDefeated()) },
+                { "Items used", Long.toString(stats.getItemsUsed()) } };
         y += line;
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, "Totals", y);
@@ -2624,12 +2614,6 @@ public final class DrawManager {
         for (String[] total : totals) {
             y += line;
             drawLabelValue(total[0], total[1], left, right, y);
-        }
-        if (!mark.isEmpty()) {
-            backBufferGraphics.setColor(Color.GRAY);
-            int leftOut = stats.getRunsWithoutStats();
-            drawCenteredRegularString(screen, "* Leaves out " + leftOut
-                    + (leftOut == 1 ? " older run" : " older runs"), y + line * 3 / 2);
         }
     }
 

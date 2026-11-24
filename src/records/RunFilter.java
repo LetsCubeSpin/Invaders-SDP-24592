@@ -2,7 +2,7 @@ package records;
 
 /** Modes the run list on the records page shows, switched with K. */
 public enum RunFilter {
-    /** Every run, including runs saved by version 1 profiles. */
+    /** Every run. */
     ALL("All", null),
     /** Campaign runs only. */
     CAMPAIGN("Campaign", RunMode.CAMPAIGN),
@@ -31,10 +31,7 @@ public enum RunFilter {
         return values()[(ordinal() + 1) % values().length];
     }
 
-    /**
-     * @return whether the run is shown. A version 1 run has no mode, so only
-     *         {@link #ALL} shows it.
-     */
+    /** @return whether the run is shown. */
     public boolean matches(final RunRecord run) {
         return this.mode == null || run.getMode() == this.mode;
     }

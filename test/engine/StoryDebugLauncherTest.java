@@ -184,7 +184,7 @@ class StoryDebugLauncherTest {
         // Establish that baseline using only JDK drawing APIs, before any game code runs.
         child(dir, "fontWarmup");
         System.out.println("JDK-only filesystem baseline: " + snapshotFiles(dir).keySet());
-        Path profile = dir.resolve(".space-invaders/records-achievements.properties");
+        Path profile = dir.resolve(".space-invaders/profile.properties");
         Files.createDirectories(profile.getParent());
         List<Path> saves = List.of(dir.resolve("scores"), profile);
         for (Path save : saves) Files.writeString(save, "sentinel-" + save.getFileName());
@@ -210,7 +210,7 @@ class StoryDebugLauncherTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"scores",
-            ".space-invaders/records-achievements.properties", ".java/fonts/test/fcinfo-existing.properties"})
+            ".space-invaders/profile.properties", ".java/fonts/test/fcinfo-existing.properties"})
     void isolationRejectsChangedAndDeletedFiles(String relativePath, @TempDir Path dir) throws Exception {
         Path saved = dir.resolve(relativePath);
         Files.createDirectories(saved.getParent());

@@ -27,29 +27,6 @@ public final class RunRecord {
 	private final List<StageClear> stagesCleared;
 
 	/**
-	 * Creates a record without a mode or play statistics, as version 1
-	 * profiles stored it: the mode is {@link RunMode#UNKNOWN} and every
-	 * statistic is 0.
-	 *
-	 * @param runId
-	 *            Unique, non-blank run identifier.
-	 * @param score
-	 *            Final score.
-	 * @param enemiesDefeated
-	 *            Total number of enemies defeated.
-	 * @param activeDurationMillis
-	 *            Active play duration in milliseconds.
-	 * @param completionTimeMillis
-	 *            Completion time in Unix epoch milliseconds.
-	 */
-	public RunRecord(final String runId, final int score,
-			final int enemiesDefeated, final long activeDurationMillis,
-			final long completionTimeMillis) {
-		this(runId, RunMode.UNKNOWN, score, enemiesDefeated,
-				activeDurationMillis, completionTimeMillis, RunStats.EMPTY);
-	}
-
-	/**
 	 * Creates a completed run record.
 	 *
 	 * @param runId

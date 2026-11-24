@@ -89,7 +89,7 @@ public final class GameplayIntegrationTest {
         return unlocks;
     }
     private static void timingAndAbort(RecordsService service) throws Exception {
-        service.startRun("timing"); RunSession session=new RunSession("timing");
+        service.startRun("timing"); RunSession session=new RunSession("timing", RunMode.CAMPAIGN);
         InfiniteGameScreen game=new InfiniteGameScreen(new GameState(1,0,3,0,0),448,520,60,session);
         game.initialize(); call(game,"update");
         check(session.getActiveDurationMillis(System.nanoTime())==0,"infinite input delay excluded");
@@ -108,7 +108,7 @@ public final class GameplayIntegrationTest {
         check(service.completeRun(escaped),"Escape after playing creates a completed record, as Core does");
         check(service.getRecordCount()==1,"the escaped infinite run is recorded");
         check(!service.enemyDefeated("timing","late"),"events after the escaped run ended are ignored");
-        service.startRun("instant"); RunSession instantSession=new RunSession("instant");
+        service.startRun("instant"); RunSession instantSession=new RunSession("instant", RunMode.CAMPAIGN);
         InfiniteGameScreen instant=new InfiniteGameScreen(new GameState(1,0,3,0,0),448,520,60,instantSession);
         instant.initialize(); set(instant,"inputDelay",Core.getCooldown(0));
         keys()[java.awt.event.KeyEvent.VK_ESCAPE]=true;
@@ -117,7 +117,7 @@ public final class GameplayIntegrationTest {
         check(instant.isAbandoned(),"Escape before any active play abandons the run");
         check(!service.enemyDefeated("instant","late"),"the abandoned run rejects later events");
         check(service.getRecordCount()==1,"a run left before playing leaves no record");
-        service.startRun("death"); RunSession deadSession=new RunSession("death");
+        service.startRun("death"); RunSession deadSession=new RunSession("death", RunMode.CAMPAIGN);
         InfiniteGameScreen dead=new InfiniteGameScreen(new GameState(1,100,0,2,1),448,520,60,deadSession);
         dead.initialize(); set(dead,"inputDelay",Core.getCooldown(0)); call(dead,"update");
         long duration=deadSession.getActiveDurationMillis(System.nanoTime());

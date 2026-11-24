@@ -22,11 +22,8 @@ import story.Ending;
 /**
  * Versioned UTF-8 profile storage with validation, backup, and atomic replace.
  *
- * <p>Writes always use version 2. Version 1 profiles, saved before runs kept
- * a mode and play statistics, still load: their records get the
- * {@link RunMode#UNKNOWN} mode and {@link RunStats#EMPTY}. A version 1 file
- * stays valid, so it is backed up as usual before the first version 2 write
- * replaces it.</p>
+ * <p>Only version 2 is read and written; any other version is rejected like
+ * invalid data. Every record stores its mode and play statistics.</p>
  *
  * <p>Each achievement entry is the unlock time of one tier. An entry
  * without a {@code tier} field is the first tier, the only one achievements
@@ -35,16 +32,14 @@ import story.Ending;
  * kept, so a profile written by a build with more achievements still
  * loads.</p>
  *
- * <p>A version 2 record can also store the stages it cleared:
+ * <p>A record can also store the stages it cleared:
  * {@code record.N.stages} and one {@code record.N.stage.M} entry per stage
  * with the values of {@link StageClear}, separated by commas. Records
  * without them cleared no saved stages.</p>
  */
 public final class ProfileStore {
-    /** Version written by this class. */
+    /** Version read and written by this class. */
     private static final String VERSION = "2";
-    /** Version without the run mode and play statistics. */
-    private static final String VERSION_1 = "1";
     private final Path file;
     private final Path backup;
     private String loadWarning;
@@ -205,8 +200,7 @@ public final class ProfileStore {
             throw new IOException("Profile contains invalid properties.", exception);
         }
         String version = properties.getProperty("version");
-        boolean versionOne = VERSION_1.equals(version);
-        if (!versionOne && !VERSION.equals(version))
+        if (!VERSION.equals(version))
             throw new IOException("Unsupported profile version.");
         int recordCount = count(properties, "record.count", 100000);
         List<RunRecord> records = new ArrayList<RunRecord>();
@@ -221,14 +215,11 @@ public final class ProfileStore {
                 int enemies = Integer.parseInt(required(properties, prefix + "enemies"));
                 long duration = Long.parseLong(required(properties, prefix + "duration"));
                 long completed = Long.parseLong(required(properties, prefix + "completed"));
-                if (versionOne)
-                    records.add(new RunRecord(id, score, enemies, duration, completed));
-                else
-                    records.add(new RunRecord(id,
-                            RunMode.valueOf(required(properties, prefix + "mode")),
-                            score, enemies, duration, completed,
-                            readStats(properties, prefix),
-                            readStages(properties, prefix)));
+                records.add(new RunRecord(id,
+                        RunMode.valueOf(required(properties, prefix + "mode")),
+                        score, enemies, duration, completed,
+                        readStats(properties, prefix),
+                        readStages(properties, prefix)));
             } catch (IllegalArgumentException exception) {
                 throw new IOException("Invalid run record in profile.", exception);
             }
@@ -270,7 +261,7 @@ public final class ProfileStore {
         return new ProfileSnapshot(records, unlocked, readEndings(properties));
     }
 
-    /** Reads the statistics a version 2 record stores. */
+    /** Reads the statistics a record stores. */
     private static RunStats readStats(final Properties properties,
             final String prefix) throws IOException {
         return new RunStats(
@@ -284,7 +275,7 @@ public final class ProfileStore {
     }
 
     /**
-     * Reads the stages a version 2 record cleared. Records saved before
+     * Reads the stages a record cleared. Records saved before
      * stage clears were stored have none, and the stage entries are extra
      * keys that builds without them ignore, so the profile stays version 2.
      */

@@ -119,7 +119,8 @@ class CustomLevelGameScreenTest {
 
     @Test
     void officialStageStillWaitsForTheBossAndStopsItsRunTimer() throws Exception {
-        records.RunSession session = new records.RunSession("restored-stage");
+        records.RunSession session = new records.RunSession("restored-stage",
+                records.RunMode.CAMPAIGN);
         GameScreen screen = new GameScreen(new GameState(3, 0, 3, 0, 0),
                 new engine.GameSettings(1, 1, 60, 2000), false,
                 448, 520, 60, ShipType.STANDARD, session);

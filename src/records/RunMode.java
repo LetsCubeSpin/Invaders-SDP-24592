@@ -10,9 +10,7 @@ public enum RunMode {
 	/** Endless waves with no stages. */
 	INFINITE("Infinite"),
 	/** The seven story stages with their questions and ending. */
-	STORY("Story"),
-	/** A run saved by version 1 profiles, which did not store the mode. */
-	UNKNOWN("Unknown");
+	STORY("Story");
 
 	/** Name shown to the player. */
 	private final String displayName;

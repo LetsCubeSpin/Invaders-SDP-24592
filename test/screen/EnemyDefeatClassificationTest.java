@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import records.RunMode;
 import records.RunSession;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -268,7 +269,7 @@ class EnemyDefeatClassificationTest {
         GameSettings single = new GameSettings(1, 1, 1, 100000);
         GameScreen game = new GameScreen(new GameState(1, 0, 3, 0, 0),
                 Arrays.asList(single, single), false, 448, 520, 60,
-                new RunSession("two-waves"));
+                new RunSession("two-waves", RunMode.CAMPAIGN));
         game.initialize();
         Defeats defeats = watch(game);
 
@@ -301,7 +302,7 @@ class EnemyDefeatClassificationTest {
     void theLastDefeatArrivesBeforeTheCompletionEvent() throws Exception {
         GameScreen game = new GameScreen(new GameState(1, 0, 3, 0, 0),
                 new GameSettings(1, 1, 1, 100000), false, 448, 520, 60,
-                new RunSession("completion-order"));
+                new RunSession("completion-order", RunMode.CAMPAIGN));
         game.initialize();
         final List<String> order = new ArrayList<String>();
         game.getGameplayEvents().subscribe(EnemyDefeatedEvent.class,
@@ -416,7 +417,7 @@ class EnemyDefeatClassificationTest {
     private static GameScreen campaign(final int stage, final String runId) {
         GameScreen game = new GameScreen(new GameState(stage, 0, 3, 0, 0),
                 new GameSettings(3, 5, 1, 100000), false, 448, 520, 60,
-                new RunSession(runId));
+                new RunSession(runId, RunMode.CAMPAIGN));
         game.initialize();
         return game;
     }
