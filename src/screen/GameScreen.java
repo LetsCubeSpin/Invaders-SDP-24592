@@ -111,7 +111,7 @@ public class GameScreen extends Screen {
     private static final int SEPARATION_LINE_HEIGHT = 40;
 	/** Damage dealt to the boss by one player shot (to confirm with the
 	 * weapon developer). */
-	private static final int BOSS_DAMAGE_PER_SHOT = 50;
+	static final int BOSS_DAMAGE_PER_SHOT = 50;
 	/** Time the boss explosion stays on screen. */
 	private static final int BOSS_EXPLOSION_TIME = 500;
 	/** Sound played as the warning before a boss special attack. */
@@ -1476,25 +1476,8 @@ public class GameScreen extends Screen {
 					bonusShip.getPositionY());
 
 		Boss boss = getBossOnScreen();
-		if (boss != null) {
-			drawManager.drawEntity(boss, boss.getPositionX(),
-					boss.getPositionY());
-			if (boss.isShieldActive() && !boss.isDefeated())
-				drawManager.drawShield(this, boss);
-			BossAttackSystem attackSystem = this.bossManager
-					.getAttackSystem();
-			if (attackSystem != null && !boss.isDefeated()
-					&& (attackSystem.isLaserCharging()
-					|| attackSystem.isLaserFiring())) {
-				int beamWidth = attackSystem.isLaserFiring()
-						? attackSystem.getActiveBeamWidth()
-						: entity.item.OrbitalAnnihilator.BEAM_WIDTH;
-				drawManager.drawBossLaser(boss, beamWidth,
-						this.height,
-						attackSystem.isLaserFiring(),
-						attackSystem.getLaserChargeProgress());
-			}
-		}
+		if (boss != null)
+			drawManager.drawBoss(this, boss, this.bossManager.getAttackSystem());
 
 		for (BossBullet bossBullet : this.bossBullets)
 			drawManager.drawEntity(bossBullet, bossBullet.getPositionX(),
@@ -1792,24 +1775,8 @@ public class GameScreen extends Screen {
 		if (activeBoss != null && !activeBoss.isDefeated()
 				&& bossAttackSystem != null
 				&& bossAttackSystem.isLaserFiring()) {
-			int beamCenterX = activeBoss.getPositionX()
-					+ activeBoss.getWidth() / 2;
-			int beamHalfWidth = bossAttackSystem.getActiveBeamWidth() / 2;
-			int beamLeft = beamCenterX - beamHalfWidth;
-			int beamRight = beamCenterX + beamHalfWidth;
-			int beamTop = activeBoss.getPositionY()
-					+ activeBoss.getHeight();
-
 			for (PlayerSlot player : this.players) {
-				if (!player.isAlive())
-					continue;
-				Ship targetShip = player.getShip();
-				boolean overlapsX = targetShip.getPositionX() < beamRight
-						&& targetShip.getPositionX()
-						+ targetShip.getWidth() > beamLeft;
-				boolean belowBoss = targetShip.getPositionY()
-						+ targetShip.getHeight() > beamTop;
-				if (overlapsX && belowBoss) {
+				if (player.isAlive() && bossAttackSystem.laserHits(activeBoss, player.getShip())) {
 					damagePlayer(player, 1,
 							PlayerHitSource.BOSS_BULLET,
 							"Hit on player ship by OBELISK laser",
@@ -2223,6 +2190,23 @@ public class GameScreen extends Screen {
 	 *            Boss event.
 	 */
 	private void handleBossEvent(final BossEvent event) {
+		playBossSound(event);
+		if (event.getType() == BossEvent.Type.DEFEATED) {
+			// Three explosions across the boss, as it is bigger than an enemy.
+			for (int i = -1; i <= 1; i++)
+				this.particleSystem.spawnEnemyExplosion(
+						event.getPositionX() + i * Boss.WIDTH / 3,
+						event.getPositionY());
+			// The boss manager sends this once per boss, so the count and
+			// the record are both taken from here. The score screen and the
+			// saved run record read shipsDestroyed, not the defeat events,
+			// so a boss went uncounted in both until this.
+			this.shipsDestroyed++;
+			recordBossDefeat(event.getBossType());
+		}
+	}
+
+	static void playBossSound(final BossEvent event) {
 		switch (event.getType()) {
 		case SPAWNED:
 			AudioManager.playSFX(BOSS_SPAWN_SOUND);
@@ -2242,17 +2226,6 @@ public class GameScreen extends Screen {
 				break;
 		case DEFEATED:
 			AudioManager.playSFX(BOSS_EXPLOSION_SOUND);
-			// Three explosions across the boss, as it is bigger than an enemy.
-			for (int i = -1; i <= 1; i++)
-				this.particleSystem.spawnEnemyExplosion(
-						event.getPositionX() + i * Boss.WIDTH / 3,
-						event.getPositionY());
-			// The boss manager sends this once per boss, so the count and
-			// the record are both taken from here. The score screen and the
-			// saved run record read shipsDestroyed, not the defeat events,
-			// so a boss went uncounted in both until this.
-			this.shipsDestroyed++;
-			recordBossDefeat(event.getBossType());
 			break;
 		default:
 			break;
@@ -2327,7 +2300,7 @@ public class GameScreen extends Screen {
 	 *            Kind of boss that was defeated.
 	 * @return Classification of the boss, UNKNOWN for an unlisted kind.
 	 */
-	private static DefeatedEnemyType classifyBoss(final Boss.BossType bossType) {
+	static DefeatedEnemyType classifyBoss(final Boss.BossType bossType) {
 		switch (bossType) {
 		    case BOSS_A:
 			    return DefeatedEnemyType.BOSS_A;
