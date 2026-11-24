@@ -242,6 +242,26 @@ public final class BossAttackConfig {
     }
 
     /**
+     * Creates the attack data for a kind of boss whose attacks all come
+     * more or less often: both the normal attack interval and the special
+     * attack's cooldown are multiplied by the scale, so the boss keeps its
+     * order of normal and special attacks.
+     *
+     * @param type
+     *            Kind of boss.
+     * @param scale
+     *            Multiplier of the attack timings; 1 keeps them.
+     * @return New attack data, not shared with other bosses.
+     */
+    public static BossAttackConfig forType(final Boss.BossType type,
+            final double scale) {
+        BossAttackConfig config = forType(type).withIntervalScale(scale);
+        if (scale != 1.0 && config.specialAttack != null)
+            config.specialAttack.scaleCooldown(scale);
+        return config;
+    }
+
+    /**
      * Boss A: slow, attacks every 2 seconds.
      * Phase 1 single shot, phase 2 multi shot, phase 3 spread + special.
      *

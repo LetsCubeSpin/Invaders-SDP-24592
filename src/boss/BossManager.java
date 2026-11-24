@@ -131,14 +131,15 @@ public final class BossManager {
 
     /**
      * Creates a boss with the health and movement settings of this battle
-     * and a longer or shorter time between its normal attacks.
+     * and a longer or shorter time between its attacks.
      *
      * @param request
      *            Boss type, position, level and wave.
      * @param modifiers
      *            Health and movement settings of this battle.
      * @param attackIntervalScale
-     *            Multiplier of the boss's base attack interval; 1 keeps it.
+     *            Multiplier of the boss's normal attack interval and special
+     *            attack cooldown; 1 keeps them.
      * @return The new boss, or null if a boss is already fighting or this
      *         boss was already defeated.
      */
@@ -153,8 +154,7 @@ public final class BossManager {
 
         // Built first, so an invalid scale leaves the manager unchanged.
         BossAttackConfig attackConfig = BossAttackConfig
-                .forType(request.getBossType())
-                .withIntervalScale(attackIntervalScale);
+                .forType(request.getBossType(), attackIntervalScale);
         this.boss = new Boss(request.getPositionX(), request.getPositionY(),
                 request.getBossType(), modifiers);
         this.attackSystem = new BossAttackSystem(attackConfig, this.random);

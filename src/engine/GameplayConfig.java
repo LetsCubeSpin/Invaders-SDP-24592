@@ -32,8 +32,9 @@ public final class GameplayConfig {
     }
 
     /**
-     * @return How much longer story bosses wait between normal attacks than
-     *         the same bosses outside story mode.
+     * @return How much longer story bosses wait between attacks (normal
+     *         attacks and the special attack's cooldown) than the same
+     *         bosses outside story mode.
      */
     public static double getStoryBossIntervalScale() {
         return 1.2;
