@@ -1,6 +1,8 @@
 package engine;
 
 import boss.BossHudInfo;
+import boss.BossAttackSystem;
+import entity.item.OrbitalAnnihilator;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -382,6 +384,20 @@ public final class DrawManager {
         int scoreX = screen.getWidth() - 60;
         drawIcon(Icon.SCORE, scoreX - Icon.SCORE.getWidth() * 2 - 6, 12, 2);
         backBufferGraphics.drawString(scoreString, scoreX, 25);
+    }
+
+    /** Draws the boss and the shield or laser currently visible in its attack pattern. */
+    public void drawBoss(final Screen screen, final Boss boss, final BossAttackSystem attacks) {
+        drawEntity(boss, boss.getPositionX(), boss.getPositionY());
+        if (boss.isDefeated())
+            return;
+        if (boss.isShieldActive())
+            drawShield(screen, boss);
+        if (attacks != null && (attacks.isLaserCharging() || attacks.isLaserFiring())) {
+            boolean firing = attacks.isLaserFiring();
+            int width = firing ? attacks.getActiveBeamWidth() : OrbitalAnnihilator.BEAM_WIDTH;
+            drawBossLaser(boss, width, screen.getHeight(), firing, attacks.getLaserChargeProgress());
+        }
     }
 
     /** Draws boss health in the free row between the score and separator. */
