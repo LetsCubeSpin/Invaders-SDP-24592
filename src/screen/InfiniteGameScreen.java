@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import vfx.ParticleSystem;
 
@@ -57,7 +58,7 @@ public class InfiniteGameScreen extends Screen {
 	private static final int ENEMIES_PER_WAVE = 8;
 	private static final int BOSS_WAVE_INTERVAL = 5;
 	private static final int MAX_BOSS_MINIONS = 2;
-	private static final Boss.BossType[] BOSS_ROTATION = {
+	private static final Boss.BossType[] ENDLESS_BOSSES = {
 			Boss.BossType.BOSS_A, Boss.BossType.BOSS_B,
 			Boss.BossType.BOSS_C, Boss.BossType.BOSS_D };
 	private static final int MINIMUM_SPAWN_INTERVAL = 300;
@@ -80,6 +81,7 @@ public class InfiniteGameScreen extends Screen {
 	private Set<Bullet> enemyBullets;
 	private int wave = 1;
 	private int spawnedThisWave;
+	private final Random bossRandom = new Random();
 	private BossManager bossManager;
 	private final List<BossBullet> bossBullets = new ArrayList<>();
 	private Cooldown spawnCooldown;
@@ -399,11 +401,11 @@ public class InfiniteGameScreen extends Screen {
 			// A projectile from the previous wave should not enter the boss fight.
 			BulletPool.recycle(this.enemyBullets);
 			this.enemyBullets.clear();
-			int index = (this.wave / BOSS_WAVE_INTERVAL - 1) % BOSS_ROTATION.length;
+			Boss.BossType bossType = ENDLESS_BOSSES[this.bossRandom.nextInt(ENDLESS_BOSSES.length)];
 			this.bossManager = new BossManager();
 			this.bossManager.connectGameplayEvents(this.recordsEvents, getActiveRunId());
 			this.bossManager.getEventManager().addListener(GameScreen::playBossSound);
-			this.bossManager.spawn(new BossSpawnRequest(BOSS_ROTATION[index],
+			this.bossManager.spawn(new BossSpawnRequest(bossType,
 					(this.width - Boss.WIDTH) / 2, GameScreen.BOSS_SPAWN_Y, 1, this.wave));
 		} else {
 			this.spawnCooldown.reset();

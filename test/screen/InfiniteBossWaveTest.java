@@ -12,6 +12,7 @@ import entity.Ship;
 import entity.ZigzagEnemyShip;
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import records.RunMode;
@@ -21,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class InfiniteBossWaveTest {
     @Test
-    void wavesRotateBossesAndResumeAfterEachDefeat() throws Exception {
+    void bossWavesDrawIndependentlyAndResumeAfterEachDefeat() throws Exception {
         RunSession session = new RunSession("endless-waves", RunMode.INFINITE);
         InfiniteGameScreen game = new InfiniteGameScreen(new GameState(1, 0, 3, 0, 0),
                 448, 520, 60, session, 2);
@@ -33,8 +34,10 @@ class InfiniteBossWaveTest {
             List<ZigzagEnemyShip> enemies = fieldList(game, "enemies");
             List<BossBullet> hostile = fieldList(game, "bossBullets");
             int expectedScore = 0;
-            Boss.BossType[] expected = {Boss.BossType.BOSS_A, Boss.BossType.BOSS_B,
-                    Boss.BossType.BOSS_C, Boss.BossType.BOSS_D, Boss.BossType.BOSS_A};
+            // This seed covers all four bosses and consecutive encounters with C.
+            ((Random) field(game, "bossRandom").get(game)).setSeed(33L);
+            Boss.BossType[] expected = {Boss.BossType.BOSS_C, Boss.BossType.BOSS_C,
+                    Boss.BossType.BOSS_D, Boss.BossType.BOSS_A, Boss.BossType.BOSS_B};
             for (int wave = 1; wave <= 25; wave++) {
                 assertEquals(wave, game.getGameState().getLevel());
                 assertEquals(wave, session.getStats().getWavesReached());
