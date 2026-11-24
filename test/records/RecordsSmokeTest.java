@@ -895,7 +895,10 @@ private static void testRunDetailLines() {
     List<String> infinite = RunRecordFormatter.detailLines(new RunRecord("d-inf", RunMode.INFINITE, 1, 1, 1, 1,
             new RunStats(0, 0, 8, 2, 1, 0, 0)));
     assertEquals("Stage reached: -", infinite.get(1), "infinite has no stage");
-    assertEquals("Waves reached: -", infinite.get(2), "infinite has no waves");
+    assertEquals("Waves reached: -", infinite.get(2), "older infinite runs have no recorded wave");
+    List<String> bossWave = RunRecordFormatter.detailLines(new RunRecord("d-boss", RunMode.INFINITE, 500, 1, 1, 1,
+            new RunStats(0, 6, 20, 17, 0, 1, 0)));
+    assertEquals("Waves reached: 6", bossWave.get(2), "infinite shows the wave reached after the boss");
     assertEquals("Accuracy: 25.0%", infinite.get(5), "infinite accuracy");
 }
 private static void testInvalidVersionTwoProfiles() throws Exception {
