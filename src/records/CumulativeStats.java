@@ -6,15 +6,11 @@ import java.util.Collection;
  * Values added up over every completed run, for the stats tab of the
  * records page. Abandoned runs leave no record, so they are not counted.
  *
- * <p>Runs saved by version 1 profiles kept no play statistics, so they
- * count towards the runs, enemies and play time but not towards the shots,
- * hits, times hit, bosses and items; {@link #getRunsWithoutStats} says how
- * many were left out. Stages cleared come from the stage clears saved with
- * each run, so runs saved before stage clears were kept add none.</p>
+ * <p>Stages cleared come from the stage clears saved with each run, so runs
+ * saved before stage clears were kept add none.</p>
  */
 public final class CumulativeStats {
     private int runsCompleted;
-    private int runsWithoutStats;
     private long enemiesDefeated;
     private long activeDurationMillis;
     private long shotsFired;
@@ -43,10 +39,6 @@ public final class CumulativeStats {
             this.enemiesDefeated += run.getEnemiesDefeated();
             this.activeDurationMillis += run.getActiveDurationMillis();
             this.stagesCleared += run.getStagesCleared().size();
-            if (run.getMode() == RunMode.UNKNOWN) {
-                this.runsWithoutStats++;
-                continue;
-            }
             RunStats stats = run.getStats();
             this.shotsFired += stats.getShotsFired();
             this.hits += stats.getHits();
@@ -58,17 +50,9 @@ public final class CumulativeStats {
         this.endingCount = endingCount;
     }
 
-    /** @return completed runs, including version 1 runs. */
+    /** @return completed runs. */
     public int getRunsCompleted() {
         return this.runsCompleted;
-    }
-
-    /**
-     * @return version 1 runs, which are left out of the shots, hits, times
-     *         hit, bosses and items.
-     */
-    public int getRunsWithoutStats() {
-        return this.runsWithoutStats;
     }
 
     /** @return enemies defeated in every completed run. */

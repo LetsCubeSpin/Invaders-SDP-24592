@@ -124,7 +124,7 @@ public final class Core {
 		int height = frame.getHeight();
 
 		recordsService = new RecordsService(new java.io.File(System.getProperty("user.home"),
-				".space-invaders/records-achievements.properties").toPath());
+				".space-invaders/profile.properties").toPath());
 		registerRecordsShutdownHook(recordsService);
 		if (recordsService.getSaveError() != null)
 			LOGGER.warning(recordsService.getSaveError());

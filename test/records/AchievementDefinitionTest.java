@@ -430,20 +430,6 @@ class AchievementDefinitionTest {
         }
 
         @Test
-        void aRunWithoutStatisticsNeverMeetsARequirementOnThem() {
-            RecordsService records = service(this.cleanKills);
-            try {
-                // Version 1 records stored no lives lost, which reads as 0.
-                records.completeRun(new RunRecord("v1", 100, 40, 1000, 1));
-
-                assertEquals(0, records.getProgress(this.cleanKills));
-                assertNull(records.getUnlockTime(this.cleanKills));
-            } finally {
-                records.close();
-            }
-        }
-
-        @Test
         void invalidCombinationsAreRejected() {
             assertThrows(IllegalArgumentException.class, () -> Achievement.define("a", "A", "c")
                     .total(Stat.ACCURACY_PERCENT, 80).build(), "accuracy does not add up");
@@ -899,7 +885,8 @@ class AchievementDefinitionTest {
                 assertEquals(Long.valueOf(5), records.getUnlockTime(Achievement.FIRST_RUN));
                 assertNull(records.getUnlockTime(Achievement.BEAT_HIGH_SCORE));
                 records.startRun("second");
-                records.completeRun(new RunRecord("second", 101, 0, 0, 6));
+                records.completeRun(new RunRecord("second", RunMode.CAMPAIGN, 101, 0, 0, 6,
+                        RunStats.EMPTY));
                 assertEquals(Long.valueOf(6), records.getUnlockTime(Achievement.BEAT_HIGH_SCORE));
                 assertNotNull(records.getUnlockTime(Achievement.FIRST_ENEMY));
             } finally {

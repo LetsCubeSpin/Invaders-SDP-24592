@@ -6,7 +6,7 @@ package records;
  */
 public final class RunStats {
 
-	/** Statistics of a run that recorded none, such as a version 1 record. */
+	/** Statistics of a run that recorded none. */
 	public static final RunStats EMPTY = new RunStats(0, 0, 0, 0, 0, 0, 0);
 
 	/** Highest stage started; 0 for modes without stages. */

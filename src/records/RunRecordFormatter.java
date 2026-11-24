@@ -18,9 +18,7 @@ public final class RunRecordFormatter {
 
 	/**
 	 * Lines describing the mode and play statistics of a run, for the
-	 * records page. A mode without stages shows "-" for the stage and waves;
-	 * a version 1 run, which kept no statistics, says so instead of showing
-	 * zeros.
+	 * records page. A mode without stages shows "-" for the stage and waves.
 	 *
 	 * @param record
 	 *            Record to describe.
@@ -31,11 +29,6 @@ public final class RunRecordFormatter {
 			throw new IllegalArgumentException("record must not be null.");
 		List<String> lines = new ArrayList<String>();
 		lines.add("Mode: " + record.getMode().getDisplayName());
-		if (record.getMode() == RunMode.UNKNOWN) {
-			lines.add("Details were not recorded");
-			lines.add("for runs saved before them.");
-			return lines;
-		}
 		RunStats stats = record.getStats();
 		boolean stages = record.getMode().hasStages();
 		lines.add("Stage reached: " + (stages

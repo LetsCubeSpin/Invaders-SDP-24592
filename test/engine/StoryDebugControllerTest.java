@@ -191,7 +191,7 @@ class StoryDebugControllerTest {
     void eachStageGetsFreshJvmPreferencesAndFilesAndCleansOnFailure(@TempDir Path dir) throws Exception {
         Path root = Files.createDirectory(dir.resolve("sessions with spaces 'quote; [x]"));
         List<Path> normalFiles = List.of(dir.resolve("scores"),
-                dir.resolve(".space-invaders/records-achievements.properties"));
+                dir.resolve(".space-invaders/profile.properties"));
         for (Path file : normalFiles) {
             Files.createDirectories(file.getParent());
             Files.writeString(file, "normal-sentinel");

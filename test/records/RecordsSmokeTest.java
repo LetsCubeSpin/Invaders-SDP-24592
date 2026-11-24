@@ -31,14 +31,12 @@ public final class RecordsSmokeTest {
         testRunRecordModeAndStats();
         testRunSessionStatistics();
         testProfileVersionTwoRoundTrip();
-        testVersionOneProfileMigration();
-        testVersionOneBackupRecovery();
         testInvalidVersionTwoProfiles();
         testRunDetailLines();
         System.out.println("RecordsSmokeTest passed: "+checks+" checks.");
     }
 private static void testRunRecordValidation() {
-		RunRecord record = new RunRecord("run-a", -100, 4, 2500, 123456);
+		RunRecord record = record("run-a", -100, 4, 2500, 123456);
 		assertEquals("run-a", record.getRunId(), "run id");
 		assertEquals(-100, record.getScore(), "score can follow game state");
 		assertEquals(4, record.getEnemiesDefeated(), "enemies defeated");
@@ -49,27 +47,27 @@ private static void testRunRecordValidation() {
 
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
-				new RunRecord(null, 0, 0, 0, 1);
+				record(null, 0, 0, 0, 1);
 			}
 		}, "null run id");
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
-				new RunRecord("  ", 0, 0, 0, 1);
+				record("  ", 0, 0, 0, 1);
 			}
 		}, "blank run id");
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
-				new RunRecord("bad-enemies", 0, -1, 0, 1);
+				record("bad-enemies", 0, -1, 0, 1);
 			}
 		}, "negative enemies");
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
-				new RunRecord("bad-duration", 0, 0, -1, 1);
+				record("bad-duration", 0, 0, -1, 1);
 			}
 		}, "negative duration");
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
-				new RunRecord("bad-time", 0, 0, 0, 0);
+				record("bad-time", 0, 0, 0, 0);
 			}
 		}, "non-positive completion time");
 	}
@@ -77,9 +75,9 @@ private static void testRunRecordValidation() {
 private static void testRepositoryDeduplication() {
 		final RunRecordRepository repository =
 				new InMemoryRunRecordRepository();
-		RunRecord first = new RunRecord("run-a", 100, 3, 2000, 10);
-		RunRecord duplicate = new RunRecord("run-a", 999, 9, 9000, 99);
-		RunRecord sameScore = new RunRecord("run-b", 100, 3, 2000, 20);
+		RunRecord first = record("run-a", 100, 3, 2000, 10);
+		RunRecord duplicate = record("run-a", 999, 9, 9000, 99);
+		RunRecord sameScore = record("run-b", 100, 3, 2000, 20);
 
 		assertEquals(0, repository.size(), "empty repository");
 		assertTrue(repository.add(first), "first record is added");
@@ -105,7 +103,7 @@ private static void testRepositoryDeduplication() {
 	}
 
 private static void testRunSessionTimingAndFinish() {
-		RunSession session = new RunSession("run-timed");
+		RunSession session = new RunSession("run-timed", RunMode.CAMPAIGN);
 		session.startActiveSegment(1000000000L);
 		assertEquals(1000L, session.getActiveDurationMillis(2000000000L),
 				"live active segment is visible to achievements");
@@ -133,7 +131,7 @@ private static void testRunSessionTimingAndFinish() {
 		assertEquals(5000L, session.finish(0, 0, 1)
 				.getActiveDurationMillis(), "finished sessions no longer change");
 
-		final RunSession activeSession = new RunSession("run-active");
+		final RunSession activeSession = new RunSession("run-active", RunMode.CAMPAIGN);
 		activeSession.startActiveSegment(10);
 		expectException(IllegalStateException.class, new CheckedAction() {
 			public void run() {
@@ -144,7 +142,7 @@ private static void testRunSessionTimingAndFinish() {
 		assertEquals(0L, activeSession.finish(0, 0, 1)
 				.getActiveDurationMillis(), "sub-millisecond time rounds down");
 
-		final RunSession invalidClock = new RunSession("run-clock");
+		final RunSession invalidClock = new RunSession("run-clock", RunMode.CAMPAIGN);
 		invalidClock.startActiveSegment(20);
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
@@ -155,13 +153,13 @@ private static void testRunSessionTimingAndFinish() {
 
 		expectException(IllegalArgumentException.class, new CheckedAction() {
 			public void run() {
-				new RunSession("");
+				new RunSession("", RunMode.CAMPAIGN);
 			}
 		}, "session run id is required");
 	}
 
 private static void testFormatterOutput() {
-		RunRecord record = new RunRecord("run-output", 800, 15, 12000,
+		RunRecord record = record("run-output", 800, 15, 12000,
 				987654321);
 		String output = RunRecordFormatter.format(record);
 		assertContains(output, "Run ID: run-output", "formatted run id");
@@ -172,7 +170,7 @@ private static void testFormatterOutput() {
 				"formatted duration");
 		assertContains(output, "Completion time: 987654321",
 				"formatted completion time");
-		assertContains(output, "Mode: Unknown", "formatted unknown mode");
+		assertContains(output, "Mode: Campaign", "formatted mode");
 		String detailed = RunRecordFormatter.format(new RunRecord("run-detail",
 				RunMode.STORY, 800, 15, 12000, 987654321,
 				new RunStats(3, 7, 40, 10, 2, 1, 4)));
@@ -195,9 +193,9 @@ private static void testFormatterOutput() {
 private static void testPersonalBests() throws Exception {
     RecordsService service = new RecordsService(testDirectory("personal-bests").resolve("profile.properties"));
     assertEquals(0, service.getHighestScore(), "empty score best");
-    service.completeRun(new RunRecord("a", -50, 4, 9000, 1));
-    service.completeRun(new RunRecord("b", -60, 7, 8000, 2));
-    service.completeRun(new RunRecord("c", -50, 7, 9000, 3));
+    service.completeRun(record("a", -50, 4, 9000, 1));
+    service.completeRun(record("b", -60, 7, 8000, 2));
+    service.completeRun(record("c", -50, 7, 9000, 3));
     assertEquals(-50, service.getHighestScore(), "score best and ties");
     assertEquals(7, service.getMostEnemiesDefeated(), "enemy best and ties");
     assertEquals(9000L, service.getLongestSurvivalMillis(), "duration best and ties");
@@ -208,11 +206,11 @@ private static void testRankingOrderAndLimit() {
 			Path profile = testDirectory("invaders-ranking-test")
 					.resolve("profile.properties");
 			RecordsService service = new RecordsService(profile);
-			service.completeRun(new RunRecord("z", 100, 0, 0, 20));
-			service.completeRun(new RunRecord("a", 100, 0, 0, 10));
-			service.completeRun(new RunRecord("b", 100, 0, 0, 10));
+			service.completeRun(record("z", 100, 0, 0, 20));
+			service.completeRun(record("a", 100, 0, 0, 10));
+			service.completeRun(record("b", 100, 0, 0, 10));
 			for (int i = 0; i < 9; i++)
-				service.completeRun(new RunRecord("low-" + i, i, 0, 0, 30 + i));
+				service.completeRun(record("low-" + i, i, 0, 0, 30 + i));
 			List<RunRecord> top = service.getTopRuns();
 			assertEquals(10, top.size(), "ranking is capped at ten entries");
 			assertEquals("a", top.get(0).getRunId(), "earlier tie sorts first");
@@ -230,11 +228,11 @@ private static void testCorruptProfileRecovery() {
 			Path profile = directory.resolve("profile.properties");
 			ProfileStore store = new ProfileStore(profile);
 			List<RunRecord> records = new ArrayList<RunRecord>();
-			records.add(new RunRecord("recover-me", 42, 1, 2000, 77));
+			records.add(record("recover-me", 42, 1, 2000, 77));
 			ProfileSnapshot first = new ProfileSnapshot(records,
 					new LinkedHashMap<String, Long>());
 			store.write(first);
-			records.add(new RunRecord("newer", 43, 1, 2000, 78));
+			records.add(record("newer", 43, 1, 2000, 78));
 			store.write(new ProfileSnapshot(records,
 					new LinkedHashMap<String, Long>()));
 			Files.write(profile, "broken profile".getBytes(StandardCharsets.UTF_8));
@@ -254,7 +252,7 @@ private static void testCorruptProfileRecovery() {
 			RecordsService blocked = new RecordsService(unrecoverable);
 			assertTrue(blocked.isWritesBlocked(),
 					"invalid data without a backup blocks automatic writes");
-			blocked.completeRun(new RunRecord("ephemeral", 9, 0, 0, 100));
+			blocked.completeRun(record("ephemeral", 9, 0, 0, 100));
 			blocked.close();
 			assertTrue(java.util.Arrays.equals(corrupt,
 					Files.readAllBytes(unrecoverable)),
@@ -267,7 +265,7 @@ private static void testCorruptProfileRecovery() {
 private static void testProfilePersistence() throws Exception {
     Path profile = testDirectory("profile-persistence").resolve("profile.properties");
     RecordsService service = new RecordsService(profile);
-    service.completeRun(new RunRecord("persist", 100, 3, 12000, 1));
+    service.completeRun(record("persist", 100, 3, 12000, 1));
     service.close(); service.close();
     assertTrue(service.getSaveError() == null, "profile writes successfully");
     RecordsService restored = new RecordsService(profile);
@@ -276,17 +274,17 @@ private static void testProfilePersistence() throws Exception {
     restored.close();
     Path protectedProfile = testDirectory("protected-primary").resolve("profile.properties");
     new ProfileStore(protectedProfile).write(new ProfileSnapshot(
-            java.util.Arrays.asList(new RunRecord("original",100,0,0,1)), new LinkedHashMap<String,Long>()));
+            java.util.Arrays.asList(record("original",100,0,0,1)), new LinkedHashMap<String,Long>()));
     byte[] original = Files.readAllBytes(protectedProfile);
     Path backup = protectedProfile.resolveSibling("profile.properties.bak");
     Files.createDirectory(backup);
     Files.write(backup.resolve("keep"), new byte[] {42});
     RecordsService blocked = new RecordsService(protectedProfile);
-    blocked.completeRun(new RunRecord("blocked", 200, 4, 20000, 2));
+    blocked.completeRun(record("blocked", 200, 4, 20000, 2));
     blocked.close();
     assertTrue(blocked.getSaveError() != null, "backup failure is reported");
     assertTrue(java.util.Arrays.equals(original, Files.readAllBytes(protectedProfile)), "backup failure preserves primary");
-    assertFalse(blocked.completeRun(new RunRecord("late", 0, 0, 0, 3)), "closed service rejects completions");
+    assertFalse(blocked.completeRun(record("late", 0, 0, 0, 3)), "closed service rejects completions");
 }
 private static void testShutdownHookFlush() throws Exception {
 		Path profile = testDirectory("shutdown-probe").resolve("profile.properties")
@@ -326,7 +324,7 @@ private static void runShutdownProbe(final Path profile) throws Exception {
 		register.setAccessible(true);
 		register.invoke(null, service);
 		for (int i = 0; i < 80; i++)
-			service.completeRun(new RunRecord("shutdown-" + i, i, 0, 0, i + 1));
+			service.completeRun(record("shutdown-" + i, i, 0, 0, i + 1));
 		// Intentionally omit close(): the production hook must flush this queue.
 		System.exit(0);
 	}
@@ -356,7 +354,7 @@ private static void testAchievementsAndPersistence() {
 			service.activeDuration("first", 60000L);
 			assertTrue(service.getUnlockTime(Achievement.SIXTY_SECONDS) != null,
 					"duration achievement unlocks at the threshold");
-			assertTrue(service.completeRun(new RunRecord("first", 500, 20,
+			assertTrue(service.completeRun(record("first", 500, 20,
 					60000L, 1000L)), "completed run is recorded");
 			assertTrue(service.getUnlockTime(Achievement.FIRST_RUN) != null,
 					"first completed run unlocks first-run achievement");
@@ -364,17 +362,17 @@ private static void testAchievementsAndPersistence() {
 					"new unlocks are kept for the run summary");
 			assertFalse(service.enemyDefeated("first", "late-defeat"),
 					"finished runs reject late defeat events");
-			assertFalse(service.completeRun(new RunRecord("first", 900, 30,
+			assertFalse(service.completeRun(record("first", 900, 30,
 					90000L, 2000L)), "duplicate completed run is ignored");
 			service.startRun("same-score");
 			assertTrue(service.pollNotification() != null,
 					"unshown notices remain queued when a new run starts");
-			service.completeRun(new RunRecord("same-score", 500, 0, 1000,
+			service.completeRun(record("same-score", 500, 0, 1000,
 					3000L));
 			assertTrue(service.getUnlockTime(Achievement.BEAT_HIGH_SCORE) == null,
 					"equal score does not beat the previous best");
 			service.startRun("new-best");
-			service.completeRun(new RunRecord("new-best", 501, 0, 1000,
+			service.completeRun(record("new-best", 501, 0, 1000,
 					4000L));
 			assertTrue(service.getUnlockTime(Achievement.BEAT_HIGH_SCORE) != null,
 					"strictly higher score unlocks the achievement");
@@ -396,7 +394,7 @@ private static void testAchievementsAndPersistence() {
 
 			RecordsService negative = new RecordsService(
 					testDirectory("invaders-negative-score").resolve("profile.properties"));
-			negative.completeRun(new RunRecord("negative", -50, 0, 0, 101));
+			negative.completeRun(record("negative", -50, 0, 0, 101));
 			assertEquals(-50, negative.getHighestScore(),
 					"personal best preserves a negative recorded score");
 			negative.close();
@@ -410,19 +408,19 @@ private static void testWriteFailureAndLifecycle() {
 			Path directory = testDirectory("invaders-write-failure");
 			Path profile = directory.resolve("profile.properties");
 			List<RunRecord> records = new ArrayList<RunRecord>();
-			records.add(new RunRecord("minimum", Integer.MIN_VALUE, 0, 0, 1));
+			records.add(record("minimum", Integer.MIN_VALUE, 0, 0, 1));
 			new ProfileStore(profile).write(new ProfileSnapshot(records,
 					new LinkedHashMap<String, Long>()));
 			RecordsService service = new RecordsService(profile);
 			service.startRun("greater");
-			service.completeRun(new RunRecord("greater", Integer.MIN_VALUE + 1,
+			service.completeRun(record("greater", Integer.MIN_VALUE + 1,
 					0, 0, 2));
 			assertTrue(service.getUnlockTime(Achievement.BEAT_HIGH_SCORE) != null,
 					"minimum integer score remains a valid previous best");
 			service.close();
 			service.close();
 			assertTrue(service.getSaveError() == null, "repeated close flushes safely");
-			assertFalse(service.completeRun(new RunRecord("after-close", 0, 0, 0, 3)),
+			assertFalse(service.completeRun(record("after-close", 0, 0, 0, 3)),
 					"closed service rejects new completion events");
 			assertFalse(service.enemyDefeated("greater", "after-close"),
 					"closed service rejects defeat events");
@@ -435,7 +433,7 @@ private static void testWriteFailureAndLifecycle() {
 			Files.createDirectory(blockedBackup);
 			Files.write(blockedBackup.resolve("keep.txt"), new byte[] { 42 });
 			RecordsService failing = new RecordsService(protectedProfile);
-			failing.completeRun(new RunRecord("cannot-save", 10, 0, 0, 4));
+			failing.completeRun(record("cannot-save", 10, 0, 0, 4));
 			failing.close();
 			assertTrue(failing.getSaveError() != null,
 					"backup replacement failure is reported");
@@ -456,7 +454,7 @@ private static void testCompletionThresholdBoundary() {
 					.resolve("profile.properties"));
 			service.startRun("last-frame");
 			service.activeDuration("last-frame", 59999);
-			service.completeRun(new RunRecord("last-frame", 50, 20, 60000, 1));
+			service.completeRun(record("last-frame", 50, 20, 60000, 1));
 			assertTrue(service.getUnlockTime(Achievement.SIXTY_SECONDS) != null,
 					"last-frame duration threshold is checked at completion");
 			assertTrue(service.getUnlockTime(Achievement.TWENTY_ENEMIES) != null,
@@ -476,7 +474,7 @@ private static void testLatestMainDefeatAdapter() throws Exception {
     try {
         service.startRun("adapter");
         screen.GameScreen game = new screen.GameScreen(new engine.GameState(1,0,3,0,0),
-                new engine.GameSettings(2,2,40,1000),false,432,490,60,new RunSession("adapter"));
+                new engine.GameSettings(2,2,40,1000),false,432,490,60,new RunSession("adapter", RunMode.CAMPAIGN));
         java.lang.reflect.Method defeated = screen.GameScreen.class.getDeclaredMethod("recordEnemyDefeat",entity.EnemyShip.class);
         defeated.setAccessible(true);
         entity.EnemyShip first = new entity.EnemyShip();
@@ -527,8 +525,9 @@ private static void testRecordsPageNavigationAndRender() {
 				service.enemyDefeated("render-0", "enemy-" + i);
 			service.activeDuration("render-0", 60000);
 			for (int i = 0; i < 10; i++)
-				service.completeRun(new RunRecord("render-" + i, 10000 + i * 100,
-						20 + i, 60000 + i * 1000, 1791850000000L + i));
+				service.completeRun(new RunRecord("render-" + i, RunMode.INFINITE,
+						10000 + i * 100, 20 + i, 60000 + i * 1000, 1791850000000L + i,
+						RunStats.EMPTY));
 			service.completeRun(new RunRecord("render-story", RunMode.STORY, 30000, 64, 312000,
 					1791850000100L, new RunStats(7, 18, 1240, 731, 4, 3, 9)));
 			service.completeRun(new RunRecord("render-infinite", RunMode.INFINITE, 20000, 80, 240000,
@@ -659,7 +658,7 @@ private static void testRecordsPageNavigationAndRender() {
 			RecordsService crowded = new RecordsService(
 					testDirectory("crowded-profile").resolve("profile.properties"), many);
 			try {
-				crowded.completeRun(new RunRecord("crowded", 1, 105, 1, 1));
+				crowded.completeRun(record("crowded", 1, 105, 1, 1));
 				screen.PlayerRecordsScreen list = new screen.PlayerRecordsScreen(432, 490, 60, crowded);
 				skipInputDelay(list);
 				pressOnRecordsPage(list, right);
@@ -763,9 +762,6 @@ private static void testLatestMainMenuOrder() throws Exception {
     for (int expected : new int[]{0,4,9,3,2}) { previous.invoke(menu); assertEquals(expected,code.getInt(menu),"reverse menu includes High scores, Records, and Settings"); }
 }
 private static void testRunRecordModeAndStats() {
-    RunRecord legacy = new RunRecord("legacy", 10, 2, 300, 4);
-    assertSame(RunMode.UNKNOWN, legacy.getMode(), "record without a mode is unknown");
-    assertSame(RunStats.EMPTY, legacy.getStats(), "record without stats has empty stats");
     RunStats stats = new RunStats(4, 9, 50, 20, 3, 1, 2);
     RunRecord full = new RunRecord("full", RunMode.CAMPAIGN, 10, 20, 300, 4, stats);
     assertSame(RunMode.CAMPAIGN, full.getMode(), "mode is kept");
@@ -793,7 +789,6 @@ private static void testRunRecordModeAndStats() {
 private static void testRunSessionStatistics() {
     RunSession session = new RunSession("stats", RunMode.CAMPAIGN);
     assertSame(RunMode.CAMPAIGN, session.getMode(), "session mode");
-    assertSame(RunMode.UNKNOWN, new RunSession("plain").getMode(), "session without a mode");
     event.GameplayEventPublisher first = new event.GameplayEventPublisher();
     session.listenTo(first);
     session.stageStarted(1); session.waveStarted(); session.waveStarted();
@@ -836,7 +831,7 @@ private static void testRunSessionStatistics() {
     assertEquals(6, session.getStats().getShotsFired(), "finished run ignores late events");
     assertEquals(3, session.getStats().getWavesReached(), "finished run ignores late waves");
     assertSame(record, session.finish(0, 0, 1), "finish stays idempotent");
-    final RunSession invalid = new RunSession("invalid");
+    final RunSession invalid = new RunSession("invalid", RunMode.CAMPAIGN);
     expectException(IllegalArgumentException.class, new CheckedAction() {
         public void run() { invalid.stageStarted(0); }
     }, "stage numbers start at 1");
@@ -846,6 +841,12 @@ private static void testRunSessionStatistics() {
     expectException(IllegalArgumentException.class, new CheckedAction() {
         public void run() { new RunSession("x", null); }
     }, "session mode is required");
+}
+/** @return a Campaign record without play statistics, for checks that do not use them. */
+private static RunRecord record(final String runId, final int score, final int enemiesDefeated,
+        final long activeDurationMillis, final long completionTimeMillis) {
+    return new RunRecord(runId, RunMode.CAMPAIGN, score, enemiesDefeated, activeDurationMillis,
+            completionTimeMillis, RunStats.EMPTY);
 }
 private static void assertSameRecord(final RunRecord expected, final RunRecord actual, final String message) {
     assertEquals(expected.getRunId(), actual.getRunId(), message + " id");
@@ -886,91 +887,6 @@ private static void testProfileVersionTwoRoundTrip() throws Exception {
                 "restored " + restored.getRunId());
     restarted.close();
 }
-private static final String VERSION_ONE_PROFILE = "version=1\n"
-        + "record.count=2\n"
-        + "record.0.id=old-a\nrecord.0.score=1500\nrecord.0.enemies=30\n"
-        + "record.0.duration=65000\nrecord.0.completed=1700000000000\n"
-        + "record.1.id=old-b\nrecord.1.score=-20\nrecord.1.enemies=0\n"
-        + "record.1.duration=0\nrecord.1.completed=1700000000001\n"
-        + "achievement.count=2\n"
-        + "achievement.0.id=first_run\nachievement.0.unlocked=1700000000000\n"
-        + "achievement.1.id=sixty_seconds\nachievement.1.unlocked=1700000000002\n"
-        + "ending.count=1\nending.0=ENDING2\n";
-private static void checkVersionOneContent(final ProfileSnapshot snapshot, final String message) {
-    assertEquals(2, snapshot.getRecords().size(), message + ": every v1 record is kept");
-    assertSameRecord(new RunRecord("old-a", 1500, 30, 65000, 1700000000000L),
-            snapshot.getRecords().get(0), message + ": old-a");
-    assertSameRecord(new RunRecord("old-b", -20, 0, 0, 1700000000001L),
-            snapshot.getRecords().get(1), message + ": old-b");
-    assertEquals(1700000000000L, snapshot.getUnlockTimes().get("first_run").longValue(),
-            message + ": achievements are kept");
-    assertEquals(1700000000002L, snapshot.getUnlockTimes().get("sixty_seconds").longValue(),
-            message + ": unlock time is kept");
-    assertTrue(snapshot.getSeenEndings().contains(story.Ending.ENDING2), message + ": endings are kept");
-}
-private static void testVersionOneProfileMigration() throws Exception {
-    Path profile = testDirectory("profile-v1").resolve("profile.properties");
-    byte[] versionOne = VERSION_ONE_PROFILE.getBytes(StandardCharsets.UTF_8);
-    Files.write(profile, versionOne);
-    ProfileStore store = new ProfileStore(profile);
-    checkVersionOneContent(store.load(), "v1 load");
-    assertTrue(store.getLoadWarning() == null, "a v1 profile is not treated as a recovery");
-    assertTrue(java.util.Arrays.equals(versionOne, Files.readAllBytes(profile)),
-            "loading alone leaves the v1 file untouched");
-
-    // One write converts the file; the v1 file it replaces becomes the backup.
-    ProfileSnapshot loaded = store.load();
-    store.write(loaded);
-    assertEquals("2", profileVersion(profile), "the first write converts the profile to version 2");
-    Path backup = profile.resolveSibling("profile.properties.bak");
-    assertTrue(java.util.Arrays.equals(versionOne, Files.readAllBytes(backup)),
-            "the v1 file is backed up, not quarantined");
-    try (java.nio.file.DirectoryStream<Path> corrupt =
-            Files.newDirectoryStream(profile.getParent(), "profile.properties.corrupt-*")) {
-        assertFalse(corrupt.iterator().hasNext(), "a valid v1 file is never quarantined");
-    }
-    checkVersionOneContent(new ProfileStore(backup).load(), "v1 backup");
-    checkVersionOneContent(new ProfileStore(profile).load(), "converted v2");
-
-    // The game itself, started on an unconverted v1 profile.
-    Path game = testDirectory("profile-v1-game").resolve("profile.properties");
-    Files.write(game, versionOne);
-    RecordsService service = new RecordsService(game);
-    assertFalse(service.isWritesBlocked(), "a v1 profile does not block writes");
-    assertEquals(2, service.getRecordCount(), "service keeps every v1 record");
-    assertEquals(1500, service.getHighestScore(), "v1 personal best still counts");
-    service.completeRun(new RunRecord("new-run", RunMode.STORY, 1600, 31, 70000, 1700000000003L,
-            new RunStats(2, 5, 60, 31, 1, 1, 2)));
-    service.close();
-    assertTrue(service.getSaveError() == null, "saving after a v1 load succeeds");
-    RecordsService restarted = new RecordsService(game);
-    assertEquals(3, restarted.getRecordCount(), "old and new runs survive a restart");
-    assertEquals(1600, restarted.getHighestScore(), "the new run counts after a restart");
-    restarted.close();
-    ProfileSnapshot converted = new ProfileStore(game).load();
-    checkVersionOneContent(new ProfileSnapshot(converted.getRecords().subList(0, 2),
-            converted.getUnlockTimes(), converted.getSeenEndings()), "game-converted v2");
-    RunRecord added = converted.getRecords().get(2);
-    assertSame(RunMode.STORY, added.getMode(), "new run keeps its mode beside v1 runs");
-    assertEquals(60, added.getStats().getShotsFired(), "new run keeps its stats beside v1 runs");
-}
-private static void testVersionOneBackupRecovery() throws Exception {
-    Path profile = testDirectory("profile-v1-backup").resolve("profile.properties");
-    Files.write(profile, VERSION_ONE_PROFILE.getBytes(StandardCharsets.UTF_8));
-    ProfileStore store = new ProfileStore(profile);
-    ProfileSnapshot loaded = store.load();
-    List<RunRecord> records = new ArrayList<RunRecord>(loaded.getRecords());
-    records.add(new RunRecord("newer", RunMode.CAMPAIGN, 5, 1, 100, 1700000000009L,
-            new RunStats(1, 1, 3, 1, 0, 0, 0)));
-    store.write(new ProfileSnapshot(records, loaded.getUnlockTimes(), loaded.getSeenEndings()));
-    Files.write(profile, "version=2\nrecord.count=oops\n".getBytes(StandardCharsets.UTF_8));
-
-    ProfileStore reopened = new ProfileStore(profile);
-    checkVersionOneContent(reopened.load(), "recovered from v1 backup");
-    assertTrue(reopened.getLoadWarning() != null, "recovery from a v1 backup is reported");
-    assertEquals("2", profileVersion(profile), "the recovered profile is rewritten as version 2");
-    checkVersionOneContent(new ProfileStore(profile).load(), "rewritten recovered profile");
-}
 private static void testRunDetailLines() {
     List<String> story = RunRecordFormatter.detailLines(new RunRecord("d-story", RunMode.STORY, 1, 1, 1, 1,
             new RunStats(3, 7, 40, 10, 2, 1, 4)));
@@ -981,10 +897,6 @@ private static void testRunDetailLines() {
     assertEquals("Stage reached: -", infinite.get(1), "infinite has no stage");
     assertEquals("Waves reached: -", infinite.get(2), "infinite has no waves");
     assertEquals("Accuracy: 25.0%", infinite.get(5), "infinite accuracy");
-    List<String> legacy = RunRecordFormatter.detailLines(new RunRecord("d-v1", 1, 1, 1, 1));
-    assertEquals("Mode: Unknown", legacy.get(0), "v1 run mode");
-    assertContains(String.join(" ", legacy), "not recorded", "v1 run says its details were not recorded");
-    assertFalse(String.join(" ", legacy).contains("Shots"), "v1 run does not pretend to have zero statistics");
 }
 private static void testInvalidVersionTwoProfiles() throws Exception {
     Path directory = testDirectory("profile-v2-invalid");
@@ -997,9 +909,13 @@ private static void testInvalidVersionTwoProfiles() throws Exception {
         header + "record.0.mode=ARCADE\n" + stats,
         header + "record.0.mode=STORY\n" + stats.replace("record.0.hits=1\n", ""),
         header + "record.0.mode=STORY\n" + stats.replace("record.0.shots=1", "record.0.shots=-1"),
-        VERSION_ONE_PROFILE.replace("version=1", "version=3"),
+        header.replace("version=2", "version=1") + "record.0.mode=CAMPAIGN\n" + stats,
+        header.replace("version=2", "version=1").replace("record.count=1", "record.count=0"),
+        header + "record.0.mode=UNKNOWN\n" + stats,
+        header.replace("version=2", "version=3") + "record.0.mode=CAMPAIGN\n" + stats,
     };
-    String[] reason = {"missing mode", "unknown mode", "missing statistic", "negative statistic", "future version"};
+    String[] reason = {"missing mode", "unknown mode", "missing statistic", "negative statistic",
+            "version 1", "empty version 1", "removed unknown mode", "future version"};
     for (int i = 0; i < invalid.length; i++) {
         Path file = directory.resolve("invalid-" + i + ".properties");
         final byte[] bytes = invalid[i].getBytes(StandardCharsets.UTF_8);
@@ -1015,10 +931,6 @@ private static void testInvalidVersionTwoProfiles() throws Exception {
         blocked.close();
         assertTrue(java.util.Arrays.equals(bytes, Files.readAllBytes(file)), reason[i] + " file stays untouched");
     }
-    Path valid = directory.resolve("valid.properties");
-    Files.write(valid, (header + "record.0.mode=UNKNOWN\n" + stats).getBytes(StandardCharsets.UTF_8));
-    assertSame(RunMode.UNKNOWN, new ProfileStore(valid).load().getRecords().get(0).getMode(),
-            "v2 accepts converted unknown-mode records");
 }
 	private static void assertTrue(final boolean actual,
 			final String message) {

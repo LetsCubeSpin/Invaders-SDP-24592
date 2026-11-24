@@ -41,6 +41,7 @@ import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import records.RunMode;
 import records.RunSession;
 import story.StoryProgress;
 import vfx.ParticleSystem;
@@ -94,7 +95,7 @@ class GameplayEventPublishingTest {
                 game.initialize();
                 // A real debug stage has no records session. Give the hit publisher an ID
                 // here so the ON/OFF comparison actually exercises its publish condition.
-                set(game, "runSession", new RunSession("damage-source"));
+                set(game, "runSession", new RunSession("damage-source", RunMode.STORY));
                 set(game, "inputDelay", Core.getCooldown(0));
                 Seen<PlayerHitEvent> hits = watch(game.getGameplayEvents(), PlayerHitEvent.class);
                 Seen<PlayerStatusEvent> status = watch(game.getGameplayEvents(), PlayerStatusEvent.class);
@@ -303,7 +304,7 @@ class GameplayEventPublishingTest {
     void infiniteTwoPlayerShotsAreBothPublished() {
         InfiniteGameScreen game = new InfiniteGameScreen(
                 new GameState(1, 0, 3, 0, 0), 448, 520, 60,
-                new RunSession("endless-two-player-shots"), 2);
+                new RunSession("endless-two-player-shots", RunMode.INFINITE), 2);
         game.initialize();
         Seen<ShotFiredEvent> shots = watch(game.getGameplayEvents(), ShotFiredEvent.class);
 
@@ -470,14 +471,14 @@ class GameplayEventPublishingTest {
             final String runId) {
         GameScreen game = new GameScreen(new GameState(stage, 0, 3, 0, 0),
                 Arrays.asList(new GameSettings(3, 5, 1, 100000)), false, 448, 520, 60,
-                shipType, new RunSession(runId));
+                shipType, new RunSession(runId, RunMode.CAMPAIGN));
         game.initialize();
         return game;
     }
 
     private static InfiniteGameScreen infinite(final String runId) {
         InfiniteGameScreen game = new InfiniteGameScreen(new GameState(1, 0, 3, 0, 0),
-                448, 520, 60, new RunSession(runId));
+                448, 520, 60, new RunSession(runId, RunMode.INFINITE));
         game.initialize();
         return game;
     }

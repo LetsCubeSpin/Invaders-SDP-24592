@@ -249,8 +249,7 @@ public final class Achievement {
     /**
      * @return whether a run or stage counts towards this achievement: it
      *         has the values the achievement uses and meets every
-     *         requirement. A version 1 record has no {@link RunStats}, so it
-     *         never meets a requirement on them, even "at most 0".
+     *         requirement.
      */
     boolean counts(final StatTally run) {
         if (!run.has(this.stat))

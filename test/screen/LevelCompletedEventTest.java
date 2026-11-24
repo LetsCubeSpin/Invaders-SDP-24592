@@ -25,6 +25,7 @@ import event.LevelCompletedEvent;
 import level.EnemyCell;
 import level.LevelDefinition;
 import level.WaveDefinition;
+import records.RunMode;
 import records.RunSession;
 
 /** Standalone checks for level completion event publication. */
@@ -132,7 +133,7 @@ public final class LevelCompletedEventTest {
 	private static void enemyDefeatPrecedesCompletion() throws Exception {
 		GameScreen screen = new GameScreen(new GameState(1, 0, 3, 0, 0),
 				new GameSettings(1, 1, 1000, 10000), false, 448, 520, 60,
-				new RunSession("order-check"));
+				new RunSession("order-check", RunMode.CAMPAIGN));
 		screen.initialize();
 		final List<String> order = new ArrayList<String>();
 		screen.getGameplayEvents().subscribe(EnemyDefeatedEvent.class,

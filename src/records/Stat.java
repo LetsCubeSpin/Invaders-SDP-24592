@@ -51,9 +51,9 @@ public enum Stat {
     private enum Source {
         /** Counted during play as well as in the completed run. */
         LIVE,
-        /** A field every run record has, including version 1 records. */
+        /** A field of the run record itself. */
         RECORD,
-        /** {@link RunStats}, which version 1 records did not store. */
+        /** The {@link RunStats} of the run record. */
         RUN_STATS,
         /** The whole profile rather than a run. */
         PROFILE,
@@ -77,11 +77,6 @@ public enum Stat {
     /** @return whether the value is also known while a run is played. */
     boolean isCountedLive() {
         return this.source == Source.LIVE;
-    }
-
-    /** @return whether runs saved by version 1 profiles lack the value. */
-    boolean needsRunStats() {
-        return this.source == Source.RUN_STATS;
     }
 
     /** @return whether the value belongs to the profile, not to a run. */

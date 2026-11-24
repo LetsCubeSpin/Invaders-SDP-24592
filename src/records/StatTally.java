@@ -18,15 +18,11 @@ final class StatTally {
         this.known = known;
     }
 
-    /**
-     * @return the values of one completed run. A version 1 record has no
-     *         {@link RunStats}, so those values are missing.
-     */
+    /** @return the values of one completed run. */
     static StatTally ofRun(final RunRecord run, final boolean beatHighScore) {
         Set<Stat> known = EnumSet.noneOf(Stat.class);
         for (Stat stat : Stat.values())
-            if (stat.isPerRun() && (run.getMode() != RunMode.UNKNOWN
-                    || !stat.needsRunStats()))
+            if (stat.isPerRun())
                 known.add(stat);
         StatTally tally = new StatTally(known);
         for (Stat stat : known)

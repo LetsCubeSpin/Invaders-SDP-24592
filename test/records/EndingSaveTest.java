@@ -97,13 +97,17 @@ class EndingSaveTest {
 
     @Test
     void aProfileSavedBeforeEndingsExistedStillLoads() throws IOException {
-        Files.write(profile(), ("version=1\n"
+        Files.write(profile(), ("version=2\n"
                 + "record.count=1\n"
                 + "record.0.id=old-run\n"
+                + "record.0.mode=CAMPAIGN\n"
                 + "record.0.score=770\n"
                 + "record.0.enemies=42\n"
                 + "record.0.duration=60493\n"
                 + "record.0.completed=1792477779343\n"
+                + "record.0.stage=1\nrecord.0.waves=1\nrecord.0.shots=0\n"
+                + "record.0.hits=0\nrecord.0.timesHit=0\nrecord.0.bosses=0\n"
+                + "record.0.items=0\n"
                 + "achievement.count=1\n"
                 + "achievement.0.id=first_run\n"
                 + "achievement.0.unlocked=1792477779343\n")
@@ -122,7 +126,7 @@ class EndingSaveTest {
 
     @Test
     void unknownOrRepeatedEndingsMakeTheProfileInvalid() throws IOException {
-        String header = "version=1\nrecord.count=0\nachievement.count=0\n";
+        String header = "version=2\nrecord.count=0\nachievement.count=0\n";
         Files.write(profile(), (header + "ending.count=1\nending.0=ENDING9\n")
                 .getBytes(StandardCharsets.UTF_8));
         assertThrows(IOException.class, () -> new ProfileStore(profile()).load());
