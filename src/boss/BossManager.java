@@ -126,6 +126,25 @@ public final class BossManager {
 
     /** Creates a boss with the health and movement settings of this battle. */
     public Boss spawn(final BossSpawnRequest request, final StoryDebugModifiers modifiers) {
+        return spawn(request, modifiers, 1.0);
+    }
+
+    /**
+     * Creates a boss with the health and movement settings of this battle
+     * and a longer or shorter time between its attacks.
+     *
+     * @param request
+     *            Boss type, position, level and wave.
+     * @param modifiers
+     *            Health and movement settings of this battle.
+     * @param attackIntervalScale
+     *            Multiplier of the boss's normal attack interval and special
+     *            attack cooldown; 1 keeps them.
+     * @return The new boss, or null if a boss is already fighting or this
+     *         boss was already defeated.
+     */
+    public Boss spawn(final BossSpawnRequest request, final StoryDebugModifiers modifiers,
+            final double attackIntervalScale) {
         if (this.boss != null && !this.finished)
             return null;
         String key = request.getBossType() + ":" + request.getLevel() + ":"
@@ -133,10 +152,12 @@ public final class BossManager {
         if (this.defeatedBosses.contains(key))
             return null;
 
+        // Built first, so an invalid scale leaves the manager unchanged.
+        BossAttackConfig attackConfig = BossAttackConfig
+                .forType(request.getBossType(), attackIntervalScale);
         this.boss = new Boss(request.getPositionX(), request.getPositionY(),
                 request.getBossType(), modifiers);
-        this.attackSystem = new BossAttackSystem(
-                BossAttackConfig.forType(request.getBossType()), this.random);
+        this.attackSystem = new BossAttackSystem(attackConfig, this.random);
         this.currentKey = key;
         this.lastHealth = this.boss.getCurrentHealth();
         this.lastPhase = this.boss.getPhase();

@@ -27,6 +27,8 @@ public abstract class SpecialAttack {
     private final int windupMilliseconds;
     /** Time until the special attack can be used again. */
     private final Cooldown cooldown;
+    /** Current time between uses, in milliseconds. */
+    private int cooldownMilliseconds;
 
     /**
      * Constructor.
@@ -45,10 +47,32 @@ public abstract class SpecialAttack {
                     "Special attack cooldown must be positive.");
         this.name = name;
         this.windupMilliseconds = Math.max(0, windupMilliseconds);
+        this.cooldownMilliseconds = cooldownMilliseconds;
         this.cooldown = Core.getCooldown(cooldownMilliseconds);
         // Starts counting now. The first use in a phase does not wait for
         // it (see BossAttackSystem); later uses do.
         this.cooldown.reset();
+    }
+
+    /** @return Time between uses of this attack, in milliseconds. */
+    public final int getCooldownMilliseconds() {
+        return this.cooldownMilliseconds;
+    }
+
+    /**
+     * Makes this attack wait longer or shorter between uses. Scaling the
+     * normal attack interval by the same amount keeps the order of normal and
+     * special attacks.
+     *
+     * @param scale
+     *            Multiplier of the time between uses; must be positive.
+     */
+    final void scaleCooldown(final double scale) {
+        if (!(scale > 0) || Double.isInfinite(scale))
+            throw new IllegalArgumentException("Cooldown scale must be positive.");
+        this.cooldownMilliseconds = Math.max(1,
+                (int) Math.round(this.cooldownMilliseconds * scale));
+        this.cooldown.setDuration(this.cooldownMilliseconds);
     }
 
     public final String getName() {

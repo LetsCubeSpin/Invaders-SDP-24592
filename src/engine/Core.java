@@ -375,7 +375,7 @@ public final class Core {
 			boolean bonusLife = stage % EXTRA_LIFE_FRECUENCY == 0
 					&& gameState.getLivesRemaining() < maxLives;
 			GameScreen screen = GameScreen.forStoryStage(gameState, progress,
-					Core::applyDifficulty, bonusLife, width, height, FPS,
+					Core::applyStoryDifficulty, bonusLife, width, height, FPS,
 					selectedShip, runSession);
 			currentScreen = screen;
 			// The route property fixes the answers for testing, so the
@@ -543,6 +543,20 @@ public final class Core {
 	private static GameSettings applyDifficulty(
 			final GameSettings stageSettings) {
 		return applyDifficulty(stageSettings, GameplayConfig.getMultiplier());
+	}
+
+	/**
+	 * Applies the story mode difficulty, which is easier than the other
+	 * modes. Also used by the story debug launcher, so both play the same.
+	 *
+	 * @param stageSettings
+	 *            Settings of the story stage.
+	 * @return Settings with the story difficulty applied.
+	 */
+	static GameSettings applyStoryDifficulty(
+			final GameSettings stageSettings) {
+		return applyDifficulty(stageSettings,
+				GameplayConfig.getStoryMultiplier());
 	}
 
 	// The calculation is accessible to tests in the engine package.
