@@ -1,12 +1,14 @@
 package screen;
 
 import audio.AudioManager;
+import engine.Cooldown;
 import engine.Core;
 import engine.CustomLevelMenu.Action;
 import engine.InputManager;
 import java.awt.Canvas;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,14 +74,24 @@ class MenuPointerNavigationTest {
         move(224, 307);
         hub.update();
         assertEquals(Action.EXPORT, hub.getAction());
-        var cooldown = CustomLevelScreen.class.getDeclaredField("cooldown");
-        cooldown.setAccessible(true);
-        ((engine.Cooldown) cooldown.get(hub)).setDuration(0);
+        // Cooldown reserves zero for a timer that has not started.
+        AtomicLong now = new AtomicLong(1_000);
+        Cooldown navigationDelay = new Cooldown(200, now::get);
+        navigationDelay.reset();
+        var cooldownField = CustomLevelScreen.class.getDeclaredField("cooldown");
+        cooldownField.setAccessible(true);
+        cooldownField.set(hub, navigationDelay);
+        now.addAndGet(201);
         input.keyPressed(new KeyEvent(source, KeyEvent.KEY_PRESSED, 0, 0, KeyEvent.VK_DOWN, ' '));
         hub.update();
+        assertEquals(Action.BACK, hub.getAction());
         input.keyReleased(new KeyEvent(source, KeyEvent.KEY_RELEASED, 0, 0, KeyEvent.VK_DOWN, ' '));
         hub.update();
         assertEquals(Action.BACK, hub.getAction());
+
+        move(225, 307); // Move within Export to give the pointer focus again.
+        hub.update();
+        assertEquals(Action.EXPORT, hub.getAction());
     }
 
     @Test
