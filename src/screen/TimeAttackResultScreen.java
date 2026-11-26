@@ -2,6 +2,7 @@ package screen;
 
 import java.awt.event.KeyEvent;
 import audio.AudioManager;
+import engine.LanguageManager;
 
 /** Results and retry for the three-stage time attack run. */
 public final class TimeAttackResultScreen extends Screen {
@@ -43,6 +44,7 @@ public final class TimeAttackResultScreen extends Screen {
                 AudioManager.playSFX("audio/sfx/menu_back.wav");
                 this.isRunning = false;
             } else if (confirmDown && !this.confirmWasDown) {
+                LanguageManager.resetToEnglish();
                 this.returnCode = GameModeScreen.START_TIME_ATTACK;
                 this.isRunning = false;
             }

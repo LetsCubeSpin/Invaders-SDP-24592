@@ -30,6 +30,7 @@ import engine.ControlsConfig;
 import engine.Core;
 import engine.DrawManager.SpriteType;
 import engine.GameState;
+import engine.LanguageManager;
 import entity.Bullet;
 import entity.BulletPool;
 import entity.Entity;
@@ -420,7 +421,8 @@ public class InfiniteGameScreen extends Screen {
 			int countdown = (int) ((INPUT_DELAY
 					- (System.currentTimeMillis() - this.gameStartTime)) / 1000);
 			playCountdownSound(countdown);
-			drawManager.drawCountDown(this, "Infinite Mode", countdown);
+			drawManager.drawCountDown(this,
+					LanguageManager.get("mode.infinite"), countdown);
 			drawManager.drawHorizontalLine(this,
 					this.height / 2 - this.height / 12);
 			drawManager.drawHorizontalLine(this,

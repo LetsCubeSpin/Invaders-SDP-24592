@@ -148,6 +148,18 @@ public enum Icon {
 			"YYYY.GGGG",
 			"YYYY.GGGG"),
 
+	/** Language settings: a globe with meridians. */
+	LANGUAGE(GameColors.ICON_UI,
+			".........",
+			"..#####..",
+			".#.....#.",
+			".#.....#.",
+			"..#####..",
+			".#.....#.",
+			".#.....#.",
+			"..#####..",
+			"........."),
+
 	/** Back: an arrow pointing left. */
 	BACK(GameColors.ICON_UI,
 			"...#....",

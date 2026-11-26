@@ -169,6 +169,7 @@ pip-log.txt
 /log.*
 *.ttf
 !res/font.ttf
+!res/fontforko.ttf
 .checkstyle
 
 # Local compile output and personal high scores

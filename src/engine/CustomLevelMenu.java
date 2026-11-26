@@ -12,11 +12,12 @@ import level.LevelDefinition;
 /** Session-local library. Each imported source keeps its original filename and definition. */
 public final class CustomLevelMenu {
     public enum Action {
-        IMPORT("Import JSON"), PLAY("Play Level"), EXPORT("Export JSON"), BACK("Back");
+        IMPORT("custom.import"), PLAY("custom.playLevel"),
+        EXPORT("custom.exportJson"), BACK("ui.back");
 
-        private final String label;
-        Action(final String label) { this.label = label; }
-        public String getLabel() { return label; }
+        private final String labelKey;
+        Action(final String labelKey) { this.labelKey = labelKey; }
+        public String getLabel() { return LanguageManager.get(labelKey); }
         public boolean isEnabled(final int levelCount) {
             return levelCount > 0 || this == IMPORT || this == BACK;
         }

@@ -94,6 +94,7 @@ public final class Core {
 
 	/** Starts the game. */
 	public static void run() {
+		LanguageManager.resetToEnglish();
 		try {
 			LOGGER.setUseParentHandlers(false);
 
@@ -319,7 +320,7 @@ public final class Core {
 	/** Shows the story opening narration and returns when the player is done. */
 	private static void showStoryOpening() {
 		currentScreen = new StoryNarrationScreen(frame.getWidth(),
-				frame.getHeight(), FPS, StoryScript.OPENING_NARRATION);
+				frame.getHeight(), FPS, StoryScript.openingNarration());
 		frame.setScreen(currentScreen);
 	}
 
