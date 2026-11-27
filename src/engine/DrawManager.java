@@ -1116,7 +1116,18 @@ public final class DrawManager {
         backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
                 portraitWidth - 1, boxHeight - 1);
 
-        // Text box right next to the portrait.
+        drawDialogueTextBox(screen, speaker, text, visibleChars, done,
+                portraitWidth, boxY, boxHeight, millis);
+    }
+
+    /**
+     * Draws the text box right next to a dialogue portrait: the speaker's
+     * name, the typed line and, once it is complete, a blinking prompt.
+     */
+    private void drawDialogueTextBox(final Screen screen, final String speaker,
+            final String text, final int visibleChars, final boolean prompt,
+            final int portraitWidth, final int boxY, final int boxHeight,
+            final long millis) {
         int boxX = DIALOGUE_PORTRAIT_X + portraitWidth + DIALOGUE_BOX_SPACING;
         int textWidth = screen.getWidth() - boxX - DIALOGUE_PORTRAIT_X;
         backBufferGraphics.setColor(Color.BLACK);
@@ -1130,7 +1141,7 @@ public final class DrawManager {
         drawTypedText(text, visibleChars, textX, boxY + 54,
                 textWidth - 2 * DIALOGUE_TEXT_PADDING);
 
-        if (done && (millis / 500) % 2 == 0) {
+        if (prompt && (millis / 500) % 2 == 0) {
             backBufferGraphics.setColor(Color.GRAY);
             String hint = "SPACE";
             backBufferGraphics.drawString(hint, boxX
@@ -1138,6 +1149,55 @@ public final class DrawManager {
                     - fontRegularMetrics.stringWidth(hint),
                     boxY + boxHeight - 10);
         }
+    }
+
+    /** Gap between the line under the HUD and the question dialogue. */
+    private static final int QUESTION_TOP_GAP = 4;
+    /** Gap kept free above the banner, under the question dialogue. */
+    private static final int QUESTION_BANNER_GAP = 8;
+
+    /**
+     * Draws a story question as a conversation at the top of the game board:
+     * the speaker's portrait on the left and her typed line to its right, the
+     * same layout as the pilot's dialogue, between the line under the HUD and
+     * the banner. Her mouth moves while the line is typed.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param speaker
+     *            Name shown above the line.
+     * @param text
+     *            Full line.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param speaking
+     *            Whether she is still talking, which moves her mouth.
+     * @param prompt
+     *            Whether to show the prompt for the next step.
+     * @param top
+     *            Height of the line under the HUD.
+     * @param millis
+     *            Current time, drives the portrait and the prompt.
+     */
+    public void drawStoryQuestionDialogue(final Screen screen,
+            final String speaker, final String text, final int visibleChars,
+            final boolean speaking, final boolean prompt, final int top,
+            final long millis) {
+        int boxY = top + QUESTION_TOP_GAP;
+        int bannerTop = screen.getHeight() / 2 - screen.getHeight() / 12;
+        int boxHeight = Math.min(DIALOGUE_BOX_HEIGHT,
+                bannerTop - QUESTION_BANNER_GAP - boxY);
+        int portraitWidth = (int) Math.round(boxHeight
+                * story.ControllerPortrait.SRC_W
+                / story.ControllerPortrait.SRC_H);
+        story.ControllerPortrait.draw((Graphics2D) backBufferGraphics,
+                DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
+                millis / 1000.0, speaking);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
+                portraitWidth - 1, boxHeight - 1);
+        drawDialogueTextBox(screen, speaker, text, visibleChars, prompt,
+                portraitWidth, boxY, boxHeight, millis);
     }
 
     /** Top of the dialogue boxes, just below the lower line of the banner. */
