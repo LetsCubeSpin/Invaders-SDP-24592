@@ -33,7 +33,7 @@ public final class RunRecordFormatter {
 		boolean stages = record.getMode().hasStages();
 		lines.add("Stage reached: " + (stages
 				? Integer.toString(stats.getStageReached()) : NOT_APPLICABLE));
-		lines.add("Waves reached: " + (stages
+		lines.add("Waves reached: " + (stages || stats.getWavesReached() > 0
 				? Integer.toString(stats.getWavesReached()) : NOT_APPLICABLE));
 		lines.add("Shots fired: " + stats.getShotsFired());
 		lines.add("Hits: " + stats.getHits());

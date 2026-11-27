@@ -72,7 +72,7 @@ public final class StoryDebugLauncher {
         requireDebugSession();
         GameState state = new GameState(choice.stage(), 0, choice.modifiers().startingLives(), 0, 0);
         return GameScreen.forStoryDebugStage(state, choice.progress(),
-                settings -> Core.applyDifficulty(settings, GameplayConfig.getMultiplier()),
+                Core::applyStoryDifficulty,
                 width, height, 60, choice.modifiers(), returnToLauncher);
     }
 

@@ -7,7 +7,7 @@ import engine.Cooldown;
 import engine.Core;
 import engine.LanguageManager;
 
-public class SettingsScreen extends Screen {
+public class SettingsScreen extends MenuScreen {
 
     private static final int SELECTION_TIME = 200;
     private static final int AUDIO_OPTION = 0;
@@ -19,13 +19,6 @@ public class SettingsScreen extends Screen {
 
     private Cooldown selectionCooldown;
     private int selectedOption;
-    /** Option under the mouse on the last frame, -1 if none. */
-    private int lastHoveredOption = -1;
-    /** Starts true so a click held from the previous screen is ignored. */
-    private boolean wasMousePressed = true;
-    /** Tracks previous Space key state for edge detection. */
-    private boolean wasSpacePressed = true;
-
     public SettingsScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
         this.returnCode = 1; // Retour au menu principal
@@ -45,37 +38,21 @@ public class SettingsScreen extends Screen {
         super.update();
         draw();
 
-        int hoveredOption = drawManager.getSettingsMenuOptionAt(this,
-                inputManager.getMouseX(), inputManager.getMouseY());
-
-        // Select an option when the mouse moves onto it.
-        if (hoveredOption != this.lastHoveredOption) {
-            this.lastHoveredOption = hoveredOption;
-            if (hoveredOption != -1 && hoveredOption != this.selectedOption) {
-                this.selectedOption = hoveredOption;
-                AudioManager.playSFX("audio/sfx/menu_move.wav");
-            }
+        readTargetAt((x, y) -> drawManager.getSettingsMenuOptionAt(this, x, y));
+        if (hovered != NONE && hovered != selectedOption) {
+            selectedOption = hovered;
+            AudioManager.playSFX("audio/sfx/menu_move.wav");
         }
-
-        boolean mousePressed = inputManager.isMousePressed();
-        boolean newMouseClick = mousePressed && !this.wasMousePressed;
-        this.wasMousePressed = mousePressed;
-
-        if (newMouseClick && hoveredOption != -1
-                && this.inputDelay.checkFinished()) {
-            this.selectedOption = hoveredOption;
+        if (clicked != NONE) {
+            selectedOption = clicked;
             confirmSelectedOption();
             return;
         }
 
-        if (!this.selectionCooldown.checkFinished()
-                || !this.inputDelay.checkFinished()) {
-            this.wasSpacePressed = inputManager.isKeyDown(KeyEvent.VK_SPACE);
+        if ((!backPressed && !confirmPressed && !this.selectionCooldown.checkFinished())
+                || !menuReady()) {
             return;
         }
-        boolean spacePressed = inputManager.isKeyDown(KeyEvent.VK_SPACE);
-        boolean newSpacePress = spacePressed && !this.wasSpacePressed;
-        this.wasSpacePressed = spacePressed;
 
         if (inputManager.isKeyDown(KeyEvent.VK_UP) || inputManager.isKeyDown(KeyEvent.VK_W)) {
             this.selectedOption =
@@ -88,10 +65,9 @@ public class SettingsScreen extends Screen {
                     (this.selectedOption + 1) % OPTION_COUNT;
             this.selectionCooldown.reset();
             AudioManager.playSFX("audio/sfx/menu_move.wav");
-        } else if (newSpacePress) {
+        } else if (confirmPressed) {
             confirmSelectedOption();
-            this.selectionCooldown.reset();
-        }  if (inputManager.isBackDown()) {
+        } else if (backPressed) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 1;
             this.isRunning = false;

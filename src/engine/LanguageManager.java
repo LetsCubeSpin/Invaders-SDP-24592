@@ -54,18 +54,20 @@ public class LanguageManager {
         addText("settings.color", "Color","색상");
         addText("settings.changelanguage", "Change Language","언어 변경");
         addText("settings.back", "Back","뒤로");
-        addText("settings.instruction", "Up/Down: select  Space: confirm", "위/아래: 선택  스페이스: 확인");
+        addText("settings.instruction", "Up/Down: select  Space: confirm / Click", "위/아래: 선택  스페이스: 확인 / 클릭");
         addText("settings.color.title","Ship Color","기체 색상");
         addText("settings.color.instruction.1stline","Change the %s ship's color(Up/Down)","%s 번째 기체의 색상 변경(위/아래)");
         addText("settings.color.instruction.2ndline.true","Enter: done","Enter 키: 완료");
         addText("settings.color.instruction.2ndline.false","Left/Right: choose color","왼쪽/오른쪽: 색상 선택");
-        addText("settings.color.instruction.3rdline","Esc: back to settings","Esc 키: 설정으로 복귀");
+        addText("settings.color.instruction.3rdline","Esc or click: back to settings","Esc 또는 클릭: 설정으로 복귀");
 
 
 
         addText("title.instructions", "Select with W/S or arrows; confirm with Space",
                 "W/S 또는 방향키로 선택, 스페이스로 확인");
         addText("menu.play", "Play", "게임 시작");
+        addText("menu.retry", "Retry (Space)", "재시도 (스페이스)");
+        addText("menu.backAction", "Back (Esc)", "뒤로 (Esc)");
         addText("menu.highScores", "High scores", "최고 점수");
         addText("menu.records", "Records & Achievements", "기록 및 도전 과제");
         addText("menu.settings", "Settings", "설정");
@@ -81,8 +83,8 @@ public class LanguageManager {
         addText("players.two", "2 Players (Co-op)", "2인 협동 플레이");
         addText("ui.back", "Back", "뒤로");
         addText("settings.controlsTitle", "Controls", "조작 설정");
-        addText("settings.controlsInstruction", "Up/Down: select  Space: change",
-                "위/아래: 선택  스페이스: 변경");
+        addText("settings.controlsInstruction", "Up/Down: select  Space: change / Click",
+                "위/아래: 선택  스페이스: 변경 / 클릭");
         addText("settings.moveLeft", "Move Left", "왼쪽 이동");
         addText("settings.moveRight", "Move Right", "오른쪽 이동");
         addText("settings.fire", "Fire", "발사");
@@ -95,9 +97,10 @@ public class LanguageManager {
         addText("key.space", "Space", "스페이스");
         addText("settings.audioTitle", "Audio Settings", "오디오 설정");
         addText("settings.audioSelect", "Up/Down: select", "위/아래: 선택");
-        addText("settings.audioAdjust", "Left/Right: adjust  M: mute",
-                "왼쪽/오른쪽: 조절  M: 음소거");
-        addText("settings.audioReturn", "Press Esc to return", "Esc 키: 돌아가기");
+        addText("settings.audioAdjust", "Left/Right: adjust  M: mute / Click bar",
+                "왼쪽/오른쪽: 조절  M: 음소거 / 막대 클릭");
+        addText("settings.audioReturn", "Press Esc or click to return",
+                "Esc 또는 클릭: 돌아가기");
         addText("settings.bgmVolume", "BGM Volume", "배경 음악 음량");
         addText("settings.sfxVolume", "SFX Volume", "효과음 음량");
         addText("settings.mute", "Mute", "음소거");
@@ -113,8 +116,8 @@ public class LanguageManager {
         addText("settings.colorDone", "Enter: done", "Enter 키: 완료");
         addText("settings.colorChoose", "Left/Right: choose color",
                 "왼쪽/오른쪽: 색상 선택");
-        addText("settings.colorPlayer", "%s ship color (Up/Down)",
-                "%s 기체 색상 (위/아래)");
+        addText("settings.colorPlayer", "%s ship color (Up/Down or click)",
+                "%s 기체 색상 (위/아래 또는 클릭)");
         addText("settings.colorPlayerOne", "Player 1", "1번 플레이어");
         addText("settings.colorPlayerTwo", "Player 2", "2번 플레이어");
         addText("color.green", "Green", "초록색");
@@ -128,8 +131,8 @@ public class LanguageManager {
         addText("screen.go", "GO!", "시작!");
         addText("screen.bonusLife", "Bonus life!", "보너스 목숨!");
         addText("screen.highScores", "High Scores", "최고 점수");
-        addText("screen.highScoresHelp", "Press Space or Esc to return",
-                "스페이스 또는 Esc: 돌아가기");
+        addText("screen.highScoresHelp", "Press Space, Esc or click to return",
+                "스페이스, Esc 또는 클릭: 돌아가기");
         addText("screen.newRecord", "New Record!", "신기록!");
         addText("screen.enterName", "Introduce name:", "이름을 입력하세요:");
         addText("screen.gameClear", "Game Clear", "게임 클리어");
@@ -145,21 +148,23 @@ public class LanguageManager {
         addText("result.newAchievements", "New achievements:", "새 도전 과제:");
         addText("result.achievementPage", "New achievements: %d/%d",
                 "새 도전 과제: %d/%d");
-        addText("result.controls", "Space: play again   Esc: menu",
-                "스페이스: 다시 하기   Esc: 메뉴");
+        addText("result.controls", "Space: play again   Esc: menu   Click: choose",
+                "스페이스: 다시 하기   Esc: 메뉴   클릭: 선택");
         addText("hud.level", "LEVEL", "레벨");
         addText("custom.importedLevels", "Imported Levels: %d", "가져온 레벨: %d");
         addText("custom.import", "Import JSON", "JSON 가져오기");
         addText("custom.title", "Custom Level", "사용자 레벨");
         addText("custom.playLevel", "Play Level", "레벨 플레이");
         addText("custom.exportJson", "Export JSON", "JSON 내보내기");
-        addText("custom.controls", "Arrows / Space / Esc", "방향키 / 스페이스 / Esc");
+        addText("custom.controls", "Arrows / Space / Esc / Click",
+                "방향키 / 스페이스 / Esc / 클릭");
         addText("timeAttack.clear", "TIME ATTACK CLEAR", "타임 어택 클리어");
         addText("timeAttack.gameOver", "GAME OVER", "게임 오버");
         addText("timeAttack.timeUp", "TIME UP", "시간 종료");
         addText("timeAttack.stagesCleared", "Stages cleared: %d/%d", "클리어한 스테이지: %d/%d");
         addText("timeAttack.score", "Score: %d", "점수: %d");
-        addText("timeAttack.controls", "SPACE: Retry   ESC: Back", "스페이스: 재시도   Esc: 뒤로");
+        addText("timeAttack.controls", "SPACE: Retry   ESC: Back   Click: choose",
+                "스페이스: 재시도   Esc: 뒤로   클릭: 선택");
         addText("timeAttack.seconds", "%dS", "%d초");
         addText("timeAttack.secondsLeft", "%dS LEFT!", "%d초 남음!");
         addText("timeAttack.hud", "TIME %ds", "시간 %d초");

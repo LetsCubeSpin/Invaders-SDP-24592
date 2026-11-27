@@ -6,10 +6,16 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import vfx.ParticleSystem;
 
 import audio.AudioManager;
+import boss.BossAttackSystem.SummonRequest;
+import boss.BossManager;
+import boss.BossSpawnRequest;
+import entity.Boss;
+import entity.BossBullet;
 import records.RunSession;
 import hud.AchievementToast;
 import records.RecordsService;
@@ -50,6 +56,12 @@ public class InfiniteGameScreen extends Screen {
 	private static final int INPUT_DELAY = 6000;
 	private static final int ENEMY_WIDTH = 12 * 2;
 	private static final int INITIAL_SPAWN_INTERVAL = 1000;
+	private static final int ENEMIES_PER_WAVE = 8;
+	private static final int BOSS_WAVE_INTERVAL = 5;
+	private static final int MAX_BOSS_MINIONS = 2;
+	private static final Boss.BossType[] ENDLESS_BOSSES = {
+			Boss.BossType.BOSS_A, Boss.BossType.BOSS_B,
+			Boss.BossType.BOSS_C, Boss.BossType.BOSS_D };
 	private static final int MINIMUM_SPAWN_INTERVAL = 300;
 	private static final int SPAWN_INTERVAL_STEP = 10;
 	private static final int KILLS_PER_SPEED_UP = 20;
@@ -68,6 +80,11 @@ public class InfiniteGameScreen extends Screen {
 	private List<ZigzagEnemyShip> enemies;
 	private Set<Bullet> bullets;
 	private Set<Bullet> enemyBullets;
+	private int wave = 1;
+	private int spawnedThisWave;
+	private final Random bossRandom = new Random();
+	private BossManager bossManager;
+	private final List<BossBullet> bossBullets = new ArrayList<>();
 	private Cooldown spawnCooldown;
 	private Cooldown screenFinishedCooldown;
 	private int score;
@@ -142,6 +159,8 @@ public class InfiniteGameScreen extends Screen {
 			AchievementToast.of(this.recordsService).screenStarted();
 
 		initializePlayerSlots();
+		if (this.runSession != null)
+			this.runSession.waveStarted();
 		this.enemies = new ArrayList<ZigzagEnemyShip>();
 		this.bullets = new HashSet<Bullet>();
 		this.enemyBullets = new HashSet<Bullet>();
@@ -262,7 +281,10 @@ public class InfiniteGameScreen extends Screen {
 			}
 
 			updatePlayerControls();
-			spawnEnemy();
+			if (this.bossManager == null)
+				spawnEnemy();
+			else
+				updateBoss();
 			moveEnemies();
 			shootEnemies();
 		}
@@ -272,6 +294,8 @@ public class InfiniteGameScreen extends Screen {
 			player.getShip().update();
 		manageCollisions();
 		resolveSharedPlayerDefeat();
+		if (this.lives > 0 && !this.gameOver)
+			advanceClearedWave();
 		cleanBullets();
 		this.particleSystem.update();
 		draw();
@@ -331,7 +355,7 @@ public class InfiniteGameScreen extends Screen {
 	}
 
 	private void spawnEnemy() {
-		if (!this.spawnCooldown.checkFinished())
+		if (this.spawnedThisWave >= ENEMIES_PER_WAVE || !this.spawnCooldown.checkFinished())
 			return;
 
 		int amplitude = ZigzagEnemyShip.getZigzagAmplitude();
@@ -353,11 +377,74 @@ public class InfiniteGameScreen extends Screen {
 
 		this.enemies.add(new ZigzagEnemyShip(positionX,
 				SEPARATION_LINE_HEIGHT, spriteType, fallSpeed));
+		this.spawnedThisWave++;
 
 		int interval = Math.max(MINIMUM_SPAWN_INTERVAL, INITIAL_SPAWN_INTERVAL
 				- this.shipsDestroyed * SPAWN_INTERVAL_STEP);
 		this.spawnCooldown = Core.getCooldown(interval);
 		this.spawnCooldown.reset();
+	}
+
+	private void advanceClearedWave() {
+		if (this.bossManager != null) {
+			if (!this.bossManager.getBoss().isDefeated())
+				return;
+			this.bossManager = null;
+		} else if (this.spawnedThisWave < ENEMIES_PER_WAVE || !this.enemies.isEmpty()) {
+			return;
+		}
+
+		this.wave++;
+		this.spawnedThisWave = 0;
+		if (this.runSession != null)
+			this.runSession.waveStarted();
+		if (this.wave % BOSS_WAVE_INTERVAL == 0) {
+			// A projectile from the previous wave should not enter the boss fight.
+			BulletPool.recycle(this.enemyBullets);
+			this.enemyBullets.clear();
+			Boss.BossType bossType = ENDLESS_BOSSES[this.bossRandom.nextInt(ENDLESS_BOSSES.length)];
+			this.bossManager = new BossManager();
+			this.bossManager.connectGameplayEvents(this.recordsEvents, getActiveRunId());
+			this.bossManager.getEventManager().addListener(GameScreen::playBossSound);
+			this.bossManager.spawn(new BossSpawnRequest(bossType,
+					(this.width - Boss.WIDTH) / 2, GameScreen.BOSS_SPAWN_Y, 1, this.wave));
+		} else {
+			this.spawnCooldown.reset();
+			AudioManager.playSFX("audio/sfx/wave_transition.wav");
+		}
+	}
+
+	private void updateBoss() {
+		Boss boss = this.bossManager.getBoss();
+		boss.update(1, this.width - 1);
+		// Aim at the nearest surviving ship in co-op.
+		Ship target = null;
+		int nearest = Integer.MAX_VALUE;
+		int center = boss.getPositionX() + boss.getWidth() / 2;
+		for (PlayerSlot player : this.players) {
+			Ship ship = player.getShip();
+			int distance = Math.abs(center - ship.getPositionX() - ship.getWidth() / 2);
+			if (player.isAlive() && !ship.isDestroyed() && distance < nearest) {
+				target = ship;
+				nearest = distance;
+			}
+		}
+		if (target != null) {
+			List<SummonRequest> summons = new ArrayList<>();
+			this.bossManager.update(target.getPositionX() + target.getWidth() / 2,
+					target.getPositionY(), this.bossBullets, summons);
+			for (SummonRequest request : summons) {
+				if (this.enemies.size() >= MAX_BOSS_MINIONS)
+					break;
+				int margin = ZigzagEnemyShip.getZigzagAmplitude();
+				int x = Math.max(margin, Math.min(request.getPositionX(), this.width - ENEMY_WIDTH - margin));
+				this.enemies.add(new ZigzagEnemyShip(x, request.getPositionY(),
+						request.getEnemyType().getSpriteType(), 1));
+			}
+		}
+		for (BossBullet bullet : this.bossBullets)
+			bullet.update();
+		this.bossBullets.removeIf(b -> b.isOutside(SEPARATION_LINE_HEIGHT, this.width, this.height));
 	}
 
 	private void moveEnemies() {
@@ -407,7 +494,16 @@ public class InfiniteGameScreen extends Screen {
 			drawManager.drawEntity(bullet, bullet.getPositionX(),
 					bullet.getPositionY());
 
+		if (this.bossManager != null) {
+			drawManager.drawBoss(this, this.bossManager.getBoss(), this.bossManager.getAttackSystem());
+			for (BossBullet bullet : this.bossBullets)
+				drawManager.drawEntity(bullet, bullet.getPositionX(), bullet.getPositionY());
+		}
+
 		drawManager.drawScore(this, this.score);
+		drawManager.drawCenteredRegularString(this, "Wave " + this.wave, 25);
+		if (this.bossManager != null)
+			drawManager.drawBossHealthBar(this, this.bossManager.getHudInfo());
 		drawManager.drawLives(this, this.lives, this.maxLives);
 		drawManager.drawHorizontalLine(this, SEPARATION_LINE_HEIGHT - 1);
 
@@ -485,12 +581,20 @@ public class InfiniteGameScreen extends Screen {
 					break;
 				}
 			}
+			if (!recyclable.contains(bullet) && this.bossManager != null) {
+				Boss boss = this.bossManager.getBoss();
+				if (!boss.isDefeated() && checkCollision(bullet, boss)) {
+					recyclable.add(bullet);
+					publishBulletHit();
+					hitBoss(boss);
+				}
+			}
 		}
 		this.bullets.removeAll(recyclable);
 		BulletPool.recycle(recyclable);
 
-		if (this.gameOver)
-			return;
+		if (this.bossManager != null)
+			checkBossAttacks();
 
 		Iterator<Bullet> bulletIterator = this.enemyBullets.iterator();
 		while (bulletIterator.hasNext()) {
@@ -501,7 +605,7 @@ public class InfiniteGameScreen extends Screen {
 						&& checkCollision(bullet, target)) {
 					bulletIterator.remove();
 					BulletPool.recycle(Collections.singleton(bullet));
-					damagePlayer(player, PlayerHitSource.ENEMY_BULLET,
+					damagePlayer(player, 1, PlayerHitSource.ENEMY_BULLET,
 							"Hit by enemy bullet");
 					break;
 				}
@@ -521,9 +625,55 @@ public class InfiniteGameScreen extends Screen {
 					this.particleSystem.spawnEnemyExplosion(
 							rammed.getPositionX() + rammed.getWidth() / 2,
 							rammed.getPositionY() + rammed.getHeight() / 2);
-					damagePlayer(player, PlayerHitSource.ENEMY_COLLISION,
+					damagePlayer(player, 1, PlayerHitSource.ENEMY_COLLISION,
 							"Hit on player ship");
 					break;
+				}
+			}
+		}
+	}
+
+	private void hitBoss(final Boss boss) {
+		if (boss.isShieldActive()) {
+			AudioManager.playSFX("audio/sfx/item_shield_block.wav");
+			return;
+		}
+		boss.takeDamage(GameScreen.BOSS_DAMAGE_PER_SHOT);
+		this.bossManager.sync();
+		if (!boss.isDefeated()) {
+			AudioManager.playSFX("audio/sfx/boss_hit.wav");
+			return;
+		}
+		this.score += boss.getType().getPointValue();
+		this.shipsDestroyed++;
+		if (this.runSession != null) {
+			var type = GameScreen.classifyBoss(boss.getType());
+			this.recordsEvents.publish(new EnemyDefeatedEvent(getActiveRunId(),
+					GameplayEventIds.newId(type.name()), type));
+		}
+		this.particleSystem.spawnEnemyExplosion(boss.getPositionX() + boss.getWidth() / 2,
+				boss.getPositionY() + boss.getHeight() / 2);
+		this.enemies.clear();
+		this.bossBullets.clear();
+		BulletPool.recycle(this.enemyBullets);
+		this.enemyBullets.clear();
+	}
+
+	private void checkBossAttacks() {
+		Boss boss = this.bossManager.getBoss();
+		for (PlayerSlot player : this.players) {
+			Ship ship = player.getShip();
+			if (!player.isAlive() || ship.isDestroyed())
+				continue;
+			if (this.bossManager.getAttackSystem().laserHits(boss, ship))
+				damagePlayer(player, 1, PlayerHitSource.BOSS_BULLET, "Hit by boss laser");
+			Iterator<BossBullet> shots = this.bossBullets.iterator();
+			while (shots.hasNext() && player.isAlive() && !ship.isDestroyed()) {
+				BossBullet shot = shots.next();
+				if (checkCollision(shot, ship)) {
+					shots.remove();
+					damagePlayer(player, shot.getDamage(), PlayerHitSource.BOSS_BULLET,
+							"Hit by boss bullet");
 				}
 			}
 		}
@@ -533,11 +683,11 @@ public class InfiniteGameScreen extends Screen {
 	 * Applies damage to the selected ship. In 2P, the personal status marks
 	 * that ship out; the shared team pool is changed only when nobody remains.
 	 */
-	private void damagePlayer(final PlayerSlot player,
+	private void damagePlayer(final PlayerSlot player, final int damage,
 			final PlayerHitSource source, final String reason) {
 		PlayerStatus status = player.getStatus();
 		Ship target = player.getShip();
-		if (!status.takeDamage(1))
+		if (!status.takeDamage(damage))
 			return;
 
 		target.destroy();
@@ -562,7 +712,7 @@ public class InfiniteGameScreen extends Screen {
 		}
 
 		this.logger.info(reason + ", " + this.lives + " team lives remaining.");
-		publishPlayerHit(source);
+		publishPlayerHit(source, damage);
 	}
 
 	private boolean checkCollision(final Entity a, final Entity b) {
@@ -603,7 +753,7 @@ public class InfiniteGameScreen extends Screen {
 
 	public final GameState getGameState() {
 		// The screen's life value is the solo pool or the 2P shared team pool.
-		return new GameState(1, this.score, this.lives, this.bulletsShot,
+		return new GameState(this.wave, this.score, this.lives, this.bulletsShot,
 				this.shipsDestroyed);
 	}
 
@@ -625,10 +775,10 @@ public class InfiniteGameScreen extends Screen {
 	 * Sends a hit that cost the player one life. As in Campaign, the ID is
 	 * given once, at the one place each hit is accepted.
 	 */
-	private void publishPlayerHit(final PlayerHitSource source) {
+	private void publishPlayerHit(final PlayerHitSource source, final int damage) {
 		if (this.runSession == null) return;
 		this.recordsEvents.publish(new PlayerHitEvent(this.runSession.getRunId(),
-				GameplayEventIds.newId(source.name()), source, 1, Math.max(0, this.lives)));
+				GameplayEventIds.newId(source.name()), source, damage, Math.max(0, this.lives)));
 	}
 
 	private void recordEnemyDefeat(final Entity enemy) {
