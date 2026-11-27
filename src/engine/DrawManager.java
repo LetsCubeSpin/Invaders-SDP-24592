@@ -1151,6 +1151,90 @@ public final class DrawManager {
         }
     }
 
+    /**
+     * Draws a boss's line when it appears, at the top of the game board: its
+     * portrait on the left and the typed line to its right, between the line
+     * under the HUD and the banner, like the woman at the control tower. The
+     * portrait is square, so the text box is narrower than the pilot's.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param boss
+     *            Boss of stage 3, the first answer 0 or 1 that leads to it.
+     * @param speaker
+     *            Name shown above the line.
+     * @param text
+     *            Full line.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole line is shown, which shows the prompt.
+     * @param top
+     *            Height of the line under the HUD.
+     * @param seconds
+     *            Time since the dialogue started, so the boss moves from the
+     *            start of its loop.
+     * @param millis
+     *            Current time, drives the prompt.
+     */
+    public void drawStoryBossDialogue(final Screen screen, final int boss,
+            final String speaker, final String text, final int visibleChars,
+            final boolean done, final int top, final double seconds,
+            final long millis) {
+        int boxY = topDialogueY(top);
+        int boxHeight = topDialogueHeight(screen, top);
+        int portraitWidth = boxHeight;
+        story.BossPortrait.draw((Graphics2D) backBufferGraphics, boss,
+                DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight, seconds);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
+                portraitWidth - 1, boxHeight - 1);
+        drawDialogueTextBox(screen, speaker, text, visibleChars, done,
+                portraitWidth, boxY, boxHeight, millis);
+    }
+
+    /**
+     * @param top
+     *            Height of the line under the HUD.
+     * @return the width of a boss's portrait in the dialogue at the top of
+     *         the board: it is square.
+     */
+    public int bossPortraitWidth(final Screen screen, final int top) {
+        return topDialogueHeight(screen, top);
+    }
+
+    /** Top of a dialogue at the top of the board, just under the HUD line. */
+    private int topDialogueY(final int top) {
+        return top + QUESTION_TOP_GAP;
+    }
+
+    /** Height of a dialogue at the top of the board, above the banner. */
+    private int topDialogueHeight(final Screen screen, final int top) {
+        int bannerTop = screen.getHeight() / 2 - screen.getHeight() / 12;
+        return Math.min(DIALOGUE_BOX_HEIGHT,
+                bannerTop - QUESTION_BANNER_GAP - topDialogueY(top));
+    }
+
+    /**
+     * How many lines a line of a dialogue takes in the text box next to a
+     * portrait, so a line can be checked to fit in two. It needs the fonts,
+     * which are set up when a screen starts drawing.
+     *
+     * @param screen
+     *            Screen the dialogue is drawn on.
+     * @param text
+     *            Full line of the dialogue.
+     * @param portraitWidth
+     *            Width of the portrait next to the text box.
+     * @return the number of lines the text is drawn in.
+     */
+    public int countDialogueLines(final Screen screen, final String text,
+            final int portraitWidth) {
+        int boxX = DIALOGUE_PORTRAIT_X + portraitWidth + DIALOGUE_BOX_SPACING;
+        int textWidth = screen.getWidth() - boxX - DIALOGUE_PORTRAIT_X;
+        return wrapRanges(text, textWidth - 2 * DIALOGUE_TEXT_PADDING).size();
+    }
+
     /** Gap between the line under the HUD and the question dialogue. */
     private static final int QUESTION_TOP_GAP = 4;
     /** Gap kept free above the banner, under the question dialogue. */
@@ -1183,10 +1267,8 @@ public final class DrawManager {
             final String speaker, final String text, final int visibleChars,
             final boolean speaking, final boolean prompt, final int top,
             final long millis) {
-        int boxY = top + QUESTION_TOP_GAP;
-        int bannerTop = screen.getHeight() / 2 - screen.getHeight() / 12;
-        int boxHeight = Math.min(DIALOGUE_BOX_HEIGHT,
-                bannerTop - QUESTION_BANNER_GAP - boxY);
+        int boxY = topDialogueY(top);
+        int boxHeight = topDialogueHeight(screen, top);
         int portraitWidth = (int) Math.round(boxHeight
                 * story.ControllerPortrait.SRC_W
                 / story.ControllerPortrait.SRC_H);

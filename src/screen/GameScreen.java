@@ -275,6 +275,8 @@ public class GameScreen extends Screen {
     private int storyChoice = -1;
     private long choiceMadeMillis;
     private Typewriter introTypewriter;
+    /** Boss that speaks the intro, the first answer 0 or 1, or -1 for the pilot. */
+    private int introBoss = -1;
     private long introStartMillis;
     private long goStartMillis;
     /** Starts true so a Space held from the previous screen is ignored. */
@@ -628,8 +630,9 @@ public class GameScreen extends Screen {
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
 				? progress.bossForStage(stageNumber) : null;
-		screen.startStoryIntro(stageNumber);
+		// The progress comes first: the intro of the boss stage depends on it.
 		screen.storyProgress = progress;
+		screen.startStoryIntro(stageNumber);
 		return screen;
 	}
 
@@ -640,6 +643,16 @@ public class GameScreen extends Screen {
 	 */
 	private void startStoryIntro(final int stage) {
 		String line = StoryScript.stageIntroLine(stage);
+		// The boss of stage 3 speaks instead of the pilot when it appears.
+		this.introBoss = -1;
+		if (this.storyProgress != null && this.storyProgress.hasFirstChoice()) {
+			int firstChoice = this.storyProgress.getFirstChoice();
+			String bossLine = StoryScript.bossIntroLine(stage, firstChoice);
+			if (bossLine != null) {
+				line = bossLine;
+				this.introBoss = firstChoice;
+			}
+		}
 		if (line != null) {
 			this.storyIntro = StoryIntro.DIALOGUE;
 			this.introTypewriter = new Typewriter(line,
@@ -859,7 +872,14 @@ public class GameScreen extends Screen {
 				/ 12);
 		drawManager.drawHorizontalLine(this, this.height / 2 + this.height
 				/ 12);
-		if (this.storyIntro == StoryIntro.DIALOGUE)
+		if (this.storyIntro == StoryIntro.DIALOGUE && this.introBoss >= 0)
+			drawManager.drawStoryBossDialogue(this, this.introBoss,
+					StoryScript.bossName(this.introBoss),
+					this.introTypewriter.getText(),
+					this.introTypewriter.visibleLength(now),
+					this.introTypewriter.isDone(now), SEPARATION_LINE_HEIGHT,
+					(now - this.introStartMillis) / 1000.0, now);
+		else if (this.storyIntro == StoryIntro.DIALOGUE)
 			drawManager.drawStoryDialogue(this, StoryScript.PILOT_NAME,
 					this.introTypewriter.getText(),
 					this.introTypewriter.visibleLength(now),

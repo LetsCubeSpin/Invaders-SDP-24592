@@ -2,8 +2,8 @@
 package story;
 
 /**
- * English texts of the story mode: the opening narration and the lines the
- * pilot says when a stage begins.
+ * English texts of the story mode: the opening narration, the lines the pilot
+ * says when a stage begins and the lines of the bosses of stage 3.
  */
 public final class StoryScript {
 
@@ -12,6 +12,20 @@ public final class StoryScript {
 
     /** Name shown above the lines of the woman at the control tower. */
     public static final String CONTROL_NAME = "CONTROL";
+
+    /**
+     * Names of the two bosses of stage 3, shown above their lines, by the
+     * answer to the first question that leads to each.
+     */
+    private static final String[] BOSS_NAMES = { "ARGUS", "NOX" };
+
+    /**
+     * What each boss of stage 3 says when it appears, in two lines that fit
+     * the dialogue box.
+     */
+    private static final String[] BOSS_LINES = {
+        "A worm of a puny planet...\nAnd you made it this far.",
+        "There are no survivors.\nI will leave none alive." };
 
     /** Opening narration, shown typed out before stage 1. */
     public static final String OPENING_NARRATION =
@@ -104,5 +118,35 @@ public final class StoryScript {
      */
     public static String stageIntroLine(final int stage) {
         return stage == 1 ? STAGE_1_LINE : null;
+    }
+
+    /**
+     * @param firstChoice
+     *            Answer to the first question, 0 or 1.
+     * @return Name of the boss of stage 3 that this answer leads to.
+     */
+    public static String bossName(final int firstChoice) {
+        return BOSS_NAMES[checkChoice(firstChoice)];
+    }
+
+    /**
+     * @param stage
+     *            Story stage, starting at 1.
+     * @param firstChoice
+     *            Answer to the first question, 0 or 1.
+     * @return What the boss says when it appears at the start of the stage,
+     *         or null when the stage has no boss line. Only the boss of stage
+     *         3 speaks so far.
+     */
+    public static String bossIntroLine(final int stage, final int firstChoice) {
+        checkChoice(firstChoice);
+        return stage == StoryProgress.MID_BOSS_STAGE
+                ? BOSS_LINES[firstChoice] : null;
+    }
+
+    private static int checkChoice(final int choice) {
+        if (choice != 0 && choice != 1)
+            throw new IllegalArgumentException("firstChoice must be 0 or 1.");
+        return choice;
     }
 }
