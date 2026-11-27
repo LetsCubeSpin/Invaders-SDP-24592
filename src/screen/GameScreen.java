@@ -1719,21 +1719,8 @@ public class GameScreen extends Screen {
                     recyclable.add(bullet);
                 }
 
-                if (!recyclable.contains(bullet)) {
-                    for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
-                        EnemyShip minion = it.next();
-                        if (!minion.isDestroyed() && checkCollision(bullet, minion)) {
-                            recyclable.add(bullet);
-                            if (minion.hit()) {
-                                AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
-                                this.particleSystem.spawnEnemyExplosion(
-                                        minion.getPositionX() + minion.getWidth() / 2,
-                                        minion.getPositionY() + minion.getHeight() / 2);
-                                it.remove();
-                            }
-                            break;
-                        }
-                    }
+                if (!recyclable.contains(bullet) && hitSummonedEnemy(bullet)) {
+                    recyclable.add(bullet);
                 }
 
                 // A bullet that already hit a ship cannot also hit the boss.
@@ -2463,6 +2450,23 @@ public class GameScreen extends Screen {
         }
     }
 
+    private boolean hitSummonedEnemy(final Entity projectile) {
+        for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
+            EnemyShip minion = it.next();
+            if (!minion.isDestroyed() && checkCollision(projectile, minion)) {
+                if (minion.hit()) {
+                    AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
+                    this.particleSystem.spawnEnemyExplosion(
+                            minion.getPositionX() + minion.getWidth() / 2,
+                            minion.getPositionY() + minion.getHeight() / 2);
+                    it.remove();
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Moves the grenades and their fragments. Once the stage has ended,
      * they keep moving but no longer hit anything, so the score, kill count
@@ -2487,6 +2491,9 @@ public class GameScreen extends Screen {
                         && checkCollision(grenade,
                                 this.bonusEnemyManager.getShip()))
                     impact = true;
+                if (!impact)
+                    impact = this.summonedEnemies.stream().anyMatch(
+                            minion -> !minion.isDestroyed() && checkCollision(grenade, minion));
             }
 
             if (impact || grenade.hasReachedAltitude()) {
@@ -2535,6 +2542,8 @@ public class GameScreen extends Screen {
                     hitBonusShip(bonusShip);
                     used = true;
                 }
+                if (!used)
+                    used = hitSummonedEnemy(fragment);
             }
 
             if (used || fragment.isExpired())
