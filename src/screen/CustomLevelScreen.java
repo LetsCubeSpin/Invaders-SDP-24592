@@ -7,7 +7,7 @@ import engine.CustomLevelMenu;
 import engine.CustomLevelMenu.Action;
 
 /** Custom-level hub; file dialogs and gameplay run only after this screen exits. */
-public final class CustomLevelScreen extends Screen {
+public final class CustomLevelScreen extends MenuScreen {
     private final int levelCount;
     private final Cooldown cooldown = Core.getCooldown(200);
     private int selected;
@@ -33,19 +33,29 @@ public final class CustomLevelScreen extends Screen {
         drawManager.initDrawing(this);
         drawManager.drawCustomLevelMenu(this, selected, levelCount);
         drawManager.completeDrawing(this);
-        if (!inputDelay.checkFinished() || !cooldown.checkFinished()) return;
-        if (inputManager.isBackDown()) {
+        if (hovered >= 0) selected = hovered;
+        if (!menuReady()) return;
+        if (clicked >= 0) {
+            selected = clicked;
+            isRunning = false;
+            return;
+        }
+        if (backPressed) {
             selected = CustomLevelMenu.MENU_ACTIONS.indexOf(Action.BACK);
             isRunning = false;
-        } else if (inputManager.isKeyDown(KeyEvent.VK_UP) || inputManager.isKeyDown(KeyEvent.VK_W)) {
+            return;
+        }
+        if (confirmPressed) {
+            isRunning = false;
+            return;
+        }
+        if (!cooldown.checkFinished()) return;
+        if (inputManager.isKeyDown(KeyEvent.VK_UP) || inputManager.isKeyDown(KeyEvent.VK_W)) {
             moveSelection(-1);
             cooldown.reset();
         } else if (inputManager.isKeyDown(KeyEvent.VK_DOWN) || inputManager.isKeyDown(KeyEvent.VK_S)) {
             moveSelection(1);
             cooldown.reset();
-        } else if ((inputManager.isKeyDown(KeyEvent.VK_SPACE) || inputManager.isKeyDown(KeyEvent.VK_ENTER))
-                && getAction().isEnabled(levelCount)) {
-            isRunning = false;
         }
     }
 }

@@ -10,7 +10,7 @@ import records.RunOrder;
 import records.RunRecord;
 
 /** Local browsing page for completed runs, achievements and stats. */
-public final class PlayerRecordsScreen extends Screen {
+public final class PlayerRecordsScreen extends MenuScreen {
     /** Tab listing every run, with the details of the selected one. */
     public static final int TAB_RECORDS = 0;
     /** Tab listing the achievements. */
@@ -23,6 +23,9 @@ public final class PlayerRecordsScreen extends Screen {
     public static final int SORT_KEY = KeyEvent.VK_J;
     /** Key that switches the mode filter of the run list. */
     public static final int FILTER_KEY = KeyEvent.VK_K;
+
+    public static final int SORT = -5;
+    public static final int FILTER = -6;
 
     private final RecordsService service;
     private int tab;
@@ -56,15 +59,25 @@ public final class PlayerRecordsScreen extends Screen {
                 this.order, this.filter, this.selectedRun, this.firstRun,
                 this.firstAchievement);
         this.drawManager.completeDrawing(this);
-        if (!this.inputDelay.checkFinished()
-                || System.currentTimeMillis() < this.nextInputAt)
-            return;
-        if (this.inputManager.isBackDown()
-                || this.inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
+        if (!menuReady()) return;
+        int target = clicked != NONE ? clicked : hovered;
+        if (target >= 0 && target < TAB_COUNT && target != tab) {
+            changeTab(target - tab);
+        } else if (tab == TAB_RECORDS && target >= TAB_COUNT) {
+            changeRun(target - TAB_COUNT - selectedRun);
+        }
+        if (clicked == SORT) changeOrder();
+        if (clicked == FILTER) changeFilter();
+        if (scroll != 0 && tab == TAB_RECORDS) changeRun(scroll);
+        if (scroll != 0 && tab == TAB_ACHIEVEMENTS) scrollAchievements(scroll);
+        if (backPressed || clicked == BACK || confirmPressed) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 1;
             this.isRunning = false;
-        } else if (this.inputManager.isKeyDown(KeyEvent.VK_LEFT)) {
+            return;
+        }
+        if (System.currentTimeMillis() < nextInputAt) return;
+        if (this.inputManager.isKeyDown(KeyEvent.VK_LEFT)) {
             changeTab(-1);
         } else if (this.inputManager.isKeyDown(KeyEvent.VK_RIGHT)) {
             changeTab(1);

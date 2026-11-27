@@ -279,6 +279,6 @@ public final class GameplayIntegrationTest {
         check(events.size()==1,"infinite end animation cannot create more defeats");
         RunStats stats = session.getStats();
         check(stats.getHits()==1 && stats.getTimesHit()==1, "infinite session counts its defeat and the contact hit");
-        check(stats.getStageReached()==0 && stats.getWavesReached()==0, "infinite has no stages or waves");
+        check(stats.getStageReached()==0 && stats.getWavesReached()==1, "infinite starts its first wave without a campaign stage");
     }
 }

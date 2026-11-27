@@ -1,6 +1,8 @@
 package engine;
 
 import boss.BossHudInfo;
+import boss.BossAttackSystem;
+import entity.item.OrbitalAnnihilator;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -21,6 +23,7 @@ import java.util.logging.Logger;
 import screen.PlayerRecordsScreen;
 import screen.Screen;
 import screen.ShipCustomization;
+import screen.ShipColorScreen;
 import hud.FloatingScoreHud;
 import hud.AchievementToast;
 import hud.ItemStatus;
@@ -418,6 +421,20 @@ public final class DrawManager {
         int scoreX = screen.getWidth() - 60;
         drawIcon(Icon.SCORE, scoreX - Icon.SCORE.getWidth() * 2 - 6, 12, 2);
         backBufferGraphics.drawString(scoreString, scoreX, 25);
+    }
+
+    /** Draws the boss and the shield or laser currently visible in its attack pattern. */
+    public void drawBoss(final Screen screen, final Boss boss, final BossAttackSystem attacks) {
+        drawEntity(boss, boss.getPositionX(), boss.getPositionY());
+        if (boss.isDefeated())
+            return;
+        if (boss.isShieldActive())
+            drawShield(screen, boss);
+        if (attacks != null && (attacks.isLaserCharging() || attacks.isLaserFiring())) {
+            boolean firing = attacks.isLaserFiring();
+            int width = firing ? attacks.getActiveBeamWidth() : OrbitalAnnihilator.BEAM_WIDTH;
+            drawBossLaser(boss, width, screen.getHeight(), firing, attacks.getLaserChargeProgress());
+        }
     }
 
     /** Draws boss health in the free row between the score and separator. */
@@ -825,8 +842,7 @@ public final class DrawManager {
             backBufferGraphics.setColor(Color.GREEN);
         else
             backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, continueOrExitString,
-                screen.getHeight() / 2 + fontRegularMetrics.getHeight() * 10);
+        drawResultActions(screen, screen.getHeight() / 2 + fontRegularMetrics.getHeight() * 10, acceptsInput);
     }
 
     /**
@@ -881,8 +897,8 @@ public final class DrawManager {
         drawCenteredBigString(screen, highScoreString, screen.getHeight() / 8);
 
         backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, instructionsString,
-                screen.getHeight() / 5);
+        drawMenuAction(screen, MenuScreen.BACK, "Back (Space / Esc)", screen.getWidth() / 2,
+                screen.getHeight() / 5, false, true);
     }
 
     /**
@@ -1099,7 +1115,10 @@ public final class DrawManager {
         int width = screen.getWidth() - 2 * x;
         backBufferGraphics.setColor(Color.GREEN);
         drawTypedText(text, visibleChars, x, screen.getHeight() / 5, width);
-        drawPrompt(screen, done, millis, screen.getHeight() - 30);
+        if (screen instanceof MenuScreen menu) menu.menuTarget(MenuScreen.NEXT, 0, 0, screen.getWidth(), screen.getHeight());
+        backBufferGraphics.setColor(done ? Color.WHITE : Color.GRAY);
+        drawCenteredRegularString(screen, done ? "Space or click to continue" : "Space or click to skip text",
+                screen.getHeight() - 30);
     }
 
     /**
@@ -1309,7 +1328,7 @@ public final class DrawManager {
                     + i * fontRegularMetrics.getHeight() * 2;
             backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
             drawCenteredRegularString(screen, options[i], labelY);
-            drawMenuIcon(screen, icons[i], options[i], labelY, selected);
+            drawMenuIcon(screen, SETTINGS_ICONS[i], options[i], labelY, selected);
         }
 
         backBufferGraphics.setColor(Color.GRAY);
@@ -1341,6 +1360,13 @@ public final class DrawManager {
 
         Ship selectedShip = selectedPlayerIndex == 0
                 ? previewShip : secondPlayerPreviewShip;
+        if (screen instanceof MenuScreen menu) {
+            menu.menuTarget(0, previewShip.getPositionX() - 6, previewShip.getPositionY() - 12,
+                    previewShip.getWidth() + 12, previewShip.getHeight() + 18);
+            menu.menuTarget(1, secondPlayerPreviewShip.getPositionX() - 6,
+                    secondPlayerPreviewShip.getPositionY() - 12, secondPlayerPreviewShip.getWidth() + 12,
+                    secondPlayerPreviewShip.getHeight() + 18);
+        }
         int markerCenterX = selectedShip.getPositionX()
                 + selectedShip.getWidth() / 2;
         int markerTopY = selectedShip.getPositionY() - 12;
@@ -1356,6 +1382,9 @@ public final class DrawManager {
         String label = LanguageManager.get("settings.colorLabel")
                 + LanguageManager.get(colorKey);
         if (custom) {
+            if (screen instanceof MenuScreen menu)
+                menu.menuTarget(ShipColorScreen.HUE_BAR, colorBar.x, colorBar.y - 6,
+                        colorBar.width, colorBar.height + 12);
             drawShipColorBar(colorBar,
                     ShipCustomization.getCustomHue(selectedPlayerIndex),
                     editingCustomColor);
@@ -1518,6 +1547,19 @@ public final class DrawManager {
                         - fontRegularMetrics.stringWidth(">"),
                         firstOptionY + optionSpacing * i);
             }
+            int baseline = firstOptionY + optionSpacing * i;
+            if (i == muteIndex) {
+                menuTextTarget(screen, i, columnLeft, baseline, columnWidth, fontRegularMetrics);
+            } else {
+                menuTextTarget(screen, AudioControlScreen.VOLUME_DOWN + i, valueLeft, baseline,
+                        fontRegularMetrics.stringWidth("<"), fontRegularMetrics);
+                int arrowWidth = fontRegularMetrics.stringWidth(">");
+                menuTextTarget(screen, AudioControlScreen.VOLUME_UP + i, valueRight - arrowWidth,
+                        baseline, arrowWidth, fontRegularMetrics);
+                if (screen instanceof MenuScreen menu)
+                    menu.menuTarget(AudioControlScreen.VOLUME_BAR + i, columnLeft, baseline + barGap,
+                            columnWidth, barHeight + 2);
+            }
             // Strike through the volume numbers while muted.
             if (muted && i != muteIndex) {
                 int numberWidth = fontRegularMetrics
@@ -1544,8 +1586,13 @@ public final class DrawManager {
 
         // Return instruction near the bottom.
         backBufferGraphics.setColor(Color.GRAY);
-        drawCenteredRegularString(screen, returnString,
-                screen.getHeight() / 8 * 7);
+        drawMenuAction(screen, MenuScreen.BACK, "Back (Esc)", screen.getWidth() / 2,
+                screen.getHeight() / 8 * 7, false, true);
+    }
+
+    public int volumeAt(Screen screen, int x) {
+        int left = (screen.getWidth() - AUDIO_COLUMN_WIDTH) / 2;
+        return Math.max(0, Math.min(100, Math.round(100f * (x - left) / (AUDIO_COLUMN_WIDTH - 1))));
     }
 
     /**
@@ -1883,6 +1930,8 @@ public final class DrawManager {
                             + (fontRegularMetrics.getWidths()[name[i - 1]]
                                     + fontRegularMetrics.getWidths()[' ']) / 2;
 
+            menuTextTarget(screen, i, positionX, y + spacing * 2,
+                    fontRegularMetrics.charWidth(name[i]), fontRegularMetrics);
             backBufferGraphics.drawString(Character.toString(name[i]),
                     positionX,
                     y + spacing * 2);
@@ -2254,13 +2303,13 @@ public final class DrawManager {
         };
         int spacing = fontRegularMetrics.getHeight() * 3 / 2;
         int firstY = screen.getHeight() / 2 + fontRegularMetrics.getHeight() * 2;
-        for (int i = 0; i < labels.length; i++) {
-            boolean selected = option == codes[i];
+        for (int i = 0; i < TITLE_OPTIONS.length; i++) {
+            boolean selected = option == TITLE_CODES[i];
             int labelY = firstY + i * spacing;
             backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, labels[i], labelY);
-            if (icons[i] != null)
-                drawMenuIcon(screen, icons[i], labels[i], labelY, selected);
+            drawCenteredRegularString(screen, TITLE_OPTIONS[i], labelY);
+            if (TITLE_ICONS[i] != null)
+                drawMenuIcon(screen, TITLE_ICONS[i], TITLE_OPTIONS[i], labelY, selected);
         }
     }
 
@@ -2327,7 +2376,7 @@ public final class DrawManager {
             return -1;
 
         return getCenteredOptionAt(screen,
-                getControlsSettingsLabels(selectedOption, waitingForKey),
+                getControlsSettingsLabels(selectedOption, waitingForKey), null,
                 screen.getHeight() / 2, fontRegularMetrics.getHeight() * 2,
                 mouseX, mouseY);
     }
@@ -2378,7 +2427,7 @@ public final class DrawManager {
      *                Vertical space between two option baselines.
      * @return Index of the hovered option, or -1 if none.
      */
-    private int getCenteredOptionAt(final Screen screen, final String[] labels,
+    private int getCenteredOptionAt(final Screen screen, final String[] labels, final Icon[] icons,
             final int firstY, final int spacing,
             final int mouseX, final int mouseY) {
         for (int i = 0; i < labels.length; i++) {
@@ -2388,7 +2437,8 @@ public final class DrawManager {
             int top = baseline - fontRegularMetrics.getAscent();
             int bottom = baseline + fontRegularMetrics.getDescent();
 
-            if (mouseX >= left && mouseX <= left + textWidth
+            int iconSpace = icons == null ? 0 : icons[i].getWidth() * 2 + 8;
+            if (mouseX >= left - iconSpace && mouseX <= left + textWidth
                     && mouseY >= top && mouseY <= bottom)
                 return i;
         }
@@ -2532,17 +2582,27 @@ public final class DrawManager {
      * @param keysAndActions
      *            Each key followed by its action.
      */
-    private void drawKeyHelp(final Screen screen, final int y,
+    private void drawKeyHelp(final Screen screen, final int y, final int[] targets,
             final String... keysAndActions) {
-        Object[] segments = new Object[keysAndActions.length * 2];
-        for (int i = 0; i < keysAndActions.length; i += 2) {
-            segments[i * 2] = Color.LIGHT_GRAY;
-            segments[i * 2 + 1] = "[" + keysAndActions[i] + "]";
-            segments[i * 2 + 2] = Color.GRAY;
-            segments[i * 2 + 3] = " " + keysAndActions[i + 1]
-                    + (i + 2 < keysAndActions.length ? "   " : "");
+        Font font = keyHelpFont();
+        backBufferGraphics.setFont(font);
+        FontMetrics metrics = backBufferGraphics.getFontMetrics(font);
+        String[] labels = new String[targets.length];
+        int gap = metrics.stringWidth("   ");
+        int width = gap * (targets.length - 1);
+        for (int i = 0; i < targets.length; i++) {
+            labels[i] = "[" + keysAndActions[2 * i] + "] " + keysAndActions[2 * i + 1];
+            width += metrics.stringWidth(labels[i]);
         }
-        drawCenteredSegments(screen, y, keyHelpFont(), segments);
+        int x = (screen.getWidth() - width) / 2;
+        for (int i = 0; i < targets.length; i++) {
+            int labelWidth = metrics.stringWidth(labels[i]);
+            boolean pointed = targets[i] != MenuScreen.NONE
+                    && menuTextTarget(screen, targets[i], x, y, labelWidth, metrics);
+            backBufferGraphics.setColor(pointed ? Color.GREEN : Color.LIGHT_GRAY);
+            backBufferGraphics.drawString(labels[i], x, y);
+            x += labelWidth + gap;
+        }
     }
 
     /**
@@ -2665,6 +2725,9 @@ public final class DrawManager {
             RunRecord run = runs.get(i);
             y += line;
             backBufferGraphics.setColor(i == selected ? Color.GREEN : Color.WHITE);
+            if (screen instanceof MenuScreen menu)
+                menu.menuTarget(PlayerRecordsScreen.TAB_COUNT + i, 8, y - fontRegularMetrics.getAscent(),
+                        screen.getWidth() - 16, line);
             drawRunRow(screen, Integer.toString(i + 1), Integer.toString(run.getScore()),
                     getRunModeName(run.getMode()),
                     date.format(new Date(run.getCompletionTimeMillis())), y);
@@ -2828,6 +2891,35 @@ public final class DrawManager {
                 screen.getWidth(), screen.getHeight());
     }
 
+    /** The drawing coordinates also define the active area, including a small click margin. */
+    private boolean menuTextTarget(Screen screen, int id, int x, int baseline,
+            int width, FontMetrics metrics) {
+        return screen instanceof MenuScreen menu && menu.menuTarget(id, x - 4,
+                baseline - metrics.getAscent() - 2, width + 8, metrics.getHeight() + 4);
+    }
+
+    private void drawMenuAction(Screen screen, int id, String label, int centerX, int y,
+            boolean selected, boolean enabled) {
+        int width = fontRegularMetrics.stringWidth(label);
+        int x = centerX - width / 2;
+        boolean underPointer = enabled && menuTextTarget(screen, id, x, y, width, fontRegularMetrics);
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(!enabled ? Color.GRAY : selected ? Color.GREEN : Color.WHITE);
+        backBufferGraphics.drawString(label, x, y);
+        if (underPointer && (selected || id < MenuScreen.NONE))
+            backBufferGraphics.drawLine(x, y + 3, x + width, y + 3);
+    }
+
+    private void drawMenuHint(Screen screen, String text) {
+        backBufferGraphics.setColor(Color.LIGHT_GRAY);
+        drawCenteredRegularString(screen, text, screen.getHeight() - 24);
+    }
+
+    private void drawResultActions(Screen screen, int y, boolean enabled) {
+        drawMenuAction(screen, MenuScreen.NEXT, "Retry (Space)", screen.getWidth() / 4, y, false, enabled);
+        drawMenuAction(screen, MenuScreen.BACK, "Back (Esc)", screen.getWidth() * 3 / 4, y, false, enabled);
+    }
+
     public void drawCustomLevelMenu(final Screen screen, final int option,
             final int levelCount) {
         backBufferGraphics.setColor(Color.GREEN);
@@ -2838,21 +2930,25 @@ public final class DrawManager {
         for (int i = 0; i < CustomLevelMenu.MENU_ACTIONS.size(); i++) {
             CustomLevelMenu.Action action = CustomLevelMenu.MENU_ACTIONS.get(i);
             boolean enabled = action.isEnabled(levelCount);
-            backBufferGraphics.setColor(!enabled ? Color.GRAY : i == option ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, action.getLabel(), 220 + i * 45);
+            drawMenuAction(screen, i, action.getLabel(), screen.getWidth() / 2,
+                    220 + i * 45, i == option, enabled);
         }
         backBufferGraphics.setColor(Color.WHITE);
         drawCenteredRegularString(screen, LanguageManager.get("custom.controls"),
                 screen.getHeight() - 45);
     }
 
-    private void drawFileLabel(final Screen screen, final String text, final int y) {
+    private void drawFileLabel(final Screen screen, final String text, final int y, final int target) {
         // Use a system font for Unicode filenames, independently of the game's pixel font.
         Font font = new Font(Font.SANS_SERIF, Font.PLAIN, 14);
         backBufferGraphics.setFont(font);
         FontMetrics metrics = backBufferGraphics.getFontMetrics(font);
         String label = FileNameDisplay.fit(text, screen.getWidth() - 48, metrics::stringWidth);
-        backBufferGraphics.drawString(label, (screen.getWidth() - metrics.stringWidth(label)) / 2, y);
+        int width = metrics.stringWidth(label);
+        int x = (screen.getWidth() - width) / 2;
+        if (target != MenuScreen.NONE)
+            menuTextTarget(screen, target, x, y, width, metrics);
+        backBufferGraphics.drawString(label, x, y);
     }
 
     public void drawCustomLevelList(final Screen screen,
@@ -2866,7 +2962,7 @@ public final class DrawManager {
         int start = selected / pageSize * pageSize;
         for (int i = start; i < Math.min(start + pageSize, entries.size()); i++) {
             backBufferGraphics.setColor(i == selected ? Color.GREEN : Color.WHITE);
-            drawFileLabel(screen, (i + 1) + ". " + FileNameDisplay.label(entries.get(i).getFilename()), 155 + (i - start) * 32);
+            drawFileLabel(screen, (i + 1) + ". " + FileNameDisplay.label(entries.get(i).getFilename()), 155 + (i - start) * 32, i);
         }
         backBufferGraphics.setColor(Color.LIGHT_GRAY);
         drawFileLabel(screen, entries.get(selected).getSource().getParent().toString(), screen.getHeight() - 95);
@@ -2938,10 +3034,10 @@ public final class DrawManager {
 
         backBufferGraphics.setFont(fontRegular);
         for (int i = 0; i < labels.length; i++) {
-            backBufferGraphics.setColor(i == option ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, labels[i],
-                    screen.getHeight() / 3 + 60 + i * 40);
+            drawMenuAction(screen, i, labels[i], screen.getWidth() / 2,
+                    screen.getHeight() / 3 + 60 + i * 40, i == option, true);
         }
+        drawMenuHint(screen, "Arrows + Enter / Point + Click");
     }
 
     // 2P 선택 화면을 위한 메인 메서드 추가
@@ -2959,9 +3055,9 @@ public final class DrawManager {
 
         backBufferGraphics.setFont(fontRegular);
         for (int i = 0; i < labels.length; i++) {
-            backBufferGraphics.setColor(i == option ? Color.GREEN : Color.WHITE);
-            drawCenteredRegularString(screen, labels[i],
-                    screen.getHeight() / 3 + 60 + i * 40);
+            drawMenuAction(screen, i, labels[i], screen.getWidth() / 2,
+                    screen.getHeight() / 3 + 60 + i * 40, i == option, true);
         }
+        drawMenuHint(screen, "Arrows + Enter / Point + Click");
     }
 }

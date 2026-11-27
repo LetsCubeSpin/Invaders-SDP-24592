@@ -25,8 +25,7 @@ public enum RunMode {
 	}
 
 	/**
-	 * @return whether runs in this mode have stages and waves. When false,
-	 *         the stage and wave counts of the run are always 0.
+	 * @return whether runs in this mode have numbered stages.
 	 */
 	public boolean hasStages() {
 		return this == CAMPAIGN || this == STORY;

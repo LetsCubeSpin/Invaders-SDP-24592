@@ -332,7 +332,7 @@ class StoryDebugLauncherTest {
                         StoryStage data = StoryStageData.get(stage, choice.progress());
                         assertSame(data, field(screen, "storyStage"));
                         double multiplier = switch (difficulty) {
-                            case EASY -> 1.25;
+                            case EASY -> GameplayConfig.getStoryMultiplier();
                         };
                         GameSettings expected = Core.applyDifficulty(data.getSettings(), multiplier);
                         GameSettings actual = (GameSettings) field(screen, "gameSettings");

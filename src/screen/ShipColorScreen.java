@@ -9,13 +9,14 @@ import engine.Cooldown;
 import entity.Ship;
 
 /** Lets the player customize the ship's color, from the Settings menu. */
-public class ShipColorScreen extends Screen {
+public class ShipColorScreen extends MenuScreen {
 
     /** Return code that opens the Settings menu. */
     public static final int RETURN_TO_SETTINGS = 4;
 
     private static final int SELECTION_TIME = 200;
     private static final int COLOR_ADJUSTMENT_TIME = 25;
+    public static final int HUE_BAR = 2;
     private static final int COLOR_BAR_WIDTH = 240;
     private static final int COLOR_BAR_HEIGHT = 14;
     private static final int PREVIEW_SHIP_OFFSET = 48;
@@ -26,8 +27,6 @@ public class ShipColorScreen extends Screen {
     private int selectedPlayerIndex;
     private boolean editingCustomColor;
     private boolean draggingColor;
-    private boolean wasMousePressed = true;
-    private boolean wasConfirmPressed = true;
     private boolean wasUpPressed;
     private boolean wasDownPressed;
 
@@ -55,21 +54,28 @@ public class ShipColorScreen extends Screen {
     protected void update() {
         super.update();
 
-        boolean acceptsInput = this.inputDelay.checkFinished();
-        boolean confirmPressed = this.inputManager.isKeyDown(KeyEvent.VK_ENTER)
-                || this.inputManager.isKeyDown(KeyEvent.VK_SPACE);
+        draw();
+        boolean acceptsInput = menuReady();
+        if (acceptsInput) {
+            int player = clicked >= 0 ? clicked : hovered;
+            if ((player == 0 || player == 1) && !draggingColor) selectPlayer(player);
+            if (clicked == PREVIOUS || clicked == NEXT) {
+                editingCustomColor = false;
+                changeSelection(clicked == NEXT ? 1 : -1);
+            }
+        }
         handlePlayerSelection(acceptsInput);
         handleColorBar(acceptsInput);
         this.selectionCooldown.setDuration(this.editingCustomColor
                 ? COLOR_ADJUSTMENT_TIME : SELECTION_TIME);
 
-        if (acceptsInput && this.inputManager.isBackDown()) {
+        if (acceptsInput && (backPressed || clicked == BACK)) {
             this.returnCode = RETURN_TO_SETTINGS;
             this.isRunning = false;
             AudioManager.playSFX("audio/sfx/menu_back.wav");
         } else if (acceptsInput
                 && ShipCustomization.isCustomColor(this.selectedPlayerIndex)
-                && confirmPressed && !this.wasConfirmPressed) {
+                && confirmPressed) {
             this.editingCustomColor = !this.editingCustomColor;
             this.draggingColor = false;
             this.selectionCooldown.reset();
@@ -85,8 +91,6 @@ public class ShipColorScreen extends Screen {
             }
         }
 
-        this.wasConfirmPressed = confirmPressed;
-        draw();
     }
 
     private void handlePlayerSelection(final boolean acceptsInput) {
@@ -129,28 +133,21 @@ public class ShipColorScreen extends Screen {
     }
 
     private void handleColorBar(final boolean acceptsInput) {
-        boolean pressed = this.inputManager.isMousePressed();
-        if (!acceptsInput
-                || !ShipCustomization.isCustomColor(this.selectedPlayerIndex)
-                || !pressed) {
-            this.draggingColor = false;
-        } else {
-            Rectangle bounds = getColorBarBounds();
-            int mouseX = this.inputManager.getMouseX();
-            int mouseY = this.inputManager.getMouseY();
-            Rectangle hitArea = new Rectangle(bounds);
-            hitArea.grow(0, 6);
-            if (!this.wasMousePressed && hitArea.contains(mouseX, mouseY)) {
-                this.draggingColor = true;
-                this.editingCustomColor = true;
-            }
-            if (this.draggingColor && mouseX >= 0 && mouseY >= 0) {
-                float hue = (mouseX - bounds.x) / (float) (bounds.width - 1);
-                ShipCustomization.setCustomHue(this.selectedPlayerIndex,
-                        Math.max(0f, Math.min(1f, hue)));
-            }
+        if (!acceptsInput || !ShipCustomization.isCustomColor(selectedPlayerIndex)) {
+            draggingColor = false;
+            return;
         }
-        this.wasMousePressed = pressed;
+        boolean pressed = inputManager.isMousePressed();
+        boolean started = clicked == HUE_BAR;
+        if (started) editingCustomColor = true;
+        draggingColor = pressed && (started || draggingColor);
+        if (started || draggingColor) {
+            int x = draggingColor ? inputManager.getMouseX() : inputPressX();
+            if (x < 0 || (draggingColor && inputManager.getMouseY() < 0)) return;
+            Rectangle bounds = getColorBarBounds();
+            float hue = (x - bounds.x) / (float) (bounds.width - 1);
+            ShipCustomization.setCustomHue(selectedPlayerIndex, Math.max(0f, Math.min(1f, hue)));
+        }
     }
 
     private void draw() {

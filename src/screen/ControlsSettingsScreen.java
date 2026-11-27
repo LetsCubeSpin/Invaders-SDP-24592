@@ -7,7 +7,7 @@ import engine.ControlsConfig;
 import engine.Cooldown;
 import engine.Core;
 
-public class ControlsSettingsScreen extends Screen {
+public class ControlsSettingsScreen extends MenuScreen {
     private static final int SELECTION_TIME = 200;
 
     private static final int LEFT_OPTION = 0;
@@ -23,10 +23,6 @@ public class ControlsSettingsScreen extends Screen {
     /** True after a right click cancelled key capture, until it is released. */
     private boolean waitingForRightRelease;
     private int capturedKeyCode;
-    /** Option under the mouse on the last frame, -1 if none. */
-    private int lastHoveredOption = -1;
-    /** Starts true so a click held from the previous screen is ignored. */
-    private boolean wasMousePressed = true;
 
     public ControlsSettingsScreen(final int width, final int height,
             final int fps) {
@@ -51,18 +47,22 @@ public class ControlsSettingsScreen extends Screen {
         super.update();
         draw();
 
-        boolean mousePressed = inputManager.isMousePressed();
-        boolean newMouseClick = mousePressed && !this.wasMousePressed;
-        this.wasMousePressed = mousePressed;
-
-        // The mouse is ignored while a new key is being chosen.
-        if (!this.waitingForKey && handleMouse(newMouseClick)) {
-            return;
+        if (!waitingForKey) {
+            readTargetAt((x, y) -> drawManager.getControlsSettingsOptionAt(this, selectedOption, false, x, y));
+            if (hovered != NONE && hovered != selectedOption) {
+                selectedOption = hovered;
+                AudioManager.playSFX("audio/sfx/menu_move.wav");
+            }
+            if (clicked != NONE) {
+                selectedOption = clicked;
+                confirmSelectedOption();
+                return;
+            }
         }
 
         if (this.waitingForKey) {
             // Right click cancels choosing a new key, like Esc.
-            if (inputManager.isRightMousePressed()) {
+            if (backPressed && !inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
                 this.waitingForKey = false;
                 this.waitingForRightRelease = true;
                 this.selectionCooldown.reset();
@@ -89,8 +89,8 @@ public class ControlsSettingsScreen extends Screen {
             this.waitingForKeyRelease = false;
         }
 
-        if (!this.selectionCooldown.checkFinished()
-                || !this.inputDelay.checkFinished()) {
+        if ((!backPressed && !confirmPressed && !this.selectionCooldown.checkFinished())
+                || !menuReady()) {
             return;
         }
 
@@ -106,9 +106,9 @@ public class ControlsSettingsScreen extends Screen {
                     (this.selectedOption + 1) % OPTION_COUNT;
             this.selectionCooldown.reset();
             AudioManager.playSFX("audio/sfx/menu_move.wav");
-        } else if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
+        } else if (confirmPressed) {
             confirmSelectedOption();
-        } else if (inputManager.isBackDown()) {
+        } else if (backPressed) {
             AudioManager.playSFX("audio/sfx/menu_back.wav");
             this.returnCode = 4;
             this.isRunning = false;
@@ -124,36 +124,6 @@ public class ControlsSettingsScreen extends Screen {
     @Override
     protected boolean usesGlobalMuteKey() {
         return !this.waitingForKey;
-    }
-
-    /**
-     * Selects the option under the mouse and confirms it on a click.
-     *
-     * @param newMouseClick
-     *            If the mouse button was pressed on this frame.
-     * @return True if the click confirmed an option.
-     */
-    private boolean handleMouse(final boolean newMouseClick) {
-        int hoveredOption = drawManager.getControlsSettingsOptionAt(this,
-                this.selectedOption, this.waitingForKey,
-                inputManager.getMouseX(), inputManager.getMouseY());
-
-        // Select an option when the mouse moves onto it.
-        if (hoveredOption != this.lastHoveredOption) {
-            this.lastHoveredOption = hoveredOption;
-            if (hoveredOption != -1 && hoveredOption != this.selectedOption) {
-                this.selectedOption = hoveredOption;
-                AudioManager.playSFX("audio/sfx/menu_move.wav");
-            }
-        }
-
-        if (newMouseClick && hoveredOption != -1
-                && this.inputDelay.checkFinished()) {
-            this.selectedOption = hoveredOption;
-            confirmSelectedOption();
-            return true;
-        }
-        return false;
     }
 
     /**

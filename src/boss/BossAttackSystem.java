@@ -4,7 +4,9 @@ import java.util.*;
 import java.util.function.LongSupplier;
 
 import engine.Cooldown;
+import entity.Boss;
 import entity.BossBullet;
+import entity.Entity;
 import entity.EnemyType;
 
 /**
@@ -396,6 +398,17 @@ public final class BossAttackSystem {
 
 	public boolean isLaserFiring() {
 		return this.beamCooldown != null && !this.beamCooldown.checkFinished();
+	}
+
+	/** True when the active beam overlaps the target below the boss. */
+	public boolean laserHits(final Boss boss, final Entity target) {
+		int centerX = boss.getPositionX() + boss.getWidth() / 2;
+		int halfWidth = this.activeBeamWidth / 2;
+		return isLaserFiring()
+				&& target.getPositionX() < centerX + halfWidth
+				&& target.getPositionX() + target.getWidth() > centerX - halfWidth
+				&& target.getPositionY() + target.getHeight()
+						> boss.getPositionY() + boss.getHeight();
 	}
 
 	public int getActiveBeamWidth() {

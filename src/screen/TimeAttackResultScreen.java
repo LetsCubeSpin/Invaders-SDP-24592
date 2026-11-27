@@ -1,15 +1,13 @@
 package screen;
 
-import java.awt.event.KeyEvent;
 import audio.AudioManager;
 import engine.LanguageManager;
 
 /** Results and retry for the three-stage time attack run. */
-public final class TimeAttackResultScreen extends Screen {
+public final class TimeAttackResultScreen extends MenuScreen {
     public static final int STAGE_COUNT = 3;
     private final int clearedStages;
     private final int score;
-    private boolean confirmWasDown;
 
     public TimeAttackResultScreen(final int width, final int height, final int fps,
             final int clearedStages, final int score) {
@@ -23,7 +21,6 @@ public final class TimeAttackResultScreen extends Screen {
     public void initialize() {
         AudioManager.playBGM(this.clearedStages == STAGE_COUNT
                 ? "audio/bgm/music_end_victory.wav" : "audio/bgm/music_end_defeat.wav");
-        this.confirmWasDown = inputManager.isKeyDown(KeyEvent.VK_SPACE);
     }
 
     @Override
@@ -38,9 +35,8 @@ public final class TimeAttackResultScreen extends Screen {
         drawManager.initDrawing(this);
         drawManager.drawTimeAttackResult(this, clearedStages, STAGE_COUNT, score);
         drawManager.completeDrawing(this);
-        boolean confirmDown = inputManager.isKeyDown(KeyEvent.VK_SPACE);
         if (this.inputDelay.checkFinished()) {
-            if (inputManager.isBackDown()) {
+            if (backPressed || clicked == BACK) {
                 AudioManager.playSFX("audio/sfx/menu_back.wav");
                 this.isRunning = false;
             } else if (confirmDown && !this.confirmWasDown) {
@@ -49,6 +45,5 @@ public final class TimeAttackResultScreen extends Screen {
                 this.isRunning = false;
             }
         }
-        this.confirmWasDown = confirmDown;
     }
 }

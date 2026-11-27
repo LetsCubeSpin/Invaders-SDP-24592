@@ -1,6 +1,5 @@
 package screen;
 
-import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.util.List;
 
@@ -13,7 +12,7 @@ import audio.AudioManager;
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
  *
  */
-public class HighScoreScreen extends Screen {
+public class HighScoreScreen extends MenuScreen {
 
 	/** List of past high scores. */
 	private List<Score> highScores;
@@ -62,7 +61,7 @@ public class HighScoreScreen extends Screen {
 		super.update();
 
 		draw();
-		if ((inputManager.isKeyDown(KeyEvent.VK_SPACE) || inputManager.isBackDown())
+		if ((confirmPressed || backPressed || clicked == BACK)
 				&& this.inputDelay.checkFinished()) {
 			AudioManager.playSFX("audio/sfx/menu_back.wav");
 			this.isRunning = false;
