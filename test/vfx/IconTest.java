@@ -14,7 +14,7 @@ public final class IconTest {
 	}
 
 	public static void main(final String[] args) {
-		check(Icon.values().length == 19,
+		check(Icon.values().length == 20,
 				"HUD, status strip, menu, settings and title icons are registered");
 
 		for (Icon icon : Icon.values()) {
