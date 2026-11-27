@@ -48,7 +48,7 @@ public class Ship extends Entity {
     /** Minimum time between two grenade launches. */
     private static final int GRENADE_COOLDOWN = 800;
     /** Maximum number of grenades the ship can carry. */
-    private static final int MAX_GRENADES = 1;
+    private static final int MAX_GRENADES = 2;
 
     /** Grenades left (given by the Cluster Grenade item). */
     private int grenadeCount = 0;
