@@ -2120,6 +2120,9 @@ public final class DrawManager {
         }
         backBufferGraphics.setColor(acceptsInput ? Color.GREEN : Color.GRAY);
         drawResultActions(screen, screen.getHeight() - spacing, acceptsInput);
+        backBufferGraphics.setColor(Color.GRAY);
+        drawCenteredRegularString(screen, LanguageManager.get("result.controls"),
+                screen.getHeight() - spacing * 2);
     }
 
     /**
@@ -2935,7 +2938,8 @@ public final class DrawManager {
                     220 + i * 45, i == option, enabled);
         }
         backBufferGraphics.setColor(Color.WHITE);
-        drawMenuHint(screen, LanguageManager.get("custom.controls"));
+        drawCenteredRegularString(screen, LanguageManager.get("custom.controls"),
+                screen.getHeight() - 45);
     }
 
     private void drawFileLabel(final Screen screen, final String text, final int y, final int target) {

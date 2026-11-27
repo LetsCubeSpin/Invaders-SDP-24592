@@ -19,6 +19,7 @@ public class SettingsScreen extends MenuScreen {
 
     private Cooldown selectionCooldown;
     private int selectedOption;
+
     public SettingsScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
         this.returnCode = 1; // Retour au menu principal
