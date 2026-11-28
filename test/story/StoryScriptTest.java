@@ -51,7 +51,8 @@ class StoryScriptTest {
         assertEquals("코어를 파괴하기", assault.getDetail(1));
 
         StoryQuestion rescue = StoryScript.question(3, 1);
-        assertTrue(rescue.getText().contains("세라"));
+        assertTrue(rescue.getLead().contains("세라"));
+        assertEquals("날 믿어. 모선으로 가는 길을 알려줄게.", rescue.getText());
         assertEquals("호위", rescue.getTitle(0));
         assertEquals("귀환 비행을 호위하기", rescue.getDetail(0));
         assertEquals("모선에 침투하기", rescue.getDetail(1));
@@ -105,12 +106,48 @@ class StoryScriptTest {
     }
 
     @Test
+    void afterTheAnswerOneSaraIsIntroducedByANoticeAndThenSpeaks() {
+        LanguageManager.setCurrentLanguage(Language.ENGLISH);
+        StoryQuestion rescue = StoryScript.question(3, 1);
+        assertEquals("Among the people we rescued was a Swarm scientist, Sera.",
+                rescue.getLead());
+        assertEquals("Trust me. I will show you the way to the mothership.",
+                rescue.getText());
+        assertEquals(StorySpeaker.SERA,
+                StoryScript.questionSpeaker(StoryProgress.MID_BOSS_STAGE, 1));
+        // The other questions start with their text, without a notice.
+        assertNull(StoryScript.question(3, 0).getLead());
+        assertNull(StoryScript.question(1, 0).getLead());
+    }
+
+    @Test
+    void theSpeakersHaveTheirNamesInBothLanguages() {
+        LanguageManager.setCurrentLanguage(Language.ENGLISH);
+        assertEquals("CONTROL", StorySpeaker.CONTROL.displayName());
+        assertEquals("SERA", StorySpeaker.SERA.displayName());
+        LanguageManager.setCurrentLanguage(Language.KOREAN);
+        assertEquals("관제탑", StorySpeaker.CONTROL.displayName());
+        assertEquals("세라", StorySpeaker.SERA.displayName());
+    }
+
+    @Test
+    void everyQuestionHasASpeakerAndNoOtherStageHas() {
+        for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++)
+            for (int first = 0; first < 2; first++)
+                assertEquals(StoryScript.question(stage, first) != null,
+                        StoryScript.questionSpeaker(stage, first) != null,
+                        "stage " + stage + ", answer " + first);
+    }
+
+    @Test
     void questionTextsAreAscii() {
         LanguageManager.setCurrentLanguage(Language.ENGLISH);
         for (int stage : new int[] { 1, 3 })
             for (int first = 0; first < 2; first++) {
                 StoryQuestion question = StoryScript.question(stage, first);
                 String all = question.getText();
+                if (question.getLead() != null)
+                    all += question.getLead();
                 for (int choice = 0; choice < 2; choice++)
                     all += question.getTitle(choice) + question.getDetail(choice);
                 for (char c : all.toCharArray())

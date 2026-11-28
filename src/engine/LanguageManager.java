@@ -219,11 +219,22 @@ public class LanguageManager {
         addText("story.question.assault.destroy.title", "DESTROY", "파괴");
         addText("story.question.assault.destroy.detail", "Destroy the core",
                 "코어를 파괴하기");
+        addText("story.question.rescue.lead",
+                "Among the people we rescued was a Swarm scientist, Sera.",
+                "구조한 사람들 중에는 스웜 과학자 세라가 있었다.");
         addText("story.question.rescue.text",
-                "Among the people we rescued was a Swarm scientist, Sera. "
-                + "\"Trust me. I will show you the way to the mothership.\"",
-                "구조한 사람들 중에는 스웜 과학자 세라가 있었다. "
-                + "\"날 믿어. 모선으로 가는 길을 알려줄게.\"");
+                "Trust me. I will show you the way to the mothership.",
+                "날 믿어. 모선으로 가는 길을 알려줄게.");
+        addText("story.controlName", "CONTROL", "관제탑");
+        addText("story.seraName", "SERA", "세라");
+        addText("story.boss.0.name", "ARGUS", "아르고스");
+        addText("story.boss.0.line",
+                "A worm of a puny planet...\nAnd you made it this far.",
+                "하찮은 행성의 벌레가…\n여기까지 오다니.");
+        addText("story.boss.1.name", "NOX", "녹스");
+        addText("story.boss.1.line",
+                "There are no survivors.\nI will leave none alive.",
+                "생존자는 없다.\n남겨두지 않는다.");
         addText("story.question.rescue.escort.title", "ESCORT", "호위");
         addText("story.question.rescue.escort.detail", "Guard the flight home",
                 "귀환 비행을 호위하기");

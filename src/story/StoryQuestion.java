@@ -3,10 +3,12 @@ package story;
 
 /**
  * One story question: the text shown first, and a title and a short
- * description for each of the two choices.
+ * description for each of the two choices. A question can also start with a
+ * notice, a line of narration shown before the character speaks.
  */
 public final class StoryQuestion {
 
+    private final String lead;
     private final String text;
     private final String[] titles;
     private final String[] details;
@@ -21,13 +23,37 @@ public final class StoryQuestion {
      */
     public StoryQuestion(final String text, final String[] titles,
             final String[] details) {
+        this(null, text, titles, details);
+    }
+
+    /**
+     * @param lead
+     *            Notice shown before the text, or null for none.
+     * @param text
+     *            Text of the question.
+     * @param titles
+     *            Titles of choice 0 and choice 1.
+     * @param details
+     *            Descriptions of choice 0 and choice 1.
+     */
+    public StoryQuestion(final String lead, final String text,
+            final String[] titles, final String[] details) {
         if (text == null || titles == null || details == null
                 || titles.length != 2 || details.length != 2)
             throw new IllegalArgumentException(
                     "A question needs a text and two titles and details.");
+        this.lead = lead;
         this.text = text;
         this.titles = titles.clone();
         this.details = details.clone();
+    }
+
+    /**
+     * @return The notice shown before the text, or null when the question
+     *         starts with the text.
+     */
+    public String getLead() {
+        return this.lead;
     }
 
     /** @return Text of the question. */

@@ -13,7 +13,10 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LinearGradientPaint;
+import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -1160,7 +1163,18 @@ public final class DrawManager {
         backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
                 portraitWidth - 1, boxHeight - 1);
 
-        // Text box right next to the portrait.
+        drawDialogueTextBox(screen, speaker, text, visibleChars, done,
+                portraitWidth, boxY, boxHeight, millis);
+    }
+
+    /**
+     * Draws the text box right next to a dialogue portrait: the speaker's
+     * name, the typed line and, once it is complete, a blinking prompt.
+     */
+    private void drawDialogueTextBox(final Screen screen, final String speaker,
+            final String text, final int visibleChars, final boolean prompt,
+            final int portraitWidth, final int boxY, final int boxHeight,
+            final long millis) {
         int boxX = DIALOGUE_PORTRAIT_X + portraitWidth + DIALOGUE_BOX_SPACING;
         int textWidth = screen.getWidth() - boxX - DIALOGUE_PORTRAIT_X;
         backBufferGraphics.setColor(Color.BLACK);
@@ -1174,7 +1188,7 @@ public final class DrawManager {
         drawTypedText(text, visibleChars, textX, boxY + 54,
                 textWidth - 2 * DIALOGUE_TEXT_PADDING);
 
-        if (done && (millis / 500) % 2 == 0) {
+        if (prompt && (millis / 500) % 2 == 0) {
             backBufferGraphics.setColor(Color.GRAY);
             String hint = LanguageManager.get("key.space").toUpperCase(Locale.ROOT);
             backBufferGraphics.drawString(hint, boxX
@@ -1182,6 +1196,146 @@ public final class DrawManager {
                     - fontRegularMetrics.stringWidth(hint),
                     boxY + boxHeight - 10);
         }
+    }
+
+    /**
+     * Draws a boss's line when it appears, at the top of the game board: its
+     * portrait on the left and the typed line to its right, between the line
+     * under the HUD and the banner, like the woman at the control tower. The
+     * portrait is square, so the text box is narrower than the pilot's.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param boss
+     *            Boss of stage 3, the first answer 0 or 1 that leads to it.
+     * @param speaker
+     *            Name shown above the line.
+     * @param text
+     *            Full line.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param done
+     *            Whether the whole line is shown, which shows the prompt.
+     * @param top
+     *            Height of the line under the HUD.
+     * @param seconds
+     *            Time since the dialogue started, so the boss moves from the
+     *            start of its loop.
+     * @param millis
+     *            Current time, drives the prompt.
+     */
+    public void drawStoryBossDialogue(final Screen screen, final int boss,
+            final String speaker, final String text, final int visibleChars,
+            final boolean done, final int top, final double seconds,
+            final long millis) {
+        int boxY = topDialogueY(top);
+        int boxHeight = topDialogueHeight(screen, top);
+        int portraitWidth = boxHeight;
+        story.BossPortrait.draw((Graphics2D) backBufferGraphics, boss,
+                DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight, seconds);
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
+                portraitWidth - 1, boxHeight - 1);
+        drawDialogueTextBox(screen, speaker, text, visibleChars, done,
+                portraitWidth, boxY, boxHeight, millis);
+    }
+
+    /**
+     * @param top
+     *            Height of the line under the HUD.
+     * @return the width of a boss's portrait in the dialogue at the top of
+     *         the board: it is square.
+     */
+    public int bossPortraitWidth(final Screen screen, final int top) {
+        return topDialogueHeight(screen, top);
+    }
+
+    /** Top of a dialogue at the top of the board, just under the HUD line. */
+    private int topDialogueY(final int top) {
+        return top + QUESTION_TOP_GAP;
+    }
+
+    /** Height of a dialogue at the top of the board, above the banner. */
+    private int topDialogueHeight(final Screen screen, final int top) {
+        int bannerTop = screen.getHeight() / 2 - screen.getHeight() / 12;
+        return Math.min(DIALOGUE_BOX_HEIGHT,
+                bannerTop - QUESTION_BANNER_GAP - topDialogueY(top));
+    }
+
+    /**
+     * How many lines a line of a dialogue takes in the text box next to a
+     * portrait, so a line can be checked to fit in two. It needs the fonts,
+     * which are set up when a screen starts drawing.
+     *
+     * @param screen
+     *            Screen the dialogue is drawn on.
+     * @param text
+     *            Full line of the dialogue.
+     * @param portraitWidth
+     *            Width of the portrait next to the text box.
+     * @return the number of lines the text is drawn in.
+     */
+    public int countDialogueLines(final Screen screen, final String text,
+            final int portraitWidth) {
+        int boxX = DIALOGUE_PORTRAIT_X + portraitWidth + DIALOGUE_BOX_SPACING;
+        int textWidth = screen.getWidth() - boxX - DIALOGUE_PORTRAIT_X;
+        return wrapRanges(text, textWidth - 2 * DIALOGUE_TEXT_PADDING).size();
+    }
+
+    /** Gap between the line under the HUD and the question dialogue. */
+    private static final int QUESTION_TOP_GAP = 4;
+    /** Gap kept free above the banner, under the question dialogue. */
+    private static final int QUESTION_BANNER_GAP = 8;
+
+    /**
+     * Draws a story question as a conversation at the top of the game board:
+     * the speaker's portrait on the left and her typed line to its right, the
+     * same layout as the pilot's dialogue, between the line under the HUD and
+     * the banner. Her mouth moves while the line is typed.
+     *
+     * @param screen
+     *            Screen to draw on.
+     * @param speaker
+     *            Who speaks: her portrait is drawn and her name is shown
+     *            above the line.
+     * @param text
+     *            Full line.
+     * @param visibleChars
+     *            Number of characters shown so far.
+     * @param speaking
+     *            Whether she is still talking, which moves her mouth.
+     * @param prompt
+     *            Whether to show the prompt for the next step.
+     * @param top
+     *            Height of the line under the HUD.
+     * @param millis
+     *            Current time, drives the portrait and the prompt.
+     */
+    public void drawStoryQuestionDialogue(final Screen screen,
+            final story.StorySpeaker speaker, final String text,
+            final int visibleChars,
+            final boolean speaking, final boolean prompt, final int top,
+            final long millis) {
+        int boxY = topDialogueY(top);
+        int boxHeight = topDialogueHeight(screen, top);
+        // Both women are drawn in the same source size, so the frame is too.
+        int portraitWidth = (int) Math.round(boxHeight
+                * story.ControllerPortrait.SRC_W
+                / story.ControllerPortrait.SRC_H);
+        if (speaker == story.StorySpeaker.SERA) {
+            story.SeraPortrait.draw((Graphics2D) backBufferGraphics,
+                    DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
+                    millis / 1000.0, speaking);
+        } else {
+            story.ControllerPortrait.draw((Graphics2D) backBufferGraphics,
+                    DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
+                    millis / 1000.0, speaking);
+        }
+        backBufferGraphics.setColor(Color.GREEN);
+        backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
+                portraitWidth - 1, boxHeight - 1);
+        drawDialogueTextBox(screen, speaker.displayName(), text, visibleChars,
+                prompt, portraitWidth, boxY, boxHeight, millis);
     }
 
     /** Top of the dialogue boxes, just below the lower line of the banner. */
@@ -1197,25 +1351,30 @@ public final class DrawManager {
     }
 
     /**
-     * Draws a story question typed out in one wide box over the game screen.
+     * Draws a notice, a line of narration, typed out in one wide box at the
+     * top of the game board: the place where the character speaks next, so
+     * her portrait and line replace the box.
      *
      * @param screen
      *            Screen to draw on.
      * @param text
-     *            Full text of the question.
+     *            Full text of the notice.
      * @param visibleChars
      *            Number of characters shown so far.
      * @param done
      *            Whether the whole text is shown, which shows the prompt.
+     * @param top
+     *            Height of the line under the HUD.
      * @param millis
      *            Current time, for the blinking prompt.
      */
-    public void drawStoryQuestionBox(final Screen screen, final String text,
-            final int visibleChars, final boolean done, final long millis) {
+    public void drawStoryNotice(final Screen screen, final String text,
+            final int visibleChars, final boolean done, final int top,
+            final long millis) {
         int boxX = DIALOGUE_PORTRAIT_X;
-        int boxY = dialogueBoxY(screen);
+        int boxY = topDialogueY(top);
         int boxWidth = screen.getWidth() - 2 * DIALOGUE_PORTRAIT_X;
-        int boxHeight = dialogueBoxHeight(screen);
+        int boxHeight = topDialogueHeight(screen, top);
         backBufferGraphics.setColor(Color.BLACK);
         backBufferGraphics.fillRect(boxX, boxY, boxWidth, boxHeight);
         backBufferGraphics.setColor(Color.GREEN);
@@ -1890,13 +2049,81 @@ public final class DrawManager {
     public void completeDrawing(final Screen screen) {
         try {
             if (graphics != null)
-                graphics.drawImage(backBuffer, frame.getInsets().left,
-                        frame.getInsets().top, frame);
+                showBackBuffer();
         } finally {
             backBufferGraphics.dispose();
             if (graphics != null)
                 graphics.dispose();
         }
+    }
+
+    /** The back buffer made as big as the window, when the display is scaled. */
+    private static BufferedImage scaledBackBuffer;
+
+    /**
+     * Shows the back buffer in the window. When the display is scaled by a
+     * fraction (125 % is common on Windows), Java scales the picture itself
+     * as it copies it to the window, and a thin line, such as the border of a
+     * dialogue box, steps up or down by a pixel here and there. So then the
+     * picture is scaled here, evenly over its whole size, and copied to the
+     * window as it is.
+     */
+    private static void showBackBuffer() {
+        Insets insets = frame.getInsets();
+        if (!(graphics instanceof Graphics2D window)) {
+            graphics.drawImage(backBuffer, insets.left, insets.top, frame);
+            return;
+        }
+        double scaleX = window.getTransform().getScaleX();
+        double scaleY = window.getTransform().getScaleY();
+        if (isWholeScale(scaleX) && isWholeScale(scaleY)) {
+            graphics.drawImage(backBuffer, insets.left, insets.top, frame);
+            return;
+        }
+        scaledBackBuffer = scaleNearest(backBuffer,
+                (int) Math.round(backBuffer.getWidth() * scaleX),
+                (int) Math.round(backBuffer.getHeight() * scaleY),
+                scaledBackBuffer);
+        Graphics2D device = (Graphics2D) window.create();
+        // Pixels of the display, with no scaling of Java's.
+        device.setTransform(new AffineTransform());
+        device.drawImage(scaledBackBuffer, (int) Math.round(insets.left * scaleX),
+                (int) Math.round(insets.top * scaleY), null);
+        device.dispose();
+    }
+
+    /** @return whether a display scale is a whole number, such as 1 or 2. */
+    static boolean isWholeScale(final double scale) {
+        return Math.abs(scale - Math.rint(scale)) < 1e-6;
+    }
+
+    /**
+     * Scales a picture to a size, each pixel becoming the same number of
+     * pixels all along a line, so the lines of the picture stay straight.
+     *
+     * @param source
+     *            Picture to scale.
+     * @param width
+     *            Width of the result.
+     * @param height
+     *            Height of the result.
+     * @param reuse
+     *            An earlier result to draw into when it has the same size, or
+     *            null.
+     * @return the scaled picture.
+     */
+    static BufferedImage scaleNearest(final BufferedImage source,
+            final int width, final int height, final BufferedImage reuse) {
+        BufferedImage target = reuse != null && reuse.getWidth() == width
+                && reuse.getHeight() == height ? reuse
+                : new BufferedImage(width, height,
+                        BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = target.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g.drawImage(source, 0, 0, width, height, null);
+        g.dispose();
+        return target;
     }
 
     public void drawNameInput(final Screen screen, final char[] name,

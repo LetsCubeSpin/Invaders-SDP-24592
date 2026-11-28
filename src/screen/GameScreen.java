@@ -54,6 +54,7 @@ import story.StoryProgress;
 import story.StoryQuestion;
 import story.StoryStage;
 import story.StoryScript;
+import story.StorySpeaker;
 import story.StoryStageData;
 import event.BulletHitEvent;
 import story.Typewriter;
@@ -258,7 +259,7 @@ public class GameScreen extends Screen {
     private StoryIntro storyIntro = StoryIntro.NONE;
 
     /** Parts of the question asked after a cleared story stage. */
-    private enum StoryQuestionPhase { NONE, TYPING, CHOOSING, DONE }
+    private enum StoryQuestionPhase { NONE, LEAD, TYPING, CHOOSING, DONE }
 
     /** Pixels per frame the ship flies forward while a choice is made. */
     private static final int STORY_FORWARD_SPEED = 3;
@@ -275,6 +276,8 @@ public class GameScreen extends Screen {
     private int storyChoice = -1;
     private long choiceMadeMillis;
     private Typewriter introTypewriter;
+    /** Boss that speaks the intro, the first answer 0 or 1, or -1 for the pilot. */
+    private int introBoss = -1;
     private long introStartMillis;
     private long goStartMillis;
     /** Starts true so a Space held from the previous screen is ignored. */
@@ -628,8 +631,9 @@ public class GameScreen extends Screen {
 		screen.storyStage = stage;
 		screen.storyBoss = StoryProgress.isBossStage(stageNumber)
 				? progress.bossForStage(stageNumber) : null;
-		screen.startStoryIntro(stageNumber);
+		// The progress comes first: the intro of the boss stage depends on it.
 		screen.storyProgress = progress;
+		screen.startStoryIntro(stageNumber);
 		return screen;
 	}
 
@@ -640,6 +644,16 @@ public class GameScreen extends Screen {
 	 */
 	private void startStoryIntro(final int stage) {
 		String line = StoryScript.stageIntroLine(stage);
+		// The boss of stage 3 speaks instead of the pilot when it appears.
+		this.introBoss = -1;
+		if (this.storyProgress != null && this.storyProgress.hasFirstChoice()) {
+			int firstChoice = this.storyProgress.getFirstChoice();
+			String bossLine = StoryScript.bossIntroLine(stage, firstChoice);
+			if (bossLine != null) {
+				line = bossLine;
+				this.introBoss = firstChoice;
+			}
+		}
 		if (line != null) {
 			this.storyIntro = StoryIntro.DIALOGUE;
 			this.introTypewriter = new Typewriter(line,
@@ -744,14 +758,32 @@ public class GameScreen extends Screen {
 			this.storyQuestion = StoryScript.question(this.level, firstChoice);
 			if (this.storyQuestion == null)
 				return false;
-			this.questionPhase = StoryQuestionPhase.TYPING;
+			// A question may start with a notice, before the character speaks.
+			String lead = this.storyQuestion.getLead();
+			this.questionPhase = lead == null ? StoryQuestionPhase.TYPING
+					: StoryQuestionPhase.LEAD;
 			this.questionTypewriter = new Typewriter(
-					this.storyQuestion.getText(), STORY_CHARS_PER_SECOND);
+					lead == null ? this.storyQuestion.getText() : lead,
+					STORY_CHARS_PER_SECOND);
 			this.questionTypewriter.start(now);
 			return true;
 		}
 
 		switch (this.questionPhase) {
+		case LEAD:
+			if (spacePressed) {
+				if (this.questionTypewriter.isDone(now)) {
+					// The notice is read, now the character speaks.
+					this.questionPhase = StoryQuestionPhase.TYPING;
+					this.questionTypewriter = new Typewriter(
+							this.storyQuestion.getText(),
+							STORY_CHARS_PER_SECOND);
+					this.questionTypewriter.start(now);
+					AudioManager.playSFX("audio/sfx/menu_select.wav");
+				} else
+					this.questionTypewriter.finish();
+			}
+			return true;
 		case TYPING:
 			if (spacePressed) {
 				if (this.questionTypewriter.isDone(now)) {
@@ -808,13 +840,32 @@ public class GameScreen extends Screen {
 
 	private void drawStoryQuestion() {
 		long now = System.currentTimeMillis();
-		if (this.questionPhase == StoryQuestionPhase.TYPING) {
-			drawManager.drawStoryQuestionBox(this,
+		int firstChoice = this.level == StoryProgress.FIRST_QUESTION_STAGE
+				|| this.storyProgress == null ? 0
+				: this.storyProgress.getFirstChoice();
+		StorySpeaker speaker = StoryScript.questionSpeaker(this.level, firstChoice);
+		if (this.questionPhase == StoryQuestionPhase.LEAD) {
+			// A notice comes first, in a wide box where the character will
+			// speak.
+			drawManager.drawStoryNotice(this,
 					this.questionTypewriter.getText(),
 					this.questionTypewriter.visibleLength(now),
-					this.questionTypewriter.isDone(now), now);
+					this.questionTypewriter.isDone(now), SEPARATION_LINE_HEIGHT,
+					now);
+		} else if (this.questionPhase == StoryQuestionPhase.TYPING) {
+			// She talks at the top of the board while the line is typed.
+			boolean done = this.questionTypewriter.isDone(now);
+			drawManager.drawStoryQuestionDialogue(this, speaker,
+					this.questionTypewriter.getText(),
+					this.questionTypewriter.visibleLength(now), !done,
+					done, SEPARATION_LINE_HEIGHT, now);
 		} else if (this.questionPhase == StoryQuestionPhase.CHOOSING
 				|| this.questionPhase == StoryQuestionPhase.DONE) {
+			// While the player chooses she stays on screen with her whole
+			// line, her mouth shut, so the question is not forgotten.
+			String line = this.questionTypewriter.getText();
+			drawManager.drawStoryQuestionDialogue(this, speaker, line,
+					line.length(), false, false, SEPARATION_LINE_HEIGHT, now);
 			drawManager.drawStoryChoices(this,
 					new String[] { this.storyQuestion.getTitle(0),
 							this.storyQuestion.getTitle(1) },
@@ -838,7 +889,14 @@ public class GameScreen extends Screen {
 				/ 12);
 		drawManager.drawHorizontalLine(this, this.height / 2 + this.height
 				/ 12);
-		if (this.storyIntro == StoryIntro.DIALOGUE)
+		if (this.storyIntro == StoryIntro.DIALOGUE && this.introBoss >= 0)
+			drawManager.drawStoryBossDialogue(this, this.introBoss,
+					StoryScript.bossName(this.introBoss),
+					this.introTypewriter.getText(),
+					this.introTypewriter.visibleLength(now),
+					this.introTypewriter.isDone(now), SEPARATION_LINE_HEIGHT,
+					(now - this.introStartMillis) / 1000.0, now);
+		else if (this.storyIntro == StoryIntro.DIALOGUE)
 			drawManager.drawStoryDialogue(this, StoryScript.pilotName(),
 					this.introTypewriter.getText(),
 					this.introTypewriter.visibleLength(now),
