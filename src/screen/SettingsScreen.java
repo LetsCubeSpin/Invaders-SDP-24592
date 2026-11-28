@@ -5,6 +5,7 @@ import java.awt.event.KeyEvent;
 import audio.AudioManager;
 import engine.Cooldown;
 import engine.Core;
+import engine.LanguageManager;
 
 public class SettingsScreen extends MenuScreen {
 
@@ -12,11 +13,13 @@ public class SettingsScreen extends MenuScreen {
     private static final int AUDIO_OPTION = 0;
     private static final int CONTROLS_OPTION = 1;
     private static final int COLOR_OPTION = 2;
-    private static final int BACK_OPTION = 3;
-    private static final int OPTION_COUNT = 4;
+    private static final int LANGUAGE_OPTION = 3;
+    private static final int BACK_OPTION = 4;
+    private static final int OPTION_COUNT = 5;
 
     private Cooldown selectionCooldown;
     private int selectedOption;
+
     public SettingsScreen(final int width, final int height, final int fps) {
         super(width, height, fps);
         this.returnCode = 1; // Retour au menu principal
@@ -86,6 +89,10 @@ public class SettingsScreen extends MenuScreen {
         case COLOR_OPTION:
             this.returnCode = 7;
             break;
+        case LANGUAGE_OPTION:
+            LanguageManager.toggleLanguage();
+            AudioManager.playSFX("audio/sfx/menu_select.wav");
+            return;
         case BACK_OPTION:
         default:
             this.returnCode = 1;

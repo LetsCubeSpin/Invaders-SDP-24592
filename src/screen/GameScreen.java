@@ -839,7 +839,7 @@ public class GameScreen extends Screen {
 		drawManager.drawHorizontalLine(this, this.height / 2 + this.height
 				/ 12);
 		if (this.storyIntro == StoryIntro.DIALOGUE)
-			drawManager.drawStoryDialogue(this, StoryScript.PILOT_NAME,
+			drawManager.drawStoryDialogue(this, StoryScript.pilotName(),
 					this.introTypewriter.getText(),
 					this.introTypewriter.visibleLength(now),
 					this.introTypewriter.isDone(now), now);

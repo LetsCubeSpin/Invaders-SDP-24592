@@ -9,6 +9,7 @@ import campaign.CampaignStageData;
 import engine.Cooldown;
 import engine.Core;
 import engine.GameState;
+import engine.LanguageManager;
 import engine.Score;
 import audio.AudioManager;
 import records.AchievementUnlock;
@@ -118,8 +119,7 @@ public class ScoreScreen extends MenuScreen {
         this.runUnlocks = new ArrayList<AchievementUnlock>(unlocks);
 
 		this.infiniteMode = infiniteMode;
-        this.modeLabel = infiniteMode ? "infinite mode"
-                : "mode: Easy";
+        this.modeLabel = infiniteMode ? LanguageManager.get("mode.infinite") : LanguageManager.get("mode.easy");
 		this.level = gameState.getLevel();
 		this.stageFailed = gameState.getLivesRemaining() == 0;
         this.gameCleared = !this.infiniteMode && !this.stageFailed
@@ -202,6 +202,7 @@ public class ScoreScreen extends MenuScreen {
 			} else if (confirmPressed || inputManager.isKeyDown(KeyEvent.VK_SPACE) || clicked == NEXT) {
 				// Play again.
 				AudioManager.playSFX("audio/sfx/menu_select.wav");
+				LanguageManager.resetToEnglish();
 				// The infinite mode (8) restarts itself instead of the campaign.
 				this.returnCode = this.infiniteMode ? 8 : 2;
 				this.isRunning = false;
