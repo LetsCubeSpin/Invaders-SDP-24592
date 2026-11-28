@@ -54,6 +54,7 @@ import story.StoryProgress;
 import story.StoryQuestion;
 import story.StoryStage;
 import story.StoryScript;
+import story.StorySpeaker;
 import story.StoryStageData;
 import event.BulletHitEvent;
 import story.Typewriter;
@@ -842,7 +843,7 @@ public class GameScreen extends Screen {
 		int firstChoice = this.level == StoryProgress.FIRST_QUESTION_STAGE
 				|| this.storyProgress == null ? 0
 				: this.storyProgress.getFirstChoice();
-		String speaker = StoryScript.questionSpeaker(this.level, firstChoice);
+		StorySpeaker speaker = StoryScript.questionSpeaker(this.level, firstChoice);
 		if (this.questionPhase == StoryQuestionPhase.LEAD) {
 			// A notice comes first, in a wide box where the character will
 			// speak.
@@ -896,7 +897,7 @@ public class GameScreen extends Screen {
 					this.introTypewriter.isDone(now), SEPARATION_LINE_HEIGHT,
 					(now - this.introStartMillis) / 1000.0, now);
 		else if (this.storyIntro == StoryIntro.DIALOGUE)
-			drawManager.drawStoryDialogue(this, StoryScript.PILOT_NAME,
+			drawManager.drawStoryDialogue(this, StoryScript.pilotName(),
 					this.introTypewriter.getText(),
 					this.introTypewriter.visibleLength(now),
 					this.introTypewriter.isDone(now), now);
@@ -1776,21 +1777,8 @@ public class GameScreen extends Screen {
                     recyclable.add(bullet);
                 }
 
-                if (!recyclable.contains(bullet)) {
-                    for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
-                        EnemyShip minion = it.next();
-                        if (!minion.isDestroyed() && checkCollision(bullet, minion)) {
-                            recyclable.add(bullet);
-                            if (minion.hit()) {
-                                AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
-                                this.particleSystem.spawnEnemyExplosion(
-                                        minion.getPositionX() + minion.getWidth() / 2,
-                                        minion.getPositionY() + minion.getHeight() / 2);
-                                it.remove();
-                            }
-                            break;
-                        }
-                    }
+                if (!recyclable.contains(bullet) && hitSummonedEnemy(bullet)) {
+                    recyclable.add(bullet);
                 }
 
                 // A bullet that already hit a ship cannot also hit the boss.
@@ -2520,6 +2508,23 @@ public class GameScreen extends Screen {
         }
     }
 
+    private boolean hitSummonedEnemy(final Entity projectile) {
+        for (Iterator<EnemyShip> it = this.summonedEnemies.iterator(); it.hasNext();) {
+            EnemyShip minion = it.next();
+            if (!minion.isDestroyed() && checkCollision(projectile, minion)) {
+                if (minion.hit()) {
+                    AudioManager.playSFX("audio/sfx/enemy_explosion.wav");
+                    this.particleSystem.spawnEnemyExplosion(
+                            minion.getPositionX() + minion.getWidth() / 2,
+                            minion.getPositionY() + minion.getHeight() / 2);
+                    it.remove();
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Moves the grenades and their fragments. Once the stage has ended,
      * they keep moving but no longer hit anything, so the score, kill count
@@ -2544,6 +2549,9 @@ public class GameScreen extends Screen {
                         && checkCollision(grenade,
                                 this.bonusEnemyManager.getShip()))
                     impact = true;
+                if (!impact)
+                    impact = this.summonedEnemies.stream().anyMatch(
+                            minion -> !minion.isDestroyed() && checkCollision(grenade, minion));
             }
 
             if (impact || grenade.hasReachedAltitude()) {
@@ -2592,6 +2600,8 @@ public class GameScreen extends Screen {
                     hitBonusShip(bonusShip);
                     used = true;
                 }
+                if (!used)
+                    used = hitSummonedEnemy(fragment);
             }
 
             if (used || fragment.isExpired())

@@ -1,6 +1,7 @@
 package screen;
 
 import audio.AudioManager;
+import engine.LanguageManager;
 
 /** Results and retry for the three-stage time attack run. */
 public final class TimeAttackResultScreen extends MenuScreen {
@@ -34,11 +35,12 @@ public final class TimeAttackResultScreen extends MenuScreen {
         drawManager.initDrawing(this);
         drawManager.drawTimeAttackResult(this, clearedStages, STAGE_COUNT, score);
         drawManager.completeDrawing(this);
-        if (this.inputDelay.checkFinished()) {
+        if (menuReady()) {
             if (backPressed || clicked == BACK) {
                 AudioManager.playSFX("audio/sfx/menu_back.wav");
                 this.isRunning = false;
             } else if (confirmPressed || clicked == NEXT) {
+                LanguageManager.resetToEnglish();
                 this.returnCode = GameModeScreen.START_TIME_ATTACK;
                 this.isRunning = false;
             }

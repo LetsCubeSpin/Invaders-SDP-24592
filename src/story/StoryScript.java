@@ -1,80 +1,24 @@
-// 스토리 모드 오프닝 설정 문장과 조종사 대사를 영어 상수로 모아 둔 클래스
+// 스토리 모드 대사를 현재 선택된 언어로 제공하는 클래스
 package story;
 
+import engine.LanguageManager;
+
 /**
- * English texts of the story mode: the opening narration, the lines the pilot
- * says when a stage begins and the lines of the bosses of stage 3.
+ * Localized story mode narration and dialogue.
  */
 public final class StoryScript {
 
-    /** Name shown above the pilot's lines. */
-    public static final String PILOT_NAME = "PILOT";
-
-    /** Name shown above the lines of the woman at the control tower. */
-    public static final String CONTROL_NAME = "CONTROL";
-
-    /** Name shown above the lines of Sera, the rescued Swarm scientist. */
-    public static final String SERA_NAME = "SERA";
-
-    /**
-     * Names of the two bosses of stage 3, shown above their lines, by the
-     * answer to the first question that leads to each.
-     */
-    private static final String[] BOSS_NAMES = { "ARGUS", "NOX" };
-
-    /**
-     * What each boss of stage 3 says when it appears, in two lines that fit
-     * the dialogue box.
-     */
-    private static final String[] BOSS_LINES = {
-        "A worm of a puny planet...\nAnd you made it this far.",
-        "There are no survivors.\nI will leave none alive." };
-
-    /** Opening narration, shown typed out before stage 1. */
-    public static final String OPENING_NARRATION =
-            "Year 2189.\n"
-            + "The defense line on Mars has fallen.\n"
-            + "\n"
-            + "The alien fleet, the Swarm,\n"
-            + "is heading for Earth.\n"
-            + "\n"
-            + "Only one interceptor remains:\n"
-            + "OCTO-1.\n"
-            + "\n"
-            + "\"Pilot, you are the last line of defense.\n"
-            + "Launch.\"";
-
-    /** What the pilot says at the start of stage 1. */
-    private static final String STAGE_1_LINE = "Let's go wipe them all out.";
-
-    private static final StoryQuestion FIRST_QUESTION = new StoryQuestion(
-            "Two signals at once. The position of the Swarm vanguard fleet, "
-                    + "and a distress call from the Moon base.",
-            new String[] { "ASSAULT", "RESCUE" },
-            new String[] { "Strike the enemy commander first",
-                    "Save the Moon base survivors" });
-
-    private static final StoryQuestion SECOND_QUESTION_AFTER_ASSAULT =
-            new StoryQuestion(
-                    "In the wreckage of ARGUS, we found an alien core, "
-                            + "still beating.",
-                    new String[] { "ABSORB", "DESTROY" },
-                    new String[] { "Absorb the core", "Destroy the core" });
-
-    /**
-     * A notice tells who was rescued, then Sera herself speaks and the
-     * question follows.
-     */
-    private static final StoryQuestion SECOND_QUESTION_AFTER_RESCUE =
-            new StoryQuestion(
-                    "Among the people we rescued was a Swarm scientist, "
-                            + "Sera.",
-                    "Trust me. I will show you the way to the mothership.",
-                    new String[] { "ESCORT", "INFILTRATE" },
-                    new String[] { "Guard the flight home",
-                            "Infiltrate the mothership" });
-
     private StoryScript() {
+    }
+
+    /** @return Name shown above the pilot's lines in the selected language. */
+    public static String pilotName() {
+        return LanguageManager.get("story.pilotName");
+    }
+
+    /** @return Opening narration in the selected language. */
+    public static String openingNarration() {
+        return LanguageManager.get("story.openingNarration");
     }
 
     /**
@@ -84,16 +28,45 @@ public final class StoryScript {
      *            Answer to the first question, 0 or 1. Only the second
      *            question depends on it.
      * @return The question asked after the stage, or null when the stage is
-     *         not followed by one.
+     *         not followed by one. After the first answer 1 it starts with a
+     *         notice, and the text is Sera's line.
      */
     public static StoryQuestion question(final int stage,
             final int firstChoice) {
         if (stage == StoryProgress.FIRST_QUESTION_STAGE)
-            return FIRST_QUESTION;
-        if (stage == StoryProgress.MID_BOSS_STAGE)
-            return firstChoice == 0 ? SECOND_QUESTION_AFTER_ASSAULT
-                    : SECOND_QUESTION_AFTER_RESCUE;
+            return question(null, "story.question.first.text",
+                    "story.question.first.assault.title",
+                    "story.question.first.rescue.title",
+                    "story.question.first.assault.detail",
+                    "story.question.first.rescue.detail");
+        if (stage == StoryProgress.MID_BOSS_STAGE) {
+            if (firstChoice == 0)
+                return question(null, "story.question.assault.text",
+                        "story.question.assault.absorb.title",
+                        "story.question.assault.destroy.title",
+                        "story.question.assault.absorb.detail",
+                        "story.question.assault.destroy.detail");
+            return question("story.question.rescue.lead",
+                    "story.question.rescue.text",
+                    "story.question.rescue.escort.title",
+                    "story.question.rescue.infiltrate.title",
+                    "story.question.rescue.escort.detail",
+                    "story.question.rescue.infiltrate.detail");
+        }
         return null;
+    }
+
+    private static StoryQuestion question(final String leadKey,
+            final String textKey, final String firstTitleKey,
+            final String secondTitleKey, final String firstDetailKey,
+            final String secondDetailKey) {
+        return new StoryQuestion(
+                leadKey == null ? null : LanguageManager.get(leadKey),
+                LanguageManager.get(textKey),
+                new String[] { LanguageManager.get(firstTitleKey),
+                        LanguageManager.get(secondTitleKey) },
+                new String[] { LanguageManager.get(firstDetailKey),
+                        LanguageManager.get(secondDetailKey) });
     }
 
     /**
@@ -108,12 +81,12 @@ public final class StoryScript {
      *         second one after the first answer 0; the second one after the
      *         answer 1 is Sera's, after a notice.
      */
-    public static String questionSpeaker(final int stage,
+    public static StorySpeaker questionSpeaker(final int stage,
             final int firstChoice) {
         if (stage == StoryProgress.FIRST_QUESTION_STAGE)
-            return CONTROL_NAME;
+            return StorySpeaker.CONTROL;
         if (stage == StoryProgress.MID_BOSS_STAGE)
-            return firstChoice == 0 ? CONTROL_NAME : SERA_NAME;
+            return firstChoice == 0 ? StorySpeaker.CONTROL : StorySpeaker.SERA;
         return null;
     }
 
@@ -124,16 +97,18 @@ public final class StoryScript {
      *         stage starts without a line.
      */
     public static String stageIntroLine(final int stage) {
-        return stage == 1 ? STAGE_1_LINE : null;
+        return stage == 1 ? LanguageManager.get("story.stage1Line") : null;
     }
 
     /**
      * @param firstChoice
      *            Answer to the first question, 0 or 1.
-     * @return Name of the boss of stage 3 that this answer leads to.
+     * @return Name of the boss of stage 3 that this answer leads to, in the
+     *         selected language.
      */
     public static String bossName(final int firstChoice) {
-        return BOSS_NAMES[checkChoice(firstChoice)];
+        return LanguageManager.get(
+                "story.boss." + checkChoice(firstChoice) + ".name");
     }
 
     /**
@@ -142,13 +117,14 @@ public final class StoryScript {
      * @param firstChoice
      *            Answer to the first question, 0 or 1.
      * @return What the boss says when it appears at the start of the stage,
-     *         or null when the stage has no boss line. Only the boss of stage
-     *         3 speaks so far.
+     *         in two lines that fit the dialogue box, or null when the stage
+     *         has no boss line. Only the boss of stage 3 speaks so far.
      */
     public static String bossIntroLine(final int stage, final int firstChoice) {
         checkChoice(firstChoice);
         return stage == StoryProgress.MID_BOSS_STAGE
-                ? BOSS_LINES[firstChoice] : null;
+                ? LanguageManager.get("story.boss." + firstChoice + ".line")
+                : null;
     }
 
     private static int checkChoice(final int choice) {

@@ -10,6 +10,8 @@ import entity.Bullet;
 import entity.BulletPool;
 import entity.EnemyShip;
 import entity.EnemyShipFormation;
+import entity.EnemyType;
+import entity.Grenade;
 import entity.GrenadeFragment;
 import entity.Ship;
 import event.DefeatedEnemyType;
@@ -208,6 +210,62 @@ class EnemyDefeatClassificationTest {
         assertEquals(Collections.singletonList(DefeatedEnemyType.B),
                 defeats.types(),
                 "a fragment kill is one classified defeat, not one per fragment");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void grenadeBodyDetonatesOnContactWithSummonedEnemyBeforeItsAltitude() throws Exception {
+        GameScreen game = campaign(7, "grenade-impact-summon");
+        EnemyShip target = addSummonedEnemy(game, 1);
+        Set<Grenade> grenades = (Set<Grenade>) get(game, "grenades");
+        grenades.add(new Grenade(target.getPositionX() + target.getWidth() / 2,
+                target.getPositionY() + 3, 200));
+
+        call(game, "manageGrenades");
+
+        assertTrue(grenades.isEmpty(), "contact detonates the grenade before the altitude limit");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void fragmentsUseTheSameSummonedEnemyDamageAndRewardsAsBullets() throws Exception {
+        GameScreen game = campaign(7, "fragment-summon");
+        Defeats defeats = watch(game);
+        EnemyShip target = addSummonedEnemy(game, 2);
+        List<EnemyShip> summoned = (List<EnemyShip>) get(game, "summonedEnemies");
+        Set<GrenadeFragment> fragments = (Set<GrenadeFragment>) get(game, "fragments");
+
+        for (int expectedHealth = 1; expectedHealth >= 0; expectedHealth--) {
+            fragments.add(new GrenadeFragment(target.getPositionX() + target.getWidth() / 2 - 3,
+                    target.getPositionY() + target.getHeight() / 2, 0));
+            call(game, "manageGrenades");
+
+            assertEquals(expectedHealth, target.getHealth());
+            assertTrue(fragments.isEmpty(), "each hit consumes its fragment");
+            assertEquals(expectedHealth > 0, summoned.contains(target));
+        }
+        assertEquals(0, game.getGameState().getScore());
+        assertEquals(0, game.getGameState().getShipsDestroyed());
+        assertTrue(defeats.types().isEmpty(), "summoned enemies do not grant defeat rewards");
+    }
+
+    @Test
+    void fragmentsCannotDamageSummonedEnemiesAfterTheStageEnds() throws Exception {
+        GameScreen game = campaign(7, "fragment-after-stage");
+        EnemyShip target = addSummonedEnemy(game, 2);
+        field(GameScreen.class, "levelFinished").setBoolean(game, true);
+        addFragments(game, target);
+
+        call(game, "manageGrenades");
+
+        assertEquals(2, target.getHealth());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static EnemyShip addSummonedEnemy(final GameScreen game, final int health) throws Exception {
+        EnemyShip target = EnemyShip.createByType(EnemyType.A, CLEAR_X, CLEAR_Y, health);
+        ((List<EnemyShip>) get(game, "summonedEnemies")).add(target);
+        return target;
     }
 
     @SuppressWarnings("unchecked")

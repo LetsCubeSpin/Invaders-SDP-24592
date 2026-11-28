@@ -8,9 +8,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import engine.LanguageManager;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class BossIntroLinesTest {
+
+    private LanguageManager.Language previousLanguage;
+
+    @BeforeEach
+    void useEnglish() {
+        previousLanguage = LanguageManager.getCurrentLanguage();
+        LanguageManager.setCurrentLanguage(LanguageManager.Language.ENGLISH);
+    }
+
+    @AfterEach
+    void restoreLanguage() {
+        LanguageManager.setCurrentLanguage(previousLanguage);
+    }
 
     @Test
     void theBossesOfStageThreeHaveTheirNames() {
@@ -38,6 +54,20 @@ class BossIntroLinesTest {
                         "no empty line and no spaces around: '" + one + "'");
             }
         }
+    }
+
+    @Test
+    void theBossesSpeakKoreanWhenKoreanIsSelected() {
+        LanguageManager.setCurrentLanguage(LanguageManager.Language.KOREAN);
+        assertEquals("아르고스", StoryScript.bossName(0));
+        assertEquals("녹스", StoryScript.bossName(1));
+        assertEquals("하찮은 행성의 벌레가…\n여기까지 오다니.",
+                StoryScript.bossIntroLine(StoryProgress.MID_BOSS_STAGE, 0));
+        assertEquals("생존자는 없다.\n남겨두지 않는다.",
+                StoryScript.bossIntroLine(StoryProgress.MID_BOSS_STAGE, 1));
+        for (int boss = 0; boss <= 1; boss++)
+            assertEquals(2, StoryScript.bossIntroLine(
+                    StoryProgress.MID_BOSS_STAGE, boss).split("\n", -1).length);
     }
 
     @Test

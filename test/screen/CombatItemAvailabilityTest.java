@@ -20,6 +20,7 @@ import java.awt.event.KeyEvent;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -93,7 +94,7 @@ class CombatItemAvailabilityTest {
         manager.checkCollisions(ship);
         assertTrue(items.isEmpty());
         assertTrue(ship.isShieldActive());
-        assertEquals(1, ship.getGrenadeCount());
+        assertEquals(2, ship.getGrenadeCount());
         assertEquals(Set.of("Energy Shield"), manager.getBuffManager().getActiveBuffsRemainingTime().keySet());
         assertFalse(game.damagePlayer(1, "shielded"));
         game.initialize();
@@ -125,6 +126,23 @@ class CombatItemAvailabilityTest {
         buffs.resetAllBuffs(ship);
         assertFalse(ship.isShieldActive());
         assertTrue(buffs.getActiveBuffsRemainingTime().isEmpty());
+    }
+
+    @Test
+    void eachShipCanHoldTwoGrenadesFromItemPickups() {
+        Ship ship = new Ship(100, 100, ShipType.STANDARD);
+        ItemManager items = new ItemManager(520);
+
+        for (int expected : new int[] {1, 2, 2}) {
+            items.spawnItem(new ClusterGrenadeItem(100, 100));
+            items.checkCollisions(ship);
+            assertEquals(expected, ship.getGrenadeCount());
+        }
+
+        Set<Grenade> launched = new HashSet<>();
+        assertTrue(ship.launchGrenade(launched, 50));
+        assertEquals(1, launched.size());
+        assertEquals(1, ship.getGrenadeCount());
     }
 
     @Test

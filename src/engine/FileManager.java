@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
+import engine.LanguageManager;
 
 import engine.DrawManager.SpriteType;
 
@@ -136,8 +137,15 @@ public final class FileManager {
 
 		try {
 			// Font loading.
+			String fontResource = LanguageManager.getCurrentLanguage()
+					== LanguageManager.Language.KOREAN
+							? "fontforko.ttf" : "font.ttf";
 			inputStream = FileManager.class.getClassLoader()
-					.getResourceAsStream("font.ttf");
+					.getResourceAsStream(fontResource);
+			if (inputStream == null)
+				throw new FileNotFoundException("Font resource not found: "
+						+ fontResource);
+
 			font = Font.createFont(Font.TRUETYPE_FONT, inputStream).deriveFont(
 					size);
 		} finally {

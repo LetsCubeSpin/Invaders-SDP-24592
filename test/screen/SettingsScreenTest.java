@@ -2,7 +2,8 @@ package screen;
 
 import audio.AudioManager;
 import engine.Core;
-import engine.DrawManager;
+import engine.LanguageManager;
+import engine.LanguageManager.Language;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Checks the Settings menu: Audio, Controls, Color and Back. */
+/** Checks the Settings menu and its language selection. */
 class SettingsScreenTest {
 
     /** Return codes the Core loop maps to the settings screens. */
@@ -29,10 +30,13 @@ class SettingsScreenTest {
     private final Canvas inputSource = new Canvas();
     private SettingsScreen screen;
     private boolean previousMute;
+    private Language previousLanguage;
 
     @BeforeEach
     void setUp() {
         previousMute = AudioManager.isMuted();
+        previousLanguage = LanguageManager.getCurrentLanguage();
+        LanguageManager.setCurrentLanguage(Language.ENGLISH);
         AudioManager.setMuted(true);
         releaseInput();
         openScreen();
@@ -42,14 +46,22 @@ class SettingsScreenTest {
     void cleanUp() {
         releaseInput();
         AudioManager.setMuted(previousMute);
+        LanguageManager.setCurrentLanguage(previousLanguage);
     }
 
     @Test
-    void menuListsAudioControlsColorAndBackWithoutGameplay() throws Exception {
-        Field options = DrawManager.class.getDeclaredField("SETTINGS_MENU_OPTIONS");
-        options.setAccessible(true);
-        assertArrayEquals(new String[] {"Audio", "Controls", "Color", "Back"},
-                (String[]) options.get(null));
+    void languageOptionTogglesLanguageWithoutLeavingSettings() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            tap(KeyEvent.VK_DOWN);
+        }
+        tap(KeyEvent.VK_SPACE);
+        assertTrue(screen.isRunning);
+        assertEquals(Language.KOREAN, LanguageManager.getCurrentLanguage());
+        assertEquals("설정", LanguageManager.get("settings.title"));
+
+        tap(KeyEvent.VK_SPACE);
+        assertTrue(screen.isRunning);
+        assertEquals(Language.ENGLISH, LanguageManager.getCurrentLanguage());
     }
 
     @Test
@@ -74,8 +86,8 @@ class SettingsScreenTest {
     }
 
     @Test
-    void fourthOptionGoesBackToTheMainMenu() throws Exception {
-        for (int i = 0; i < 3; i++) {
+    void fifthOptionGoesBackToTheMainMenu() throws Exception {
+        for (int i = 0; i < 4; i++) {
             tap(KeyEvent.VK_DOWN);
         }
         tap(KeyEvent.VK_SPACE);
@@ -84,8 +96,8 @@ class SettingsScreenTest {
 
     @Test
     void selectionWrapsAroundInBothDirections() throws Exception {
-        // Down from Back (the fourth option) wraps to Audio.
-        for (int i = 0; i < 4; i++) {
+        // Down from Back (the fifth option) wraps to Audio.
+        for (int i = 0; i < 5; i++) {
             tap(KeyEvent.VK_DOWN);
         }
         tap(KeyEvent.VK_SPACE);
@@ -119,17 +131,16 @@ class SettingsScreenTest {
     }
 
     @Test
-    void noOptionLeadsToTheRemovedGameplaySettings() throws Exception {
-        // The old Gameplay option returned 7 and was the third entry; now that code is the
-        // ship color screen, and the menu only has four entries.
-        int[] seen = new int[4];
-        for (int option = 0; option < seen.length; option++) {
+    void nonLanguageOptionsOpenTheirExpectedScreensOrReturnToMenu() throws Exception {
+        int[] options = {0, 1, 2, 4};
+        int[] seen = new int[options.length];
+        for (int i = 0; i < options.length; i++) {
             openScreen();
-            for (int i = 0; i < option; i++) {
+            for (int j = 0; j < options[i]; j++) {
                 tap(KeyEvent.VK_DOWN);
             }
             tap(KeyEvent.VK_SPACE);
-            seen[option] = screen.returnCode;
+            seen[i] = screen.returnCode;
             assertFalse(screen.isRunning);
         }
         assertArrayEquals(new int[] {AUDIO, CONTROLS, COLOR, MAIN_MENU}, seen);

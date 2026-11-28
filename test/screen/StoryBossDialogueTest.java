@@ -10,8 +10,10 @@ import java.util.function.UnaryOperator;
 import engine.Core;
 import engine.DrawManager;
 import engine.GameState;
+import engine.LanguageManager;
 import entity.ShipType;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import story.StoryProgress;
 import story.StoryRoute;
@@ -37,9 +39,19 @@ class StoryBossDialogueTest {
     private static final int PILOT_TOP = 520 / 2 + 520 / 12 + 19;
     private static final int LEFT = 5;
 
+    private LanguageManager.Language previousLanguage;
+
+    @BeforeEach
+    void useEnglish() {
+        // The texts and the font follow the language the player chose.
+        previousLanguage = LanguageManager.getCurrentLanguage();
+        LanguageManager.setCurrentLanguage(LanguageManager.Language.ENGLISH);
+    }
+
     @AfterEach
-    void stopAudio() {
+    void stopAudioAndRestoreLanguage() {
         audio.AudioManager.stopBGM();
+        LanguageManager.setCurrentLanguage(previousLanguage);
     }
 
     private static GameScreen stage(final int stage, final StoryRoute route) {
@@ -142,16 +154,19 @@ class StoryBossDialogueTest {
     }
 
     @Test
-    void everyBossLineFitsInTwoLinesOfTheBox() {
+    void everyBossLineFitsInTwoLinesOfTheBoxInBothLanguages() {
         DrawManager draw = Core.getDrawManager();
         Screen screen = new Screen(448, 520, 60);
-        draw.initDrawing(screen);
-        int portrait = draw.bossPortraitWidth(screen, HUD_LINE);
-        assertEquals(160, portrait);
-        for (int boss = 0; boss <= 1; boss++) {
-            String line = StoryScript.bossIntroLine(StoryProgress.MID_BOSS_STAGE, boss);
-            assertEquals(2, draw.countDialogueLines(screen, line, portrait),
-                    "boss " + boss + ": '" + line.replace("\n", " / ") + "'");
+        for (LanguageManager.Language language : LanguageManager.Language.values()) {
+            LanguageManager.setCurrentLanguage(language);
+            draw.initDrawing(screen);
+            int portrait = draw.bossPortraitWidth(screen, HUD_LINE);
+            assertEquals(160, portrait);
+            for (int boss = 0; boss <= 1; boss++) {
+                String line = StoryScript.bossIntroLine(StoryProgress.MID_BOSS_STAGE, boss);
+                assertEquals(2, draw.countDialogueLines(screen, line, portrait),
+                        language + ", boss " + boss + ": '" + line.replace("\n", " / ") + "'");
+            }
         }
     }
 }

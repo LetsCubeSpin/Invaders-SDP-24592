@@ -9,12 +9,15 @@ import java.util.function.UnaryOperator;
 import engine.Core;
 import engine.DrawManager;
 import engine.GameState;
+import engine.LanguageManager;
 import entity.ShipType;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import story.StoryProgress;
 import story.StoryRoute;
 import story.StoryScript;
+import story.StorySpeaker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,9 +43,19 @@ class StoryQuestionDialogueTest {
     /** Left edge of the dialogue portraits. */
     private static final int LEFT = 5;
 
+    private LanguageManager.Language previousLanguage;
+
+    @BeforeEach
+    void useEnglish() {
+        // The texts and the font follow the language the player chose.
+        previousLanguage = LanguageManager.getCurrentLanguage();
+        LanguageManager.setCurrentLanguage(LanguageManager.Language.ENGLISH);
+    }
+
     @AfterEach
-    void stopAudio() {
+    void stopAudioAndRestoreLanguage() {
         audio.AudioManager.stopBGM();
+        LanguageManager.setCurrentLanguage(previousLanguage);
     }
 
     private static GameScreen clearedStory(final int stage) {
@@ -130,17 +143,18 @@ class StoryQuestionDialogueTest {
 
     @Test
     void theWomanAsksTheFirstQuestionAndTheSecondAfterTheAnswerZero() {
-        assertEquals(StoryScript.CONTROL_NAME, StoryScript.questionSpeaker(
+        assertEquals(StorySpeaker.CONTROL, StoryScript.questionSpeaker(
                 StoryProgress.FIRST_QUESTION_STAGE, 0));
-        assertEquals(StoryScript.CONTROL_NAME, StoryScript.questionSpeaker(
+        assertEquals(StorySpeaker.CONTROL, StoryScript.questionSpeaker(
                 StoryProgress.MID_BOSS_STAGE, 0));
     }
 
     @Test
     void saraAsksTheSecondQuestionAfterTheAnswerOne() {
-        assertEquals(StoryScript.SERA_NAME, StoryScript.questionSpeaker(
+        assertEquals(StorySpeaker.SERA, StoryScript.questionSpeaker(
                 StoryProgress.MID_BOSS_STAGE, 1));
-        assertEquals("SERA", StoryScript.SERA_NAME);
+        assertEquals("SERA", StorySpeaker.SERA.displayName());
+        assertEquals("CONTROL", StorySpeaker.CONTROL.displayName());
     }
 
     @Test
@@ -289,22 +303,22 @@ class StoryQuestionDialogueTest {
     }
 
     @Test
-    void everyLineOfTheTopConversationsFitsTheBox() {
+    void everyLineOfTheTopConversationsFitsTheBoxInBothLanguages() {
         DrawManager draw = Core.getDrawManager();
         Screen screen = new Screen(448, 520, 60);
-        draw.initDrawing(screen);
         int portrait = (int) Math.round(160 * story.ControllerPortrait.SRC_W
                 / story.ControllerPortrait.SRC_H);
-        for (int stage : new int[] {StoryProgress.FIRST_QUESTION_STAGE,
-                StoryProgress.MID_BOSS_STAGE}) {
-            for (int first = 0; first < 2; first++) {
-                if (StoryScript.questionSpeaker(stage, first) == null) {
-                    continue;
+        for (LanguageManager.Language language : LanguageManager.Language.values()) {
+            LanguageManager.setCurrentLanguage(language);
+            draw.initDrawing(screen);
+            for (int stage : new int[] {StoryProgress.FIRST_QUESTION_STAGE,
+                    StoryProgress.MID_BOSS_STAGE}) {
+                for (int first = 0; first < 2; first++) {
+                    String line = StoryScript.question(stage, first).getText();
+                    int lines = draw.countDialogueLines(screen, line, portrait);
+                    assertTrue(lines <= 5, language + ", stage " + stage
+                            + ", answer " + first + ": " + lines + " lines");
                 }
-                String line = StoryScript.question(stage, first).getText();
-                int lines = draw.countDialogueLines(screen, line, portrait);
-                assertTrue(lines <= 5, "stage " + stage + ", answer " + first
-                        + ": " + lines + " lines");
             }
         }
     }
@@ -328,7 +342,8 @@ class StoryQuestionDialogueTest {
         BufferedImage[] images = new BufferedImage[2];
         for (int i = 0; i < 2; i++) {
             draw.initDrawing(screen);
-            draw.drawStoryQuestionDialogue(screen, "CONTROL", "Two signals at once.",
+            draw.drawStoryQuestionDialogue(screen, StorySpeaker.CONTROL,
+                    "Two signals at once.",
                     20, i == 1, false, HUD_LINE, millis);
             BufferedImage image = (BufferedImage) buffer.get(null);
             images[i] = new BufferedImage(image.getWidth(), image.getHeight(),
