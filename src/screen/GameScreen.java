@@ -258,7 +258,7 @@ public class GameScreen extends Screen {
     private StoryIntro storyIntro = StoryIntro.NONE;
 
     /** Parts of the question asked after a cleared story stage. */
-    private enum StoryQuestionPhase { NONE, TYPING, CHOOSING, DONE }
+    private enum StoryQuestionPhase { NONE, LEAD, TYPING, CHOOSING, DONE }
 
     /** Pixels per frame the ship flies forward while a choice is made. */
     private static final int STORY_FORWARD_SPEED = 3;
@@ -757,14 +757,32 @@ public class GameScreen extends Screen {
 			this.storyQuestion = StoryScript.question(this.level, firstChoice);
 			if (this.storyQuestion == null)
 				return false;
-			this.questionPhase = StoryQuestionPhase.TYPING;
+			// A question may start with a notice, before the character speaks.
+			String lead = this.storyQuestion.getLead();
+			this.questionPhase = lead == null ? StoryQuestionPhase.TYPING
+					: StoryQuestionPhase.LEAD;
 			this.questionTypewriter = new Typewriter(
-					this.storyQuestion.getText(), STORY_CHARS_PER_SECOND);
+					lead == null ? this.storyQuestion.getText() : lead,
+					STORY_CHARS_PER_SECOND);
 			this.questionTypewriter.start(now);
 			return true;
 		}
 
 		switch (this.questionPhase) {
+		case LEAD:
+			if (spacePressed) {
+				if (this.questionTypewriter.isDone(now)) {
+					// The notice is read, now the character speaks.
+					this.questionPhase = StoryQuestionPhase.TYPING;
+					this.questionTypewriter = new Typewriter(
+							this.storyQuestion.getText(),
+							STORY_CHARS_PER_SECOND);
+					this.questionTypewriter.start(now);
+					AudioManager.playSFX("audio/sfx/menu_select.wav");
+				} else
+					this.questionTypewriter.finish();
+			}
+			return true;
 		case TYPING:
 			if (spacePressed) {
 				if (this.questionTypewriter.isDone(now)) {
@@ -825,7 +843,13 @@ public class GameScreen extends Screen {
 				|| this.storyProgress == null ? 0
 				: this.storyProgress.getFirstChoice();
 		String speaker = StoryScript.questionSpeaker(this.level, firstChoice);
-		if (this.questionPhase == StoryQuestionPhase.TYPING) {
+		if (this.questionPhase == StoryQuestionPhase.LEAD) {
+			// The notice comes in the plain box, before anyone speaks.
+			drawManager.drawStoryQuestionBox(this,
+					this.questionTypewriter.getText(),
+					this.questionTypewriter.visibleLength(now),
+					this.questionTypewriter.isDone(now), now);
+		} else if (this.questionPhase == StoryQuestionPhase.TYPING) {
 			if (speaker != null) {
 				// She talks at the top of the board while the line is typed.
 				boolean done = this.questionTypewriter.isDone(now);

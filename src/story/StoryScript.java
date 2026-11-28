@@ -13,6 +13,9 @@ public final class StoryScript {
     /** Name shown above the lines of the woman at the control tower. */
     public static final String CONTROL_NAME = "CONTROL";
 
+    /** Name shown above the lines of Sera, the rescued Swarm scientist. */
+    public static final String SERA_NAME = "SERA";
+
     /**
      * Names of the two bosses of stage 3, shown above their lines, by the
      * answer to the first question that leads to each.
@@ -58,11 +61,15 @@ public final class StoryScript {
                     new String[] { "ABSORB", "DESTROY" },
                     new String[] { "Absorb the core", "Destroy the core" });
 
+    /**
+     * A notice tells who was rescued, then Sera herself speaks and the
+     * question follows.
+     */
     private static final StoryQuestion SECOND_QUESTION_AFTER_RESCUE =
             new StoryQuestion(
                     "Among the people we rescued was a Swarm scientist, "
-                            + "Sera. \"Trust me. I will show you the way to "
-                            + "the mothership.\"",
+                            + "Sera.",
+                    "Trust me. I will show you the way to the mothership.",
                     new String[] { "ESCORT", "INFILTRATE" },
                     new String[] { "Guard the flight home",
                             "Infiltrate the mothership" });
@@ -99,14 +106,14 @@ public final class StoryScript {
      *         top of the board, or null when it is shown in the plain box.
      *         The woman at the control tower asks the first question and the
      *         second one after the first answer 0; the second one after the
-     *         answer 1 is Sera's, who has no portrait yet.
+     *         answer 1 is Sera's, after a notice in the plain box.
      */
     public static String questionSpeaker(final int stage,
             final int firstChoice) {
         if (stage == StoryProgress.FIRST_QUESTION_STAGE)
             return CONTROL_NAME;
-        if (stage == StoryProgress.MID_BOSS_STAGE && firstChoice == 0)
-            return CONTROL_NAME;
+        if (stage == StoryProgress.MID_BOSS_STAGE)
+            return firstChoice == 0 ? CONTROL_NAME : SERA_NAME;
         return null;
     }
 

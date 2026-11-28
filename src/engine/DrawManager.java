@@ -1269,12 +1269,19 @@ public final class DrawManager {
             final long millis) {
         int boxY = topDialogueY(top);
         int boxHeight = topDialogueHeight(screen, top);
+        // Both women are drawn in the same source size, so the frame is too.
         int portraitWidth = (int) Math.round(boxHeight
                 * story.ControllerPortrait.SRC_W
                 / story.ControllerPortrait.SRC_H);
-        story.ControllerPortrait.draw((Graphics2D) backBufferGraphics,
-                DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
-                millis / 1000.0, speaking);
+        if (story.StoryScript.SERA_NAME.equals(speaker)) {
+            story.SeraPortrait.draw((Graphics2D) backBufferGraphics,
+                    DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
+                    millis / 1000.0, speaking);
+        } else {
+            story.ControllerPortrait.draw((Graphics2D) backBufferGraphics,
+                    DIALOGUE_PORTRAIT_X, boxY, portraitWidth, boxHeight,
+                    millis / 1000.0, speaking);
+        }
         backBufferGraphics.setColor(Color.GREEN);
         backBufferGraphics.drawRect(DIALOGUE_PORTRAIT_X, boxY,
                 portraitWidth - 1, boxHeight - 1);

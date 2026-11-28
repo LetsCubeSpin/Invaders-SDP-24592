@@ -54,11 +54,27 @@ class StoryScriptTest {
     }
 
     @Test
+    void afterTheAnswerOneSaraIsIntroducedByANoticeAndThenSpeaks() {
+        StoryQuestion rescue = StoryScript.question(3, 1);
+        assertEquals("Among the people we rescued was a Swarm scientist, Sera.",
+                rescue.getLead());
+        assertEquals("Trust me. I will show you the way to the mothership.",
+                rescue.getText());
+        assertEquals(StoryScript.SERA_NAME,
+                StoryScript.questionSpeaker(StoryProgress.MID_BOSS_STAGE, 1));
+        // The other questions start with their text, without a notice.
+        assertNull(StoryScript.question(3, 0).getLead());
+        assertNull(StoryScript.question(1, 0).getLead());
+    }
+
+    @Test
     void questionTextsAreAscii() {
         for (int stage : new int[] { 1, 3 })
             for (int first = 0; first < 2; first++) {
                 StoryQuestion question = StoryScript.question(stage, first);
                 String all = question.getText();
+                if (question.getLead() != null)
+                    all += question.getLead();
                 for (int choice = 0; choice < 2; choice++)
                     all += question.getTitle(choice) + question.getDetail(choice);
                 for (char c : all.toCharArray())

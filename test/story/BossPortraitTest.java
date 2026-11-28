@@ -57,41 +57,14 @@ class BossPortraitTest {
                 () -> BossPortrait.draw(null, -1, 0, 0, 1, 1, 0));
     }
 
-    /** Reads the traced loops of a boss: each loop is a list of points. */
-    private static java.util.List<int[][]> loops(final String[] chunks) {
-        java.util.List<int[][]> result = new java.util.ArrayList<int[][]>();
-        for (String loop : String.join("", chunks).split(";")) {
-            String[] tok = loop.trim().split("\\s+");
-            assertTrue(tok.length >= 6 && tok.length % 2 == 0,
-                    "a loop has at least three points: " + tok.length);
-            int n = tok.length / 2;
-            int[][] points = new int[n][2];
-            int x = 0;
-            int y = 0;
-            for (int i = 0; i < n; i++) {
-                x += Integer.parseInt(tok[2 * i]);
-                y += Integer.parseInt(tok[2 * i + 1]);
-                points[i][0] = x;
-                points[i][1] = y;
-            }
-            result.add(points);
-        }
-        return result;
-    }
-
     @Test
     void theTracedLinesAreVectorLoopsInsideTheirSpace() {
         String[][] data = {BossPortraitData.LINES_0, BossPortraitData.LINES_1};
         for (int boss = 0; boss < data.length; boss++) {
-            java.util.List<int[][]> loops = loops(data[boss]);
+            java.util.List<int[][]> loops = TracedLoops.parse(data[boss]);
             assertTrue(loops.size() > 20, "boss " + boss + " has loops: " + loops.size());
-            for (int[][] loop : loops) {
-                for (int[] point : loop) {
-                    assertTrue(point[0] >= 0 && point[0] <= BossPortraitData.SPACE
-                            && point[1] >= 0 && point[1] <= BossPortraitData.SPACE,
-                            "point (" + point[0] + "," + point[1] + ") of boss " + boss);
-                }
-            }
+            TracedLoops.assertInside(loops, BossPortraitData.SPACE,
+                    BossPortraitData.SPACE, "boss " + boss);
         }
         assertEquals(BossPortraitData.SPACE, 680);
     }

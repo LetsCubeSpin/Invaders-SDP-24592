@@ -1,6 +1,10 @@
 // 스테이지 3 보스 초상화를 벡터 선으로 그리고, 영상에서 본 움직임(포효, 눈 번쩍임, 고개 기울임)을 입히는 렌더러
 package story;
 
+import static story.PortraitStyle.BACK;
+import static story.PortraitStyle.BRIGHT;
+import static story.PortraitStyle.ease;
+
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -34,8 +38,6 @@ public final class BossPortrait {
     /** Height of the source space. */
     public static final double SRC_H = 340;
 
-    private static final Color BACK = new Color(2, 12, 4);
-    private static final Color BRIGHT = new Color(90, 255, 110);
     private static final Color GLOW = new Color(120, 255, 140);
 
     /** Seconds after which the movements of each boss start again. */
@@ -239,14 +241,8 @@ public final class BossPortrait {
         // Frame, scan lines and flicker stay in screen space.
         g.setTransform(new AffineTransform());
         g.setClip(x, y, w, h);
-        paintOverlay(g, x, y, w, h, seconds);
+        PortraitStyle.paintOverlay(g, x, y, w, h, seconds);
         g.dispose();
-    }
-
-    /** Smooth step from 0 to 1 between two values. */
-    private static double ease(final double v, final double from, final double to) {
-        double a = Math.max(0, Math.min(1, (v - from) / (to - from)));
-        return a * a * (3 - 2 * a);
     }
 
     /**
@@ -263,58 +259,25 @@ public final class BossPortrait {
         return drop * side * follow * (1 - release);
     }
 
-    /** Rendered lines of the bosses: the key is the boss, the jaw level and the width. */
-    private static final java.util.Map<Long, BufferedImage> LAYERS =
-            new java.util.concurrent.ConcurrentHashMap<Long, BufferedImage>();
-    /** Boss and width pairs whose jaw levels are being rendered ahead of time. */
-    private static final java.util.Set<Long> WARMED =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private static final java.util.concurrent.ExecutorService WARMER =
-            java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "boss-portrait-warmer");
-                thread.setDaemon(true);
-                return thread;
-            });
     /** The jaw is drawn in steps of this many source pixels, each rendered once. */
     private static final double JAW_STEP = 0.75;
-    /** Most layers kept, over all sizes; the cache starts again beyond it. */
-    private static final int MAX_LAYERS = 160;
 
     private static int jawLevel(final double drop) {
         return drop < JAW_STEP / 2 ? 0 : (int) Math.round(drop / JAW_STEP);
     }
 
-    private static long layerKey(final int boss, final int level, final int width) {
-        return ((long) boss << 48) | ((long) level << 32) | width;
-    }
+    /** Rendered lines of each boss, for each width and opening of the jaw. */
+    private static final LayerCache[] LAYERS = {
+        new LayerCache((level, width) -> renderLines(0, level * JAW_STEP, width),
+                jawLevel(MAX_DROP[0])),
+        new LayerCache((level, width) -> renderLines(1, level * JAW_STEP, width),
+                jawLevel(MAX_DROP[1]))};
 
-    /**
-     * Draws the lines of the boss from a picture of them made for this width
-     * and this opening of the jaw. Drawing the lines takes longer than a
-     * frame, so each picture is made once and kept; the pictures of all the
-     * openings are made in the background the first time a size is drawn.
-     */
+    /** Draws the lines of the boss from the picture made for this width and jaw. */
     private static void paintLines(final Graphics2D g, final int boss,
             final double drop, final int width) {
-        if (LAYERS.size() > MAX_LAYERS) {
-            LAYERS.clear();
-            WARMED.clear();
-        }
-        if (WARMED.add(layerKey(boss, 0, width))) {
-            WARMER.execute(() -> {
-                for (int level = 1; level <= jawLevel(MAX_DROP[boss]); level++) {
-                    layer(boss, level, width);
-                }
-            });
-        }
-        BufferedImage picture = layer(boss, jawLevel(drop), width);
-        g.drawImage(picture, 0, 0, (int) SRC_W, (int) SRC_H, null);
-    }
-
-    private static BufferedImage layer(final int boss, final int level,
-            final int width) {
-        return LAYERS.computeIfAbsent(layerKey(boss, level, width),
-                key -> renderLines(boss, level * JAW_STEP, width));
+        g.drawImage(LAYERS[boss].get(jawLevel(drop), width), 0, 0,
+                (int) SRC_W, (int) SRC_H, null);
     }
 
     /**
@@ -382,20 +345,5 @@ public final class BossPortrait {
     private static Color withAlpha(final Color c, final double alpha) {
         int a = (int) Math.max(0, Math.min(255, Math.round(alpha * 255)));
         return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
-    }
-
-    /** Scan lines, a slow scan bar and a faint flicker. */
-    private static void paintOverlay(final Graphics2D g, final int x,
-            final int y, final int w, final int h, final double t) {
-        g.setColor(new Color(0, 0, 0, 70));
-        for (int ly = y + 2; ly < y + h; ly += 3) {
-            g.fillRect(x, ly, w, 1);
-        }
-        double barPos = ((t % 5.0) / 5.0) * (h + 40) - 20;
-        g.setColor(new Color(110, 255, 140, 16));
-        g.fillRect(x, (int) (y + barPos), w, 14);
-        double flick = 0.5 + 0.5 * Math.sin(t * 37) * Math.sin(t * 11);
-        g.setColor(new Color(110, 255, 140, (int) (4 + 8 * flick)));
-        g.fillRect(x, y, w, h);
     }
 }

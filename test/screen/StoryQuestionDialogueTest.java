@@ -17,6 +17,7 @@ import story.StoryRoute;
 import story.StoryScript;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -135,8 +136,10 @@ class StoryQuestionDialogueTest {
     }
 
     @Test
-    void theSecondQuestionAfterTheAnswerOneIsAnotherCharactersAndHasNoSpeakerYet() {
-        assertNull(StoryScript.questionSpeaker(StoryProgress.MID_BOSS_STAGE, 1));
+    void saraAsksTheSecondQuestionAfterTheAnswerOne() {
+        assertEquals(StoryScript.SERA_NAME, StoryScript.questionSpeaker(
+                StoryProgress.MID_BOSS_STAGE, 1));
+        assertEquals("SERA", StoryScript.SERA_NAME);
     }
 
     @Test
@@ -202,18 +205,100 @@ class StoryQuestionDialogueTest {
     }
 
     @Test
-    void theSecondQuestionAfterTheAnswerOneKeepsTheWideBoxBelowTheBanner()
+    void theSecondQuestionAfterTheAnswerOneStartsWithANoticeInTheWideBox()
             throws Exception {
-        // HOMECOMING answered the first question with 1: another character.
+        // HOMECOMING answered the first question with 1: Sera was rescued.
         GameScreen screen = clearedStory(StoryProgress.MID_BOSS_STAGE,
                 StoryRoute.HOMECOMING);
         startTyping(screen);
         BufferedImage image = draw(screen);
 
         assertTrue(greenInRow(image, OLD_BOX_TOP, LEFT, 442) > 400,
-                "the wide box is still used");
+                "the notice is in the wide box");
         assertTrue(greenInRow(image, DIALOGUE_TOP, LEFT, LEFT + 110) < 20,
-                "nothing is drawn at the top");
+                "nobody speaks at the top yet");
+    }
+
+    @Test
+    void thenSeraSpeaksAtTheTopLikeTheWomanAtTheControlTower() throws Exception {
+        GameScreen screen = clearedStory(StoryProgress.MID_BOSS_STAGE,
+                StoryRoute.HOMECOMING);
+        startTyping(screen);
+        // Space shows the whole notice, and Space again moves on to Sera.
+        screen.updateStoryQuestion(10, true, false, false, false);
+        screen.updateStoryQuestion(20, false, false, false, false);
+        screen.updateStoryQuestion(30, true, false, false, false);
+        BufferedImage image = draw(screen);
+
+        assertTrue(greenInRow(image, DIALOGUE_TOP, LEFT, LEFT + 110) > 100,
+                "portrait border");
+        assertTrue(greenInRow(image, DIALOGUE_TOP, LEFT + 130, 440) > 250,
+                "text box border");
+        assertTrue(greenInRow(image, OLD_BOX_TOP, LEFT, 442) < 20,
+                "no wide box below the banner");
+    }
+
+    @Test
+    void saraIsNotTheWomanAtTheControlTower() throws Exception {
+        GameScreen sera = clearedStory(StoryProgress.MID_BOSS_STAGE,
+                StoryRoute.HOMECOMING);
+        GameScreen control = clearedStory(StoryProgress.MID_BOSS_STAGE,
+                StoryRoute.HYBRID);
+        startTyping(sera);
+        sera.updateStoryQuestion(10, true, false, false, false);
+        sera.updateStoryQuestion(20, false, false, false, false);
+        sera.updateStoryQuestion(30, true, false, false, false);
+        startTyping(control);
+        BufferedImage first = draw(sera);
+        BufferedImage second = draw(control);
+        int[] a = first.getRGB(LEFT, DIALOGUE_TOP, 115, 160, null, 0, 115);
+        int[] b = second.getRGB(LEFT, DIALOGUE_TOP, 115, 160, null, 0, 115);
+        assertFalse(java.util.Arrays.equals(a, b), "different portraits");
+    }
+
+    @Test
+    void afterHerLineTheChoicesCome() throws Exception {
+        GameScreen screen = clearedStory(StoryProgress.MID_BOSS_STAGE,
+                StoryRoute.HOMECOMING);
+        startTyping(screen);
+        // The notice: show it all, then go on to Sera.
+        screen.updateStoryQuestion(10, true, false, false, false);
+        screen.updateStoryQuestion(20, false, false, false, false);
+        screen.updateStoryQuestion(30, true, false, false, false);
+        screen.updateStoryQuestion(40, false, false, false, false);
+        // Sera's line: show it all, then start choosing.
+        screen.updateStoryQuestion(50, true, false, false, false);
+        screen.updateStoryQuestion(60, false, false, false, false);
+        screen.updateStoryQuestion(70, true, false, false, false);
+        screen.updateStoryQuestion(80, false, false, false, false);
+        BufferedImage image = draw(screen);
+
+        // She stays on screen while the player chooses, and so do the choices.
+        assertTrue(greenInRow(image, DIALOGUE_TOP, LEFT, LEFT + 110) > 100,
+                "portrait border while choosing");
+        int upperBanner = 520 / 2 - 520 / 12;
+        assertTrue(greenInRow(image, upperBanner, 0, 447) > 400, "banner line");
+    }
+
+    @Test
+    void everyLineOfTheTopConversationsFitsTheBox() {
+        DrawManager draw = Core.getDrawManager();
+        Screen screen = new Screen(448, 520, 60);
+        draw.initDrawing(screen);
+        int portrait = (int) Math.round(160 * story.ControllerPortrait.SRC_W
+                / story.ControllerPortrait.SRC_H);
+        for (int stage : new int[] {StoryProgress.FIRST_QUESTION_STAGE,
+                StoryProgress.MID_BOSS_STAGE}) {
+            for (int first = 0; first < 2; first++) {
+                if (StoryScript.questionSpeaker(stage, first) == null) {
+                    continue;
+                }
+                String line = StoryScript.question(stage, first).getText();
+                int lines = draw.countDialogueLines(screen, line, portrait);
+                assertTrue(lines <= 5, "stage " + stage + ", answer " + first
+                        + ": " + lines + " lines");
+            }
+        }
     }
 
     @Test
