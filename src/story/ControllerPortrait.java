@@ -1,29 +1,30 @@
-// 관제탑 여성 직원 초상화를 조종사와 같은 초록 단색 그림체로 그리고, 말할 때 입이 움직이게 하는 렌더러
+// 관제탑 여성 직원 초상화를 조종사와 같은 초록 선 그림체의 벡터로 그리고, 말할 때 입이 움직이게 하는 렌더러
 package story;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Arc2D;
-import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.io.InputStream;
-import javax.imageio.ImageIO;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Portrait of the woman at the control tower, in the same green phosphor
- * style as {@link PilotPortraitTraced}. The drawing is a line image
- * ({@code /story/controller_head.png}) made from a black-on-white sketch:
- * every line glows green on the dark background. The scan lines and the
- * flicker are drawn here, and so are the things that move: the mouth while
- * she speaks, a blink now and then, and a slight drift of the whole picture.
- * All geometry lives in a {@link #SRC_W} x {@link #SRC_H} source space.
+ * style as {@link PilotPortraitTraced}. The lines are vector outlines traced
+ * from a black-on-white sketch ({@link ControllerPortraitData}), so they stay
+ * sharp at any size: every line glows green on the dark background. The scan
+ * lines and the flicker are drawn here, and so are the things that move: the
+ * mouth while she speaks, a blink now and then, and a slight drift of the
+ * whole picture. All geometry lives in a {@link #SRC_W} x {@link #SRC_H}
+ * source space.
  */
 public final class ControllerPortrait {
 
@@ -36,15 +37,35 @@ public final class ControllerPortrait {
     private static final Color BACK = new Color(2, 12, 4);
     private static final Color MOUTH = new Color(8, 58, 22);
 
-    /** Resource that holds the lines, drawn in the 400 x 556 source space. */
-    private static final String HEAD_RESOURCE = "/story/controller_head.png";
-    /** Half-size copy of the lines, used when the portrait is drawn small. */
-    private static final String HEAD_SMALL_RESOURCE = "/story/controller_head_small.png";
-    /** On-screen scale below which the small copy is used. */
-    private static final double SMALL_BELOW = 0.5;
+    /** Longest stretch of a line kept as one piece, so the lip can bend it. */
+    private static final double MAX_SEGMENT = 4;
 
-    /** Lower lip and the chin under it; it drops when the mouth opens. */
-    private static final Rectangle LOWER_LIP = new Rectangle(164, 395, 50, 26);
+    /**
+     * The traced lines of the drawing, one set of loops for each strength of
+     * ink, from faint to strong.
+     */
+    private static final TracedLines[] LINES = traceLevels();
+
+    /**
+     * How bright each strength of ink is drawn, from the dark of the screen
+     * (0) to the full green (1); faint ink is dim, strong ink is bright.
+     */
+    private static final double[] TONES = {0.28, 0.58, 1.0};
+
+    /**
+     * The lower lip and the crease of the chin under it follow the mouth down.
+     * They follow between these columns, and the pull fades out over the
+     * feather at their sides, so the corners of the mouth stay where they are.
+     */
+    private static final double LIP_LEFT = 168;
+    private static final double LIP_RIGHT = 206;
+    private static final double LIP_FEATHER = 8;
+    /** Rows where the pull starts, where it is full, and where it fades out. */
+    private static final double PULL_FROM = 392;
+    private static final double PULL_FULL = 399;
+    private static final double RELEASE_FROM = 418;
+    private static final double RELEASE_TO = 434;
+
     /** Corners of the mouth, on the line where the lips meet. */
     private static final double MOUTH_LEFT = 163;
     private static final double MOUTH_RIGHT = 236;
@@ -59,19 +80,16 @@ public final class ControllerPortrait {
     private static final double BLINK_PERIOD = 3.7;
     private static final double BLINK_LENGTH = 0.16;
 
-    private static final BufferedImage HEAD = load(HEAD_RESOURCE);
-    private static final BufferedImage HEAD_SMALL = load(HEAD_SMALL_RESOURCE);
-
     private ControllerPortrait() {
     }
 
-    private static BufferedImage load(final String resource) {
-        try (InputStream in = ControllerPortrait.class
-                .getResourceAsStream(resource)) {
-            return in == null ? null : ImageIO.read(in);
-        } catch (IOException exception) {
-            return null;
+    private static TracedLines[] traceLevels() {
+        TracedLines[] lines = new TracedLines[ControllerPortraitData.LEVELS.length];
+        for (int i = 0; i < lines.length; i++) {
+            lines[i] = new TracedLines(ControllerPortraitData.LEVELS[i],
+                    ControllerPortraitData.SPACE_WIDTH, SRC_W, MAX_SEGMENT);
         }
+        return lines;
     }
 
     /**
@@ -150,7 +168,7 @@ public final class ControllerPortrait {
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
                 RenderingHints.VALUE_STROKE_PURE);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.setClip(x, y, w, h);
         g.setColor(BACK);
         g.fillRect(x, y, w, h);
@@ -168,8 +186,7 @@ public final class ControllerPortrait {
         g.rotate(0.005 * Math.sin(t * 0.8), SRC_W / 2, SRC_H);
 
         double open = mouthOpening(t, speaking) * MOUTH_OPEN;
-        boolean small = HEAD_SMALL != null && scale < SMALL_BELOW;
-        paintLines(g, small, open);
+        paintLines(g, open, w);
         paintMouth(g, open, px);
         paintBlink(g, blink(t), px);
 
@@ -180,39 +197,118 @@ public final class ControllerPortrait {
         g.dispose();
     }
 
-    /** Draws the line image; the lower lip is lifted out and moved down. */
-    private static void paintLines(final Graphics2D g, final boolean small,
-            final double open) {
-        BufferedImage img = small ? HEAD_SMALL : HEAD;
-        if (img == null) {
-            return;
-        }
-        int w = (int) SRC_W;
-        int h = (int) SRC_H;
-        if (open < 0.4) {
-            g.drawImage(img, 0, 0, w, h, null);
-            return;
-        }
-        int drop = (int) Math.round(open);
-        // Everything except the lip piece and the room it moves into.
-        Rectangle vacated = new Rectangle(LOWER_LIP.x, LOWER_LIP.y,
-                LOWER_LIP.width, LOWER_LIP.height + drop);
-        java.awt.Shape saved = g.getClip();
-        Area rest = new Area(new Rectangle(-50, -50, w + 100, h + 100));
-        rest.subtract(new Area(vacated));
-        g.clip(rest);
-        g.drawImage(img, 0, 0, w, h, null);
-        g.setClip(saved);
+    /** A green between the dark of the screen and the full green. */
+    private static Color tone(final double level) {
+        return new Color(
+                (int) Math.round(BACK.getRed() + level * (BRIGHT.getRed() - BACK.getRed())),
+                (int) Math.round(BACK.getGreen() + level * (BRIGHT.getGreen() - BACK.getGreen())),
+                (int) Math.round(BACK.getBlue() + level * (BRIGHT.getBlue() - BACK.getBlue())));
+    }
 
-        // The lip and chin piece, shifted down by the opening: the clip is
-        // where it lands, and the picture is moved so its own rows show.
-        Rectangle landed = new Rectangle(LOWER_LIP.x, LOWER_LIP.y + drop,
-                LOWER_LIP.width, LOWER_LIP.height);
-        g.clip(landed);
-        g.translate(0, drop);
-        g.drawImage(img, 0, 0, w, h, null);
-        g.translate(0, -drop);
-        g.setClip(saved);
+    /** Smooth step from 0 to 1 between two values. */
+    private static double ease(final double v, final double from,
+            final double to) {
+        double a = Math.max(0, Math.min(1, (v - from) / (to - from)));
+        return a * a * (3 - 2 * a);
+    }
+
+    /**
+     * How far down a point of the lines is moved when the mouth opens: all
+     * the way for the lower lip and the chin crease, none above the lips, and
+     * a smooth stretch in between.
+     */
+    private static double lipShift(final double x, final double y,
+            final double open) {
+        double side = ease(x, LIP_LEFT - LIP_FEATHER, LIP_LEFT)
+                * (1 - ease(x, LIP_RIGHT, LIP_RIGHT + LIP_FEATHER));
+        double follow = ease(y, PULL_FROM, PULL_FULL);
+        double release = ease(y, RELEASE_FROM, RELEASE_TO);
+        return open * side * follow * (1 - release);
+    }
+
+    /** Rendered lines: the key is the opening of the mouth and the width. */
+    private static final Map<Long, BufferedImage> LAYERS =
+            new ConcurrentHashMap<Long, BufferedImage>();
+    /** Widths whose mouth openings are being rendered ahead of time. */
+    private static final Set<Integer> WARMED = ConcurrentHashMap.newKeySet();
+    private static final ExecutorService WARMER =
+            Executors.newSingleThreadExecutor(runnable -> {
+                Thread thread = new Thread(runnable,
+                        "controller-portrait-warmer");
+                thread.setDaemon(true);
+                return thread;
+            });
+    /** The mouth is drawn in steps of this many source pixels, each rendered once. */
+    private static final double MOUTH_STEP = 0.75;
+    /** Most layers kept, over all sizes; the cache starts again beyond it. */
+    private static final int MAX_LAYERS = 160;
+
+    private static int mouthLevel(final double open) {
+        return open < MOUTH_STEP / 2 ? 0 : (int) Math.round(open / MOUTH_STEP);
+    }
+
+    /**
+     * Draws the lines from a picture of them made for this width and this
+     * opening of the mouth. Drawing the lines takes longer than a frame, so
+     * each picture is made once and kept; the pictures of all the openings are
+     * made in the background the first time a width is drawn.
+     */
+    private static void paintLines(final Graphics2D g, final double open,
+            final int width) {
+        if (LAYERS.size() > MAX_LAYERS) {
+            LAYERS.clear();
+            WARMED.clear();
+        }
+        if (WARMED.add(width)) {
+            WARMER.execute(() -> {
+                for (int level = 1; level <= mouthLevel(MOUTH_OPEN); level++) {
+                    layer(level, width);
+                }
+            });
+        }
+        g.drawImage(layer(mouthLevel(open), width), 0, 0, (int) SRC_W,
+                (int) SRC_H, null);
+    }
+
+    private static BufferedImage layer(final int level, final int width) {
+        return LAYERS.computeIfAbsent(((long) level << 32) | width,
+                key -> renderLines(level * MOUTH_STEP, width));
+    }
+
+    /**
+     * Renders the lines: a soft glow, then the faint, the medium and the
+     * strong ink in brighter and brighter green. With the mouth open, the
+     * points of the lines around the lower lip are moved down.
+     */
+    private static BufferedImage renderLines(final double open,
+            final int width) {
+        double scale = width / SRC_W;
+        BufferedImage picture = new BufferedImage(width,
+                (int) Math.ceil(SRC_H * scale), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = picture.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
+                RenderingHints.VALUE_STROKE_PURE);
+        g.scale(scale, scale);
+        float px = (float) (1.0 / scale);
+        Path2D[] paths = new Path2D[LINES.length];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = open < MOUTH_STEP / 2 ? LINES[i].still()
+                    : LINES[i].build((x, y) -> lipShift(x, y, open));
+        }
+        // A soft glow around the strong ink, then each strength of ink from
+        // the faintest to the strongest, each one inside the one before.
+        g.setStroke(new BasicStroke(4f * px, BasicStroke.CAP_ROUND,
+                BasicStroke.JOIN_ROUND));
+        g.setColor(new Color(90, 255, 110, 18));
+        g.draw(paths[paths.length - 1]);
+        for (int i = 0; i < paths.length; i++) {
+            g.setColor(tone(TONES[i]));
+            g.fill(paths[i]);
+        }
+        g.dispose();
+        return picture;
     }
 
     /** The dark inside of the mouth and the teeth, between the lips. */

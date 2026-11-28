@@ -3,14 +3,15 @@ package story;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.Arrays;
-import javax.imageio.ImageIO;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ControllerPortraitTest {
@@ -48,18 +49,73 @@ class ControllerPortraitTest {
         throw new AssertionError("The mouth never opens that far.");
     }
 
+    /** Reads the traced loops of one strength of ink: each loop is a list of points. */
+    private static List<int[][]> loops(final String[] chunks) {
+        List<int[][]> result = new ArrayList<int[][]>();
+        for (String loop : String.join("", chunks).split(";")) {
+            String[] tok = loop.trim().split("\\s+");
+            assertTrue(tok.length >= 6 && tok.length % 2 == 0,
+                    "a loop has at least three points: " + tok.length);
+            int n = tok.length / 2;
+            int[][] points = new int[n][2];
+            int x = 0;
+            int y = 0;
+            for (int i = 0; i < n; i++) {
+                x += Integer.parseInt(tok[2 * i]);
+                y += Integer.parseInt(tok[2 * i + 1]);
+                points[i][0] = x;
+                points[i][1] = y;
+            }
+            result.add(points);
+        }
+        return result;
+    }
+
     @Test
-    void lineImagesAreOnTheClasspathInTheSourceSize() throws Exception {
-        BufferedImage large = ImageIO.read(ControllerPortraitTest.class
-                .getResource("/story/controller_head.png"));
-        BufferedImage small = ImageIO.read(ControllerPortraitTest.class
+    void theTracedLinesAreVectorLoopsInsideTheirSpace() {
+        String[][] levels = ControllerPortraitData.LEVELS;
+        assertTrue(levels.length >= 2, "faint and strong ink are traced apart");
+        for (int level = 0; level < levels.length; level++) {
+            List<int[][]> loops = loops(levels[level]);
+            assertTrue(loops.size() > 50, "level " + level + " has loops: " + loops.size());
+            int points = 0;
+            for (int[][] loop : loops) {
+                points += loop.length;
+                for (int[] point : loop) {
+                    assertTrue(point[0] >= 0 && point[0] <= ControllerPortraitData.SPACE_WIDTH
+                            && point[1] >= 0 && point[1] <= ControllerPortraitData.SPACE_HEIGHT,
+                            "point (" + point[0] + "," + point[1] + ") of level " + level);
+                }
+            }
+            assertTrue(points > 1000, "level " + level + " has points: " + points);
+        }
+        // The space is the source space, drawn twice as fine.
+        assertEquals(2 * W, ControllerPortraitData.SPACE_WIDTH);
+        assertEquals(2 * H, ControllerPortraitData.SPACE_HEIGHT);
+    }
+
+    @Test
+    void noPictureFileIsNeededAnymore() {
+        assertNull(ControllerPortraitTest.class.getResource("/story/controller_head.png"));
+        assertNull(ControllerPortraitTest.class
                 .getResource("/story/controller_head_small.png"));
-        assertNotNull(large);
-        assertNotNull(small);
-        assertEquals(W, large.getWidth());
-        assertEquals(H, large.getHeight());
-        assertEquals(W / 2, small.getWidth());
-        assertEquals(H / 2, small.getHeight());
+    }
+
+    @Test
+    void theLinesStayVisibleAtAnySize() {
+        // Vector lines are drawn again at each size instead of stretched, so
+        // a big portrait has as many lines as a small one.
+        for (int width : new int[] {80, 115, 200, 400, 800}) {
+            int bright = 0;
+            BufferedImage img = render(width, 0.5, false);
+            for (int p : pixels(img)) {
+                if (((p >> 8) & 255) > 140) {
+                    bright++;
+                }
+            }
+            double share = bright / (double) (img.getWidth() * img.getHeight());
+            assertTrue(share > 0.03 && share < 0.45, "width " + width + ": " + share);
+        }
     }
 
     @Test

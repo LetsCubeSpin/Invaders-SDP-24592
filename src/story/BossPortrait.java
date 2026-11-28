@@ -1,26 +1,22 @@
-// 스테이지 3 보스 초상화를 초록 선 그림체로 그리고, 영상에서 본 움직임(포효, 눈 번쩍임, 고개 기울임)을 입히는 렌더러
+// 스테이지 3 보스 초상화를 벡터 선으로 그리고, 영상에서 본 움직임(포효, 눈 번쩍임, 고개 기울임)을 입히는 렌더러
 package story;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
-import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.io.InputStream;
-import javax.imageio.ImageIO;
 
 /**
  * Portraits of the two bosses of stage 3, one for each answer to the first
  * story question, in the same green phosphor style as the pilot and the woman
- * at the control tower. The lines come from a drawing
- * ({@code /story/boss_0.png} and {@code /story/boss_1.png}); the scan lines,
+ * at the control tower. The lines are vector outlines traced from a drawing
+ * ({@link BossPortraitData}), so they stay sharp at any size; the scan lines,
  * the flicker and the movements are drawn here. The movements follow the two
  * reference videos:
  * <ul>
@@ -33,27 +29,27 @@ import javax.imageio.ImageIO;
  */
 public final class BossPortrait {
 
-    /** Width of the source space, the size of the line images. */
+    /** Width of the source space. */
     public static final double SRC_W = 340;
     /** Height of the source space. */
     public static final double SRC_H = 340;
 
     private static final Color BACK = new Color(2, 12, 4);
+    private static final Color BRIGHT = new Color(90, 255, 110);
     private static final Color GLOW = new Color(120, 255, 140);
-
-    private static final String[] RESOURCES = {
-        "/story/boss_0.png", "/story/boss_1.png"};
-    /** Half-size copies, used when a portrait is drawn small. */
-    private static final String[] SMALL_RESOURCES = {
-        "/story/boss_0_small.png", "/story/boss_1_small.png"};
-    /** On-screen scale below which the small copy is used. */
-    private static final double SMALL_BELOW = 0.65;
 
     /** Seconds after which the movements of each boss start again. */
     private static final double[] LOOP_SECONDS = {7.0, 4.0};
 
-    private static final BufferedImage[] LINES = {load(0), load(1)};
-    private static final BufferedImage[] SMALL = {loadSmall(0), loadSmall(1)};
+    /** Longest stretch of a line kept as one piece, so the jaw can bend it. */
+    private static final double MAX_SEGMENT = 5;
+
+    /** The traced lines of each boss, as loops around the ink. */
+    private static final TracedLines[] LINES = {
+        new TracedLines(BossPortraitData.LINES_0, BossPortraitData.SPACE,
+                SRC_W, MAX_SEGMENT),
+        new TracedLines(BossPortraitData.LINES_1, BossPortraitData.SPACE,
+                SRC_W, MAX_SEGMENT)};
 
     /**
      * Where the jaw of each boss moves, as left edge, right edge, the rows
@@ -66,6 +62,8 @@ public final class BossPortrait {
     private static final int[][] JAW_ZONES = {
         {143, 262, 152, 212, -1, -1},
         {137, 227, 212, 236, 296, 322}};
+    /** Pixels over which the jaw's pull fades out at its left and right edges. */
+    private static final int FEATHER = 14;
     /** Most the jaws drop, in source pixels. */
     private static final double[] MAX_DROP = {17, 11};
 
@@ -95,26 +93,9 @@ public final class BossPortrait {
         return path;
     }
 
-    private static BufferedImage read(final String resource) {
-        try (InputStream in = BossPortrait.class
-                .getResourceAsStream(resource)) {
-            return in == null ? null : ImageIO.read(in);
-        } catch (IOException exception) {
-            return null;
-        }
-    }
-
-    private static BufferedImage load(final int boss) {
-        return read(RESOURCES[boss]);
-    }
-
-    private static BufferedImage loadSmall(final int boss) {
-        return read(SMALL_RESOURCES[boss]);
-    }
-
     /** @return how many bosses have a portrait, one for each first answer. */
     public static int count() {
-        return RESOURCES.length;
+        return LOOP_SECONDS.length;
     }
 
     /**
@@ -127,7 +108,7 @@ public final class BossPortrait {
     }
 
     private static int checkBoss(final int boss) {
-        if (boss < 0 || boss >= RESOURCES.length)
+        if (boss < 0 || boss >= LOOP_SECONDS.length)
             throw new IllegalArgumentException("boss must be 0 or 1.");
         return boss;
     }
@@ -234,8 +215,8 @@ public final class BossPortrait {
         Graphics2D g = (Graphics2D) g0.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                 RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
+                RenderingHints.VALUE_STROKE_PURE);
         g.setClip(x, y, w, h);
         g.setColor(BACK);
         g.fillRect(x, y, w, h);
@@ -252,7 +233,7 @@ public final class BossPortrait {
         g.rotate(tilt(boss, seconds), SRC_W / 2, SRC_H - 10);
 
         double drop = jawOpening(boss, seconds) * MAX_DROP[boss];
-        paintLines(g, boss, scale, drop);
+        paintLines(g, boss, drop, w);
         paintFlashes(g, boss, roar, eyeFlash(boss, seconds));
 
         // Frame, scan lines and flicker stay in screen space.
@@ -268,116 +249,109 @@ public final class BossPortrait {
         return a * a * (3 - 2 * a);
     }
 
-    /** How far down the picture is moved at a row, when the jaw is dropped. */
-    private static double jawShift(final int[] zone, final double row,
-            final double drop) {
-        double follow = ease(row, zone[2], zone[3]);
-        double release = zone[4] < 0 ? 0 : ease(row, zone[4], zone[5]);
-        return drop * follow * (1 - release);
+    /**
+     * How far down a point of the lines is moved when the jaw is dropped: all
+     * the way inside the jaw, none above it, and a smooth stretch in between;
+     * the pull also fades out over the feather at the sides of the jaw.
+     */
+    private static double jawShift(final int[] zone, final double x,
+            final double y, final double drop) {
+        double side = ease(x, zone[0] - FEATHER, zone[0])
+                * (1 - ease(x, zone[1], zone[1] + FEATHER));
+        double follow = ease(y, zone[2], zone[3]);
+        double release = zone[4] < 0 ? 0 : ease(y, zone[4], zone[5]);
+        return drop * side * follow * (1 - release);
+    }
+
+    /** Rendered lines of the bosses: the key is the boss, the jaw level and the width. */
+    private static final java.util.Map<Long, BufferedImage> LAYERS =
+            new java.util.concurrent.ConcurrentHashMap<Long, BufferedImage>();
+    /** Boss and width pairs whose jaw levels are being rendered ahead of time. */
+    private static final java.util.Set<Long> WARMED =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.ExecutorService WARMER =
+            java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "boss-portrait-warmer");
+                thread.setDaemon(true);
+                return thread;
+            });
+    /** The jaw is drawn in steps of this many source pixels, each rendered once. */
+    private static final double JAW_STEP = 0.75;
+    /** Most layers kept, over all sizes; the cache starts again beyond it. */
+    private static final int MAX_LAYERS = 160;
+
+    private static int jawLevel(final double drop) {
+        return drop < JAW_STEP / 2 ? 0 : (int) Math.round(drop / JAW_STEP);
+    }
+
+    private static long layerKey(final int boss, final int level, final int width) {
+        return ((long) boss << 48) | ((long) level << 32) | width;
     }
 
     /**
-     * Draws the lines. While the jaw is dropped, the strip of picture it
-     * belongs to is drawn in thin bands, each moved down a little more than
-     * the one above, so the jaw slides open and nothing is cut.
+     * Draws the lines of the boss from a picture of them made for this width
+     * and this opening of the jaw. Drawing the lines takes longer than a
+     * frame, so each picture is made once and kept; the pictures of all the
+     * openings are made in the background the first time a size is drawn.
      */
     private static void paintLines(final Graphics2D g, final int boss,
-            final double scale, final double drop) {
-        boolean small = SMALL[boss] != null && scale < SMALL_BELOW;
-        BufferedImage img = small ? SMALL[boss] : LINES[boss];
-        if (img == null) {
-            return;
+            final double drop, final int width) {
+        if (LAYERS.size() > MAX_LAYERS) {
+            LAYERS.clear();
+            WARMED.clear();
         }
-        int w = (int) SRC_W;
-        int h = (int) SRC_H;
-        if (drop < 0.5) {
-            g.drawImage(img, 0, 0, w, h, null);
-            return;
+        if (WARMED.add(layerKey(boss, 0, width))) {
+            WARMER.execute(() -> {
+                for (int level = 1; level <= jawLevel(MAX_DROP[boss]); level++) {
+                    layer(boss, level, width);
+                }
+            });
         }
-        int[] zone = JAW_ZONES[boss];
-        int left = Math.max(0, zone[0] - FEATHER);
-        int right = Math.min(w, zone[1] + FEATHER);
-        int top = zone[2];
-        int stripW = right - left;
-        int stripH = h - top;
-        double f = img.getWidth() / SRC_W;
-
-        // The strip as it was, and as it is with the jaw dropped.
-        BufferedImage still = new BufferedImage(stripW, stripH,
-                BufferedImage.TYPE_INT_ARGB);
-        BufferedImage moved = new BufferedImage(stripW, stripH,
-                BufferedImage.TYPE_INT_ARGB);
-        Graphics2D gs = still.createGraphics();
-        gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        // Only the two edges of the still strip are needed: in between the
-        // moved strip is all there is.
-        int edgeSrc = (int) Math.round(FEATHER * f);
-        int srcTop = (int) Math.round(top * f);
-        int srcBottom = (int) Math.round(h * f);
-        gs.drawImage(img, 0, 0, FEATHER, stripH, (int) Math.round(left * f),
-                srcTop, (int) Math.round(left * f) + edgeSrc, srcBottom, null);
-        gs.drawImage(img, stripW - FEATHER, 0, stripW, stripH,
-                (int) Math.round(right * f) - edgeSrc, srcTop,
-                (int) Math.round(right * f), srcBottom, null);
-        gs.dispose();
-        Graphics2D gm = moved.createGraphics();
-        gm.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        int band = 2;
-        for (int row = top; row < h; row += band) {
-            int next = Math.min(h, row + band);
-            double y0 = row + jawShift(zone, row, drop) - top;
-            double y1 = next + jawShift(zone, next, drop) - top;
-            gm.drawImage(img, 0, (int) Math.floor(y0), stripW,
-                    (int) Math.ceil(y1), (int) Math.round(left * f),
-                    (int) Math.round(row * f), (int) Math.round(right * f),
-                    (int) Math.round(next * f), null);
-        }
-        gm.dispose();
-
-        // Fade the moved strip in over its edges and the still one out, so
-        // no edge of the strip shows where it meets the rest of the picture.
-        fade(moved, FEATHER, false);
-        fade(still, FEATHER, true);
-
-        // Everything except the strip, then the two layers of the strip.
-        Shape saved = g.getClip();
-        Area rest = new Area(new Rectangle2D.Double(-60, -60, w + 120, h + 120));
-        rest.subtract(new Area(new Rectangle2D.Double(left, top, stripW, stripH)));
-        g.clip(rest);
-        g.drawImage(img, 0, 0, w, h, null);
-        g.setClip(saved);
-        g.drawImage(still, left, top, null);
-        g.drawImage(moved, left, top, null);
+        BufferedImage picture = layer(boss, jawLevel(drop), width);
+        g.drawImage(picture, 0, 0, (int) SRC_W, (int) SRC_H, null);
     }
 
-    /** Pixels over which the moved strip fades into the rest of the picture. */
-    private static final int FEATHER = 14;
+    private static BufferedImage layer(final int boss, final int level,
+            final int width) {
+        return LAYERS.computeIfAbsent(layerKey(boss, level, width),
+                key -> renderLines(boss, level * JAW_STEP, width));
+    }
 
     /**
-     * Multiplies the alpha of an image by a mask that rises over the feather
-     * on its left and right edges; when inverted, by the opposite mask.
+     * Renders the lines of the boss: a soft glow, then the ink itself, and a
+     * thin edge so even the finest lines stay visible when drawn small. With
+     * the jaw dropped, the points of the lines around it are moved down.
      */
-    private static void fade(final BufferedImage img, final int feather,
-            final boolean inverted) {
-        int w = img.getWidth();
-        for (int x = 0; x < feather; x++) {
-            fadeColumn(img, x, x, feather, inverted);
-            fadeColumn(img, w - 1 - x, x, feather, inverted);
-        }
-    }
-
-    private static void fadeColumn(final BufferedImage img, final int x,
-            final int edge, final int feather, final boolean inverted) {
-        double mask = Math.max(0, Math.min(1, (double) edge / feather));
-        mask = mask * mask * (3 - 2 * mask);
-        double keep = inverted ? 1 - mask : mask;
-        for (int y = 0; y < img.getHeight(); y++) {
-            int argb = img.getRGB(x, y);
-            int alpha = (int) Math.round((argb >>> 24) * keep);
-            img.setRGB(x, y, (alpha << 24) | (argb & 0xFFFFFF));
-        }
+    private static BufferedImage renderLines(final int boss, final double drop,
+            final int width) {
+        BufferedImage picture = new BufferedImage(width, width,
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = picture.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
+                RenderingHints.VALUE_STROKE_PURE);
+        double scale = width / SRC_W;
+        g.scale(scale, scale);
+        float px = (float) (1.0 / scale);
+        int[] zone = JAW_ZONES[boss];
+        Path2D path = drop < JAW_STEP / 2 ? LINES[boss].still()
+                : LINES[boss].build((x, y) -> jawShift(zone, x, y, drop));
+        g.setStroke(new BasicStroke(6.5f * px, BasicStroke.CAP_BUTT,
+                BasicStroke.JOIN_BEVEL));
+        g.setColor(new Color(90, 255, 110, 22));
+        g.draw(path);
+        g.setStroke(new BasicStroke(3.2f * px, BasicStroke.CAP_BUTT,
+                BasicStroke.JOIN_BEVEL));
+        g.setColor(new Color(90, 255, 110, 46));
+        g.draw(path);
+        g.setColor(BRIGHT);
+        g.fill(path);
+        g.setStroke(new BasicStroke(1.1f * px, BasicStroke.CAP_BUTT,
+                BasicStroke.JOIN_BEVEL));
+        g.draw(path);
+        g.dispose();
+        return picture;
     }
 
     /** Glow inside the mouth and in the eyes while the boss roars or flashes. */
@@ -399,7 +373,7 @@ public final class BossPortrait {
                 g.setColor(withAlpha(GLOW, 0.55 * eyes));
                 g.fill(eye);
                 g.setColor(withAlpha(GLOW, 0.20 * eyes));
-                g.setStroke(new java.awt.BasicStroke(5f));
+                g.setStroke(new BasicStroke(5f));
                 g.draw(eye);
             }
         }

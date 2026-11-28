@@ -3,7 +3,6 @@ package story;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,7 +10,6 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
-import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
 class BossPortraitTest {
@@ -59,20 +57,74 @@ class BossPortraitTest {
                 () -> BossPortrait.draw(null, -1, 0, 0, 1, 1, 0));
     }
 
-    @Test
-    void lineImagesAreOnTheClasspathInTheSourceSize() throws Exception {
-        for (int boss = 0; boss < BossPortrait.count(); boss++) {
-            BufferedImage large = ImageIO.read(BossPortraitTest.class
-                    .getResource("/story/boss_" + boss + ".png"));
-            BufferedImage small = ImageIO.read(BossPortraitTest.class
-                    .getResource("/story/boss_" + boss + "_small.png"));
-            assertNotNull(large, "boss " + boss);
-            assertNotNull(small, "small boss " + boss);
-            assertEquals(SIZE, large.getWidth());
-            assertEquals(SIZE, large.getHeight());
-            assertEquals(SIZE / 2, small.getWidth());
-            assertEquals(SIZE / 2, small.getHeight());
+    /** Reads the traced loops of a boss: each loop is a list of points. */
+    private static java.util.List<int[][]> loops(final String[] chunks) {
+        java.util.List<int[][]> result = new java.util.ArrayList<int[][]>();
+        for (String loop : String.join("", chunks).split(";")) {
+            String[] tok = loop.trim().split("\\s+");
+            assertTrue(tok.length >= 6 && tok.length % 2 == 0,
+                    "a loop has at least three points: " + tok.length);
+            int n = tok.length / 2;
+            int[][] points = new int[n][2];
+            int x = 0;
+            int y = 0;
+            for (int i = 0; i < n; i++) {
+                x += Integer.parseInt(tok[2 * i]);
+                y += Integer.parseInt(tok[2 * i + 1]);
+                points[i][0] = x;
+                points[i][1] = y;
+            }
+            result.add(points);
         }
+        return result;
+    }
+
+    @Test
+    void theTracedLinesAreVectorLoopsInsideTheirSpace() {
+        String[][] data = {BossPortraitData.LINES_0, BossPortraitData.LINES_1};
+        for (int boss = 0; boss < data.length; boss++) {
+            java.util.List<int[][]> loops = loops(data[boss]);
+            assertTrue(loops.size() > 20, "boss " + boss + " has loops: " + loops.size());
+            for (int[][] loop : loops) {
+                for (int[] point : loop) {
+                    assertTrue(point[0] >= 0 && point[0] <= BossPortraitData.SPACE
+                            && point[1] >= 0 && point[1] <= BossPortraitData.SPACE,
+                            "point (" + point[0] + "," + point[1] + ") of boss " + boss);
+                }
+            }
+        }
+        assertEquals(BossPortraitData.SPACE, 680);
+    }
+
+    @Test
+    void noPictureFileIsNeededAnymore() {
+        for (int boss = 0; boss < BossPortrait.count(); boss++) {
+            assertEquals(null, BossPortraitTest.class
+                    .getResource("/story/boss_" + boss + ".png"), "boss " + boss);
+        }
+    }
+
+    @Test
+    void theLinesStayVisibleAtAnySize() {
+        // Vector lines are drawn again at each size instead of stretched, so
+        // a big portrait has as many lines as a small one.
+        for (int boss = 0; boss < BossPortrait.count(); boss++) {
+            for (int size : new int[] {120, 160, 340, 680}) {
+                double share = brightShare(render(boss, size, 0.3));
+                assertTrue(share > 0.02 && share < 0.35,
+                        "boss " + boss + " at " + size + ": " + share);
+            }
+        }
+    }
+
+    private static double brightShare(final BufferedImage img) {
+        int bright = 0;
+        for (int p : pixels(img)) {
+            if (((p >> 8) & 255) > 140) {
+                bright++;
+            }
+        }
+        return bright / (double) (img.getWidth() * img.getHeight());
     }
 
     @Test
