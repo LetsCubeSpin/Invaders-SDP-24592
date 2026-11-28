@@ -844,35 +844,27 @@ public class GameScreen extends Screen {
 				: this.storyProgress.getFirstChoice();
 		String speaker = StoryScript.questionSpeaker(this.level, firstChoice);
 		if (this.questionPhase == StoryQuestionPhase.LEAD) {
-			// The notice comes in the plain box, before anyone speaks.
-			drawManager.drawStoryQuestionBox(this,
+			// A notice comes first, in a wide box where the character will
+			// speak.
+			drawManager.drawStoryNotice(this,
 					this.questionTypewriter.getText(),
 					this.questionTypewriter.visibleLength(now),
-					this.questionTypewriter.isDone(now), now);
+					this.questionTypewriter.isDone(now), SEPARATION_LINE_HEIGHT,
+					now);
 		} else if (this.questionPhase == StoryQuestionPhase.TYPING) {
-			if (speaker != null) {
-				// She talks at the top of the board while the line is typed.
-				boolean done = this.questionTypewriter.isDone(now);
-				drawManager.drawStoryQuestionDialogue(this, speaker,
-						this.questionTypewriter.getText(),
-						this.questionTypewriter.visibleLength(now), !done,
-						done, SEPARATION_LINE_HEIGHT, now);
-			} else {
-				drawManager.drawStoryQuestionBox(this,
-						this.questionTypewriter.getText(),
-						this.questionTypewriter.visibleLength(now),
-						this.questionTypewriter.isDone(now), now);
-			}
+			// She talks at the top of the board while the line is typed.
+			boolean done = this.questionTypewriter.isDone(now);
+			drawManager.drawStoryQuestionDialogue(this, speaker,
+					this.questionTypewriter.getText(),
+					this.questionTypewriter.visibleLength(now), !done,
+					done, SEPARATION_LINE_HEIGHT, now);
 		} else if (this.questionPhase == StoryQuestionPhase.CHOOSING
 				|| this.questionPhase == StoryQuestionPhase.DONE) {
 			// While the player chooses she stays on screen with her whole
 			// line, her mouth shut, so the question is not forgotten.
-			if (speaker != null) {
-				String line = this.questionTypewriter.getText();
-				drawManager.drawStoryQuestionDialogue(this, speaker, line,
-						line.length(), false, false, SEPARATION_LINE_HEIGHT,
-						now);
-			}
+			String line = this.questionTypewriter.getText();
+			drawManager.drawStoryQuestionDialogue(this, speaker, line,
+					line.length(), false, false, SEPARATION_LINE_HEIGHT, now);
 			drawManager.drawStoryChoices(this,
 					new String[] { this.storyQuestion.getTitle(0),
 							this.storyQuestion.getTitle(1) },

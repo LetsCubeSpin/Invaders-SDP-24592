@@ -18,6 +18,7 @@ import story.StoryScript;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -205,7 +206,7 @@ class StoryQuestionDialogueTest {
     }
 
     @Test
-    void theSecondQuestionAfterTheAnswerOneStartsWithANoticeInTheWideBox()
+    void theSecondQuestionAfterTheAnswerOneStartsWithANoticeInAWideBoxAtTheTop()
             throws Exception {
         // HOMECOMING answered the first question with 1: Sera was rescued.
         GameScreen screen = clearedStory(StoryProgress.MID_BOSS_STAGE,
@@ -213,10 +214,14 @@ class StoryQuestionDialogueTest {
         startTyping(screen);
         BufferedImage image = draw(screen);
 
-        assertTrue(greenInRow(image, OLD_BOX_TOP, LEFT, 442) > 400,
-                "the notice is in the wide box");
-        assertTrue(greenInRow(image, DIALOGUE_TOP, LEFT, LEFT + 110) < 20,
-                "nobody speaks at the top yet");
+        // One wide box where Sera will speak, right under the HUD line.
+        assertTrue(greenInRow(image, DIALOGUE_TOP, LEFT, 442) > 400,
+                "the notice is in one wide box at the top");
+        assertTrue(greenInRow(image, OLD_BOX_TOP, LEFT, 442) < 20,
+                "nothing below the banner");
+        // No portrait yet: the border where the portrait would end is not there.
+        assertNotEquals(GREEN, image.getRGB(LEFT + 114, DIALOGUE_TOP + 120) & 0xFFFFFF,
+                "no portrait frame inside the box");
     }
 
     @Test
@@ -236,6 +241,9 @@ class StoryQuestionDialogueTest {
                 "text box border");
         assertTrue(greenInRow(image, OLD_BOX_TOP, LEFT, 442) < 20,
                 "no wide box below the banner");
+        // Her portrait is framed: the frame ends where the notice had none.
+        assertEquals(GREEN, image.getRGB(LEFT + 114, DIALOGUE_TOP + 120) & 0xFFFFFF,
+                "portrait frame");
     }
 
     @Test

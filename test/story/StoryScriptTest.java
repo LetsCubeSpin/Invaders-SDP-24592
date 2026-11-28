@@ -68,6 +68,15 @@ class StoryScriptTest {
     }
 
     @Test
+    void everyQuestionHasASpeakerAndNoOtherStageHas() {
+        for (int stage = 1; stage <= StoryProgress.TOTAL_STAGES; stage++)
+            for (int first = 0; first < 2; first++)
+                assertEquals(StoryScript.question(stage, first) != null,
+                        StoryScript.questionSpeaker(stage, first) != null,
+                        "stage " + stage + ", answer " + first);
+    }
+
+    @Test
     void questionTextsAreAscii() {
         for (int stage : new int[] { 1, 3 })
             for (int first = 0; first < 2; first++) {

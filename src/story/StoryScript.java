@@ -102,11 +102,11 @@ public final class StoryScript {
      * @param firstChoice
      *            Answer to the first question, 0 or 1. Only the second
      *            question depends on it.
-     * @return Who asks the question after the stage as a conversation at the
-     *         top of the board, or null when it is shown in the plain box.
-     *         The woman at the control tower asks the first question and the
+     * @return Who asks the question after the stage, as a conversation at the
+     *         top of the board, or null when the stage has no question. The
+     *         woman at the control tower asks the first question and the
      *         second one after the first answer 0; the second one after the
-     *         answer 1 is Sera's, after a notice in the plain box.
+     *         answer 1 is Sera's, after a notice.
      */
     public static String questionSpeaker(final int stage,
             final int firstChoice) {

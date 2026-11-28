@@ -14,7 +14,10 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LinearGradientPaint;
+import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -1302,25 +1305,30 @@ public final class DrawManager {
     }
 
     /**
-     * Draws a story question typed out in one wide box over the game screen.
+     * Draws a notice, a line of narration, typed out in one wide box at the
+     * top of the game board: the place where the character speaks next, so
+     * her portrait and line replace the box.
      *
      * @param screen
      *            Screen to draw on.
      * @param text
-     *            Full text of the question.
+     *            Full text of the notice.
      * @param visibleChars
      *            Number of characters shown so far.
      * @param done
      *            Whether the whole text is shown, which shows the prompt.
+     * @param top
+     *            Height of the line under the HUD.
      * @param millis
      *            Current time, for the blinking prompt.
      */
-    public void drawStoryQuestionBox(final Screen screen, final String text,
-            final int visibleChars, final boolean done, final long millis) {
+    public void drawStoryNotice(final Screen screen, final String text,
+            final int visibleChars, final boolean done, final int top,
+            final long millis) {
         int boxX = DIALOGUE_PORTRAIT_X;
-        int boxY = dialogueBoxY(screen);
+        int boxY = topDialogueY(top);
         int boxWidth = screen.getWidth() - 2 * DIALOGUE_PORTRAIT_X;
-        int boxHeight = dialogueBoxHeight(screen);
+        int boxHeight = topDialogueHeight(screen, top);
         backBufferGraphics.setColor(Color.BLACK);
         backBufferGraphics.fillRect(boxX, boxY, boxWidth, boxHeight);
         backBufferGraphics.setColor(Color.GREEN);
@@ -1962,13 +1970,81 @@ public final class DrawManager {
     public void completeDrawing(final Screen screen) {
         try {
             if (graphics != null)
-                graphics.drawImage(backBuffer, frame.getInsets().left,
-                        frame.getInsets().top, frame);
+                showBackBuffer();
         } finally {
             backBufferGraphics.dispose();
             if (graphics != null)
                 graphics.dispose();
         }
+    }
+
+    /** The back buffer made as big as the window, when the display is scaled. */
+    private static BufferedImage scaledBackBuffer;
+
+    /**
+     * Shows the back buffer in the window. When the display is scaled by a
+     * fraction (125 % is common on Windows), Java scales the picture itself
+     * as it copies it to the window, and a thin line, such as the border of a
+     * dialogue box, steps up or down by a pixel here and there. So then the
+     * picture is scaled here, evenly over its whole size, and copied to the
+     * window as it is.
+     */
+    private static void showBackBuffer() {
+        Insets insets = frame.getInsets();
+        if (!(graphics instanceof Graphics2D window)) {
+            graphics.drawImage(backBuffer, insets.left, insets.top, frame);
+            return;
+        }
+        double scaleX = window.getTransform().getScaleX();
+        double scaleY = window.getTransform().getScaleY();
+        if (isWholeScale(scaleX) && isWholeScale(scaleY)) {
+            graphics.drawImage(backBuffer, insets.left, insets.top, frame);
+            return;
+        }
+        scaledBackBuffer = scaleNearest(backBuffer,
+                (int) Math.round(backBuffer.getWidth() * scaleX),
+                (int) Math.round(backBuffer.getHeight() * scaleY),
+                scaledBackBuffer);
+        Graphics2D device = (Graphics2D) window.create();
+        // Pixels of the display, with no scaling of Java's.
+        device.setTransform(new AffineTransform());
+        device.drawImage(scaledBackBuffer, (int) Math.round(insets.left * scaleX),
+                (int) Math.round(insets.top * scaleY), null);
+        device.dispose();
+    }
+
+    /** @return whether a display scale is a whole number, such as 1 or 2. */
+    static boolean isWholeScale(final double scale) {
+        return Math.abs(scale - Math.rint(scale)) < 1e-6;
+    }
+
+    /**
+     * Scales a picture to a size, each pixel becoming the same number of
+     * pixels all along a line, so the lines of the picture stay straight.
+     *
+     * @param source
+     *            Picture to scale.
+     * @param width
+     *            Width of the result.
+     * @param height
+     *            Height of the result.
+     * @param reuse
+     *            An earlier result to draw into when it has the same size, or
+     *            null.
+     * @return the scaled picture.
+     */
+    static BufferedImage scaleNearest(final BufferedImage source,
+            final int width, final int height, final BufferedImage reuse) {
+        BufferedImage target = reuse != null && reuse.getWidth() == width
+                && reuse.getHeight() == height ? reuse
+                : new BufferedImage(width, height,
+                        BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = target.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g.drawImage(source, 0, 0, width, height, null);
+        g.dispose();
+        return target;
     }
 
     public void drawNameInput(final Screen screen, final char[] name,
